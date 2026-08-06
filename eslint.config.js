@@ -9,6 +9,7 @@ export default [
   {
     files: ['**/*.svelte'],
     languageOptions: { parserOptions: { parser: tseslint.parser } },
+    rules: { 'no-undef': 'off' },
   },
   { ignores: ['dist/', 'node_modules/', 'playwright-report/', 'test-results/'] },
 ]

@@ -1,8 +1,8 @@
 import { derived, get, readonly, writable, type Readable, type Writable } from 'svelte/store'
 import { assertDocumentInvariants } from '../domain/invariants'
-import { instantiateLayout } from '../domain/factories'
+import { defaultPlacement, instantiateLayout } from '../domain/factories'
 import { resolveLayout } from '../domain/geometry'
-import type { CollageDocumentV1, PageV1 } from '../domain/types'
+import type { AssetRecordV1, CollageDocumentV1, PageV1, SlotContentV1, SlotId } from '../domain/types'
 import { History } from './history'
 
 const clone = <T>(value: T): T => structuredClone(value)
@@ -54,6 +54,32 @@ export class ProjectStore {
 
   setPageStyle(pageId: string, patch: Partial<PageV1['style']>): void {
     this.commit((draft) => { Object.assign(this.findPage(draft, pageId).style, patch) })
+  }
+
+  addAsset(asset: AssetRecordV1): void {
+    this.commit((draft) => {
+      if (Object.values(draft.assets).some((candidate) => candidate.sha256 === asset.sha256)) throw new Error('This exact image is already in the project')
+      draft.assets[asset.id] = clone(asset)
+    })
+  }
+
+  assignAsset(pageId: string, slotId: SlotId, assetId: string): void {
+    this.commit((draft) => {
+      if (!draft.assets[assetId]) throw new Error(`Unknown asset: ${assetId}`)
+      const page = this.findPage(draft, pageId)
+      if (!(slotId in page.slots)) throw new Error(`Unknown slot: ${slotId}`)
+      page.slots[slotId] = { assetId, placement: defaultPlacement() }
+    })
+  }
+
+  clearSlot(pageId: string, slotId: SlotId): void { this.commit((draft) => { this.findPage(draft, pageId).slots[slotId] = null }) }
+
+  setSlotContent(pageId: string, slotId: SlotId, content: SlotContentV1 | null): void {
+    this.commit((draft) => {
+      const page = this.findPage(draft, pageId)
+      if (!(slotId in page.slots)) throw new Error(`Unknown slot: ${slotId}`)
+      page.slots[slotId] = content ? clone(content) : null
+    })
   }
 
   undo(): void { const previous = this.history.undo(this.snapshot()); if (previous) this.state.set(previous) }
