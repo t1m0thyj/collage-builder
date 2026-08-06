@@ -26,4 +26,6 @@ export class History<T> {
     this.undoStack.push(current)
     return next
   }
+
+  clear(): void { this.undoStack = []; this.redoStack = [] }
 }

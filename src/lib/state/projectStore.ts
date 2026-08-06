@@ -1,6 +1,6 @@
 import { derived, get, readonly, writable, type Readable, type Writable } from 'svelte/store'
 import { assertDocumentInvariants } from '../domain/invariants'
-import { defaultPlacement, instantiateLayout } from '../domain/factories'
+import { createPage, defaultPlacement, instantiateLayout } from '../domain/factories'
 import { resolveLayout } from '../domain/geometry'
 import type { AssetRecordV1, CollageDocumentV1, PageV1, SlotContentV1, SlotId } from '../domain/types'
 import { History } from './history'
@@ -23,6 +23,8 @@ export class ProjectStore {
   }
 
   snapshot(): CollageDocumentV1 { return clone(get(this.state)) }
+
+  replaceDocument(document: CollageDocumentV1): void { assertDocumentInvariants(document); this.history.clear(); this.state.set(clone(document)) }
 
   private commit(mutator: (draft: CollageDocumentV1) => void): void {
     const before = this.snapshot()
@@ -81,6 +83,52 @@ export class ProjectStore {
       page.slots[slotId] = content ? clone(content) : null
     })
   }
+
+  moveOrSwapSlots(pageId: string, sourceSlotId: SlotId, targetSlotId: SlotId): void {
+    if (sourceSlotId === targetSlotId) return
+    this.commit((draft) => {
+      const slots = this.findPage(draft, pageId).slots
+      if (!(sourceSlotId in slots) || !(targetSlotId in slots)) throw new Error('Unknown frame')
+      ;[slots[sourceSlotId], slots[targetSlotId]] = [slots[targetSlotId], slots[sourceSlotId]]
+    })
+  }
+
+  removeAsset(assetId: string): void {
+    this.commit((draft) => {
+      if (!draft.assets[assetId]) throw new Error(`Unknown asset: ${assetId}`)
+      draft.pages.forEach((page) => Object.keys(page.slots).forEach((slotId) => { if (page.slots[slotId]?.assetId === assetId) page.slots[slotId] = null }))
+      delete draft.assets[assetId]
+    })
+  }
+
+  replaceAsset(assetId: string, replacement: AssetRecordV1): void {
+    this.commit((draft) => { if (!draft.assets[assetId]) throw new Error(`Unknown asset: ${assetId}`); draft.assets[assetId] = { ...clone(replacement), id: assetId } })
+  }
+
+  removeUnusedAssets(): void {
+    this.commit((draft) => { const used = new Set(draft.pages.flatMap((page) => Object.values(page.slots).flatMap((content) => content ? [content.assetId] : []))); Object.keys(draft.assets).forEach((assetId) => { if (!used.has(assetId)) delete draft.assets[assetId] }) })
+  }
+
+  addPage(): void {
+    this.commit((draft) => { const source = draft.pages[draft.pages.length - 1]; const page = createPage(`Page ${draft.pages.length + 1}`, 'single'); page.width = source.width; page.height = source.height; page.style = clone(source.style); draft.pages.push(page) })
+  }
+
+  duplicatePage(pageId: string): void {
+    this.commit((draft) => {
+      const source = this.findPage(draft, pageId)
+      const duplicate = createPage(`${source.name} copy`, source.layout.presetId)
+      duplicate.width = source.width; duplicate.height = source.height; duplicate.style = clone(source.style)
+      const sourceContent = resolveLayout(source).map((frame) => source.slots[frame.slotId])
+      resolveLayout(duplicate).forEach((frame, index) => duplicate.slots[frame.slotId] = clone(sourceContent[index] ?? null))
+      draft.pages.splice(draft.pages.indexOf(source) + 1, 0, duplicate)
+    })
+  }
+
+  deletePage(pageId: string): void { this.commit((draft) => { if (draft.pages.length < 2) throw new Error('A project must keep one page'); draft.pages.splice(draft.pages.indexOf(this.findPage(draft, pageId)), 1) }) }
+
+  renamePage(pageId: string, name: string): void { this.commit((draft) => { this.findPage(draft, pageId).name = name.trim() || 'Untitled page' }) }
+
+  movePage(pageId: string, direction: -1 | 1): void { this.commit((draft) => { const index = draft.pages.findIndex((page) => page.id === pageId); const target = index + direction; if (target < 0 || target >= draft.pages.length) return; [draft.pages[index], draft.pages[target]] = [draft.pages[target], draft.pages[index]] }) }
 
   undo(): void { const previous = this.history.undo(this.snapshot()); if (previous) this.state.set(previous) }
   redo(): void { const next = this.history.redo(this.snapshot()); if (next) this.state.set(next) }

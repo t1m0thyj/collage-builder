@@ -158,6 +158,7 @@ button:disabled {
 }
 .right-panel {
   border-left: 1px solid #dfddd6;
+  overflow-y: auto;
 }
 .panel-tabs {
   display: grid;
@@ -296,6 +297,10 @@ h2 {
   color: #315c9c;
   padding-left: 0;
 }
+.asset-list { display: grid; gap: 6px; margin: 14px 0; }
+.asset-row { display: grid; grid-template-columns: 36px 1fr; gap: 8px; align-items: center; width: 100%; padding: 6px; border: 1px solid #e2dfd8; border-radius: 7px; background: #fff; text-align: left; color: #403d37; }
+.asset-row.selected-asset { border-color: #315c9c; background: #edf3fa; }
+.asset-row strong, .asset-row small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.asset-row strong { font-size: 11px; }.asset-row small { margin-top: 2px; color: #777269; font-size: 10px; }.asset-thumb { display: grid; place-items: center; height: 34px; border-radius: 4px; background: #e5e2d9; color: #7896bb; font-size: 20px; }.asset-actions { display: grid; gap: 6px; margin: 10px 0; }
 .canvas-area {
   position: relative;
   min-width: 0;
@@ -420,6 +425,11 @@ h2 {
 .crop-controls label { display: grid; grid-template-columns: 40px 1fr; align-items: center; gap: 8px; }
 .crop-controls input { accent-color: #315c9c; }
 .crop-controls span { color: #403d37; font-weight: 700; }
+.crop-controls .active-crop { border-color: #d99328; background: #fff3df; color: #7d4a00; }
+.crop-hint { margin: 0; font-size: 11px; line-height: 1.4; }
+.crop-coordinates { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.crop-coordinates label { display: flex; align-items: center; gap: 4px; }
+.crop-coordinates input { width: 100%; padding: 5px; border: 1px solid #d6d3ca; border-radius: 5px; color: #403d37; }
 .pagebar {
   display: flex;
   align-items: center;

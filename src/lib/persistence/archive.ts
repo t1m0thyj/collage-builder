@@ -1,0 +1,54 @@
+import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from 'fflate'
+import { migrateDocument } from '../domain/migrations'
+import type { CollageDocumentV1 } from '../domain/types'
+
+export const collageMimeType = 'application/vnd.collage-builder+zip'
+
+export interface ArchiveAssets { get(assetId: string): Blob | undefined }
+export interface OpenedArchive { document: CollageDocumentV1; assets: Map<string, Blob> }
+const maxArchiveBytes = 300 * 1024 * 1024
+const maxEntries = 500
+
+function assertSafeEntries(entries: Record<string, Uint8Array>): void {
+  const paths = Object.keys(entries)
+  if (paths.length > maxEntries) throw new Error('Project archive contains too many entries')
+  if (paths.some((path) => path.startsWith('/') || path.includes('..') || path.includes('\\'))) throw new Error('Project archive contains an unsafe path')
+  if (!paths.includes('mimetype') || !paths.includes('document.json')) throw new Error('Project archive is missing required files')
+}
+
+async function sha256(bytes: Uint8Array): Promise<string> {
+  const copy = new Uint8Array(bytes.byteLength); copy.set(bytes)
+  const digest = await crypto.subtle.digest('SHA-256', copy.buffer)
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
+}
+
+export async function createArchive(document: CollageDocumentV1, assets: ArchiveAssets): Promise<Blob> {
+  const files: Zippable = { mimetype: [strToU8(collageMimeType), { level: 0 }], 'document.json': strToU8(JSON.stringify(document)) }
+  for (const asset of Object.values(document.assets)) {
+    if (asset.storage.kind !== 'embedded') continue
+    const blob = assets.get(asset.id)
+    if (!blob) throw new Error(`Missing original bytes for ${asset.originalName}`)
+    files[asset.storage.archivePath] = [new Uint8Array(await blob.arrayBuffer()), { level: 0 }]
+  }
+  return new Blob([zipSync(files)], { type: collageMimeType })
+}
+
+export async function openArchive(file: Blob): Promise<OpenedArchive> {
+  if (file.size > maxArchiveBytes) throw new Error('Project archive exceeds the 300 MB safety limit')
+  const entries = unzipSync(new Uint8Array(await file.arrayBuffer()))
+  assertSafeEntries(entries)
+  if (!entries.mimetype || strFromU8(entries.mimetype) !== collageMimeType) throw new Error('Not a Collage Builder project')
+  if (!entries['document.json']) throw new Error('Project is missing document.json')
+  let document: CollageDocumentV1
+  try { document = migrateDocument(JSON.parse(strFromU8(entries['document.json']))) } catch (error) { throw error instanceof Error ? error : new Error('Invalid project document') }
+  const assets = new Map<string, Blob>()
+  for (const asset of Object.values(document.assets)) {
+    if (asset.storage.kind !== 'embedded') continue
+    const bytes = entries[asset.storage.archivePath]
+    if (!bytes) throw new Error(`Project is missing ${asset.originalName}`)
+    if (bytes.byteLength !== asset.byteLength) throw new Error(`Project asset size does not match ${asset.originalName}`)
+    if (await sha256(bytes) !== asset.sha256) throw new Error(`Project asset checksum does not match ${asset.originalName}`)
+    assets.set(asset.id, new Blob([bytes], { type: asset.mediaType }))
+  }
+  return { document, assets }
+}
