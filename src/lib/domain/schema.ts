@@ -1,0 +1,29 @@
+import { z } from 'zod'
+
+const finiteNumber = z.number().finite()
+const nonNegative = finiteNumber.nonnegative()
+const color = z.string().regex(/^#[0-9A-F]{6}(?:[0-9A-F]{2})?$/)
+
+export const layoutNodeSchema: z.ZodType<unknown> = z.lazy(() =>
+  z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('leaf'), slotId: z.string().uuid() }),
+    z.object({
+      kind: z.literal('split'), axis: z.enum(['x', 'y']), weights: z.array(finiteNumber.positive()).min(2), children: z.array(layoutNodeSchema).min(2),
+    }).refine((value) => value.weights.length === value.children.length, 'Split weights must match its children'),
+  ]),
+)
+
+export const collageDocumentSchema = z.object({
+  format: z.literal('collage-builder'),
+  schemaVersion: z.literal(1),
+  projectId: z.string().uuid(), title: z.string().trim().min(1).max(200),
+  createdAt: z.iso.datetime(), updatedAt: z.iso.datetime(),
+  pages: z.array(z.object({
+    id: z.string().uuid(), name: z.string().trim().min(1).max(200), width: finiteNumber.positive(), height: finiteNumber.positive(),
+    layout: z.object({ presetId: z.string().min(1), presetRevision: z.number().int().positive(), root: layoutNodeSchema }),
+    slots: z.record(z.string().uuid(), z.object({ assetId: z.string().uuid(), placement: z.object({ zoom: finiteNumber.min(1).max(8), positionX: finiteNumber.min(0).max(1), positionY: finiteNumber.min(0).max(1) }) }).nullable()),
+    style: z.object({ backgroundColor: color, padding: nonNegative, gap: nonNegative, cornerRadius: nonNegative, shadow: z.object({ enabled: z.boolean(), color: z.string().regex(/^#[0-9A-F]{6}$/), opacity: finiteNumber.min(0).max(1), blur: nonNegative, offsetX: finiteNumber, offsetY: finiteNumber }) }),
+  })).min(1),
+  assets: z.record(z.string().uuid(), z.object({ id: z.string().uuid(), originalName: z.string().min(1), mediaType: z.enum(['image/jpeg', 'image/png', 'image/webp']), byteLength: z.number().int().nonnegative(), width: z.number().int().positive(), height: z.number().int().positive(), sha256: z.string().regex(/^[a-f0-9]{64}$/), storage: z.discriminatedUnion('kind', [z.object({ kind: z.literal('embedded'), archivePath: z.string().startsWith('assets/') }), z.object({ kind: z.literal('linked'), displayHint: z.string().min(1), lastModified: z.number().int().optional() })]) })),
+  exportDefaults: z.object({ width: finiteNumber.positive(), height: finiteNumber.positive(), aspectLocked: z.boolean() }),
+})
