@@ -1,0 +1,8 @@
+import type { LayoutPresetDefinition } from '../../domain/types'
+
+export const sevenFramePresets: LayoutPresetDefinition[] = [
+  { id: 'seven-columns', revision: 1, name: 'Seven columns', frameCount: 7, tags: ['uniform'], root: { kind: 'split', axis: 'x', weights: [1, 1, 1, 1, 1, 1, 1], children: ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((key) => ({ kind: 'leaf', key })) } },
+  { id: 'seven-rows', revision: 1, name: 'Seven rows', frameCount: 7, tags: ['uniform'], root: { kind: 'split', axis: 'y', weights: [1, 1, 1, 1, 1, 1, 1], children: ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((key) => ({ kind: 'leaf', key })) } },
+  { id: 'one-left-six-grid-right', revision: 1, name: 'One left, six-grid right', frameCount: 7, tags: ['asymmetric', 'portrait-led'], root: { kind: 'split', axis: 'x', weights: [1.4, 1], children: [{ kind: 'leaf', key: 'a' }, { kind: 'split', axis: 'y', weights: [1, 1], children: [{ kind: 'split', axis: 'x', weights: [1, 1, 1], children: ['b', 'c', 'd'].map((key) => ({ kind: 'leaf', key })) }, { kind: 'split', axis: 'x', weights: [1, 1, 1], children: ['e', 'f', 'g'].map((key) => ({ kind: 'leaf', key })) }] }] } },
+  { id: 'one-top-six-grid-bottom', revision: 1, name: 'One top, six-grid bottom', frameCount: 7, tags: ['asymmetric', 'landscape-led'], root: { kind: 'split', axis: 'y', weights: [1.3, 1], children: [{ kind: 'leaf', key: 'a' }, { kind: 'split', axis: 'y', weights: [1, 1], children: [{ kind: 'split', axis: 'x', weights: [1, 1, 1], children: ['b', 'c', 'd'].map((key) => ({ kind: 'leaf', key })) }, { kind: 'split', axis: 'x', weights: [1, 1, 1], children: ['e', 'f', 'g'].map((key) => ({ kind: 'leaf', key })) }] }] } },
+]

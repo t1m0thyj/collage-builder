@@ -3,10 +3,10 @@ import { createId } from '../utils/ids'
 import { defaultPlacement } from './crop'
 import type { CollageDocumentV1, LayoutNodeV1, LayoutPresetNode, LayoutSnapshotV1, PageStyleV1, PageV1 } from './types'
 
-export const defaultPageStyle = (): PageStyleV1 => ({ backgroundColor: '#F4EFE8', padding: 48, gap: 20, cornerRadius: 16, shadow: { enabled: true, color: '#000000', opacity: 0.12, blur: 18, offsetX: 0, offsetY: 6 } })
+export const defaultPageStyle = (): PageStyleV1 => ({ backgroundColor: '#808080', padding: 30, gap: 30, cornerRadius: 30, shadow: { enabled: true, color: '#000000', opacity: 0.5, blur: 10, offsetX: 10, offsetY: 10 } })
 
 function instantiateNode(node: LayoutPresetNode, slotIds: string[]): LayoutNodeV1 {
-  if (node.kind === 'leaf') { const slotId = createId(); slotIds.push(slotId); return { kind: 'leaf', slotId } }
+  if (node.kind === 'leaf') { const slotId = createId(); slotIds.push(slotId); return { kind: 'leaf', slotId, polygon: node.polygon ? structuredClone(node.polygon) : undefined } }
   return { kind: 'split', axis: node.axis, weights: [...node.weights], children: node.children.map((child) => instantiateNode(child, slotIds)) }
 }
 

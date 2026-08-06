@@ -6,7 +6,7 @@ const color = z.string().regex(/^#[0-9A-F]{6}(?:[0-9A-F]{2})?$/)
 
 export const layoutNodeSchema: z.ZodType<unknown> = z.lazy(() =>
   z.discriminatedUnion('kind', [
-    z.object({ kind: z.literal('leaf'), slotId: z.string().uuid() }),
+    z.object({ kind: z.literal('leaf'), slotId: z.string().uuid(), polygon: z.array(z.object({ x: finiteNumber.min(0).max(1), y: finiteNumber.min(0).max(1) })).min(3).optional() }),
     z.object({
       kind: z.literal('split'), axis: z.enum(['x', 'y']), weights: z.array(finiteNumber.positive()).min(2), children: z.array(layoutNodeSchema).min(2),
     }).refine((value) => value.weights.length === value.children.length, 'Split weights must match its children'),

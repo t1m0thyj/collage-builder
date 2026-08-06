@@ -17,4 +17,37 @@ describe('project history', () => {
     store.redo()
     expect(get(store.document).title).toBe('Updated')
   })
+
+  it('moves or swaps complete frame content in one undoable command', () => {
+    const project = createProject('Swap')
+    const store = new ProjectStore(project)
+    const page = project.pages[0]
+    const [first, second] = Object.keys(page.slots)
+    store.addAsset({ id: 'first', originalName: 'first.png', mediaType: 'image/png', byteLength: 1, width: 1, height: 1, sha256: 'first', storage: { kind: 'embedded', archivePath: 'assets/first.png' } })
+    store.addAsset({ id: 'second', originalName: 'second.png', mediaType: 'image/png', byteLength: 1, width: 1, height: 1, sha256: 'second', storage: { kind: 'embedded', archivePath: 'assets/second.png' } })
+    store.setSlotContent(page.id, first, { assetId: 'first', placement: { zoom: 1.5, positionX: 0.2, positionY: 0.8 } })
+    store.setSlotContent(page.id, second, { assetId: 'second', placement: { zoom: 2, positionX: 0.7, positionY: 0.3 } })
+    store.moveOrSwapSlots(page.id, first, second)
+    expect(get(store.document).pages[0].slots[first]?.assetId).toBe('second')
+    expect(get(store.document).pages[0].slots[second]?.placement).toMatchObject({ zoom: 1.5, positionX: 0.2 })
+    store.undo()
+    expect(get(store.document).pages[0].slots[first]?.assetId).toBe('first')
+  })
+
+  it('commits crop once and Escape-style cancellation restores the original placement', () => {
+    const project = createProject('Crop')
+    const store = new ProjectStore(project)
+    const page = project.pages[0]
+    const slotId = Object.keys(page.slots)[0]
+    const original = { zoom: 1, positionX: 0.5, positionY: 0.5 }
+    store.addAsset({ id: 'asset', originalName: 'asset.png', mediaType: 'image/png', byteLength: 1, width: 1, height: 1, sha256: 'asset', storage: { kind: 'embedded', archivePath: 'assets/asset.png' } })
+    store.setSlotContent(page.id, slotId, { assetId: 'asset', placement: original })
+    store.previewSlotContent(page.id, slotId, { assetId: 'asset', placement: { zoom: 2, positionX: 0.2, positionY: 0.7 } })
+    store.cancelCrop(page.id, slotId, original)
+    expect(get(store.document).pages[0].slots[slotId]?.placement).toEqual(original)
+    store.previewSlotContent(page.id, slotId, { assetId: 'asset', placement: { zoom: 2, positionX: 0.2, positionY: 0.7 } })
+    store.commitCrop(page.id, slotId, original)
+    store.undo()
+    expect(get(store.document).pages[0].slots[slotId]?.placement).toEqual(original)
+  })
 })

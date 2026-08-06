@@ -8,7 +8,7 @@ describe('split-tree layout resolution', () => {
     const page = createPage('Page', 'grid-2x2')
     const frames = resolveLayout(page)
     expect(frames).toHaveLength(4)
-    expect(frames.map(({ x, y, width, height }) => [x, y, width, height])).toEqual([[48, 48, 742, 542], [810, 48, 742, 542], [48, 610, 742, 542], [810, 610, 742, 542]])
+    expect(frames.map(({ x, y, width, height }) => [x, y, width, height])).toEqual([[30, 30, 755, 555], [815, 30, 755, 555], [30, 615, 755, 555], [815, 615, 755, 555]])
   })
 
   it('rejects padding and gap combinations with no usable frame area', () => {

@@ -7,6 +7,6 @@ describe('page render model', () => {
     const page = createPage('Page', 'grid-2x2')
     const model = createPageRenderModel(page)
     expect(model.frames).toHaveLength(4)
-    expect(model.frames[0]).toMatchObject({ x: 48, y: 48, width: 742, height: 542 })
+    expect(model.frames[0]).toMatchObject({ x: 30, y: 30, width: 755, height: 555 })
   })
 })

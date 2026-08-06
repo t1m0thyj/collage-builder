@@ -2,6 +2,7 @@ export type ProjectId = string
 export type PageId = string
 export type AssetId = string
 export type SlotId = string
+export interface NormalizedPoint { x: number; y: number }
 
 export interface CollageDocumentV1 {
   format: 'collage-builder'
@@ -34,7 +35,7 @@ export interface PageStyleV1 {
 }
 
 export type LayoutNodeV1 =
-  | { kind: 'leaf'; slotId: SlotId }
+  | { kind: 'leaf'; slotId: SlotId; polygon?: NormalizedPoint[] }
   | { kind: 'split'; axis: 'x' | 'y'; weights: number[]; children: LayoutNodeV1[] }
 
 export interface LayoutSnapshotV1 { presetId: string; presetRevision: number; root: LayoutNodeV1 }
@@ -56,7 +57,7 @@ export interface AssetRecordV1 {
 }
 
 export type LayoutPresetNode =
-  | { kind: 'leaf'; key: string }
+  | { kind: 'leaf'; key: string; polygon?: NormalizedPoint[] }
   | { kind: 'split'; axis: 'x' | 'y'; weights: number[]; children: LayoutPresetNode[] }
 
 export interface LayoutPresetDefinition {
@@ -68,4 +69,4 @@ export interface LayoutPresetDefinition {
   root: LayoutPresetNode
 }
 
-export interface ResolvedFrame { slotId: SlotId; x: number; y: number; width: number; height: number }
+export interface ResolvedFrame { slotId: SlotId; x: number; y: number; width: number; height: number; polygon?: NormalizedPoint[] }

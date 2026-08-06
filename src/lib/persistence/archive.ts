@@ -3,10 +3,10 @@ import { migrateDocument } from '../domain/migrations'
 import type { CollageDocumentV1 } from '../domain/types'
 
 export const collageMimeType = 'application/vnd.collage-builder+zip'
+export const maxProjectBytes = 1024 * 1024 * 1024
 
 export interface ArchiveAssets { get(assetId: string): Blob | undefined }
-export interface OpenedArchive { document: CollageDocumentV1; assets: Map<string, Blob> }
-const maxArchiveBytes = 300 * 1024 * 1024
+export interface OpenedArchive { document: CollageDocumentV1; assets: Map<string, Blob>; missingAssetIds: string[] }
 const maxEntries = 500
 
 function assertSafeEntries(entries: Record<string, Uint8Array>): void {
@@ -23,6 +23,7 @@ async function sha256(bytes: Uint8Array): Promise<string> {
 }
 
 export async function createArchive(document: CollageDocumentV1, assets: ArchiveAssets): Promise<Blob> {
+  if (Object.values(document.assets).reduce((total, asset) => total + asset.byteLength, 0) > maxProjectBytes) throw new Error('Project assets exceed the 1 GB safety limit')
   const files: Zippable = { mimetype: [strToU8(collageMimeType), { level: 0 }], 'document.json': strToU8(JSON.stringify(document)) }
   for (const asset of Object.values(document.assets)) {
     if (asset.storage.kind !== 'embedded') continue
@@ -34,7 +35,7 @@ export async function createArchive(document: CollageDocumentV1, assets: Archive
 }
 
 export async function openArchive(file: Blob): Promise<OpenedArchive> {
-  if (file.size > maxArchiveBytes) throw new Error('Project archive exceeds the 300 MB safety limit')
+  if (file.size > maxProjectBytes) throw new Error('Project archive exceeds the 1 GB safety limit')
   const entries = unzipSync(new Uint8Array(await file.arrayBuffer()))
   assertSafeEntries(entries)
   if (!entries.mimetype || strFromU8(entries.mimetype) !== collageMimeType) throw new Error('Not a Collage Builder project')
@@ -42,13 +43,12 @@ export async function openArchive(file: Blob): Promise<OpenedArchive> {
   let document: CollageDocumentV1
   try { document = migrateDocument(JSON.parse(strFromU8(entries['document.json']))) } catch (error) { throw error instanceof Error ? error : new Error('Invalid project document') }
   const assets = new Map<string, Blob>()
+  const missingAssetIds: string[] = []
   for (const asset of Object.values(document.assets)) {
     if (asset.storage.kind !== 'embedded') continue
     const bytes = entries[asset.storage.archivePath]
-    if (!bytes) throw new Error(`Project is missing ${asset.originalName}`)
-    if (bytes.byteLength !== asset.byteLength) throw new Error(`Project asset size does not match ${asset.originalName}`)
-    if (await sha256(bytes) !== asset.sha256) throw new Error(`Project asset checksum does not match ${asset.originalName}`)
+    if (!bytes || bytes.byteLength !== asset.byteLength || await sha256(bytes) !== asset.sha256) { missingAssetIds.push(asset.id); continue }
     assets.set(asset.id, new Blob([bytes], { type: asset.mediaType }))
   }
-  return { document, assets }
+  return { document, assets, missingAssetIds }
 }
