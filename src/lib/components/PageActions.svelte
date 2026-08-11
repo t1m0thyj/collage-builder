@@ -1,5 +1,6 @@
 <script lang="ts">
   import { ChevronDown } from '@lucide/svelte'
+  import * as DropdownMenu from '$lib/components/ui/dropdown-menu'
 
   export let open = false
   export let pageIndex: number
@@ -17,30 +18,23 @@
   }
 </script>
 
-<div class="page-actions">
-  <button
-    class="page-actions-button"
-    aria-label="Page actions"
-    aria-haspopup="menu"
-    aria-expanded={open}
-    onclick={() => (open = !open)}><ChevronDown size={14}></ChevronDown></button
-  >
-  {#if open}
-    <div class="page-actions-menu" role="menu">
-      <button role="menuitem" onclick={() => run(onRename)}>Rename</button>
-      <button role="menuitem" onclick={() => run(onDuplicate)}>Duplicate</button>
-      <button role="menuitem" disabled={pageIndex === 0} onclick={() => run(onMoveLeft)}
-        >Move left</button
-      >
-      <button
-        role="menuitem"
-        disabled={pageIndex === pageCount - 1}
-        onclick={() => run(onMoveRight)}>Move right</button
-      >
-      <button role="menuitem" class="danger" onclick={() => run(onClear)}>Clear page</button>
-      {#if pageCount > 1}
-        <button role="menuitem" class="danger" onclick={() => run(onDelete)}>Delete page</button>
-      {/if}
-    </div>
-  {/if}
-</div>
+<DropdownMenu.Root bind:open>
+  <div class="page-actions">
+    <DropdownMenu.Trigger
+      class="page-actions-button"
+      aria-label="Page actions"
+      onclick={(event) => event.stopPropagation()}
+      ><ChevronDown size={14}></ChevronDown></DropdownMenu.Trigger
+    >
+    <DropdownMenu.Content class="page-actions-menu" align="end"
+      ><DropdownMenu.Item onclick={() => run(onRename)}>Rename</DropdownMenu.Item
+      ><DropdownMenu.Item onclick={() => run(onDuplicate)}>Duplicate</DropdownMenu.Item
+      ><DropdownMenu.Item disabled={pageIndex === 0} onclick={() => run(onMoveLeft)}>Move left</DropdownMenu.Item
+      ><DropdownMenu.Item disabled={pageIndex === pageCount - 1} onclick={() => run(onMoveRight)}>Move right</DropdownMenu.Item
+      ><DropdownMenu.Item variant="destructive" onclick={() => run(onClear)}>Clear page</DropdownMenu.Item
+      >{#if pageCount > 1}<DropdownMenu.Item variant="destructive" onclick={() => run(onDelete)}
+          >Delete page</DropdownMenu.Item
+        >{/if}
+    </DropdownMenu.Content>
+  </div>
+</DropdownMenu.Root>

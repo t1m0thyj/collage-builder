@@ -2,12 +2,13 @@
   import { createProject } from './lib/domain/factories'
   import { resolveLayout } from './lib/domain/geometry'
   import {
-    ArrowRight,
     ChevronDown,
     ChevronLeft,
     ChevronRight,
     Grid2X2,
     ImageIcon,
+    Link2,
+    Link2Off,
     List,
     Minus,
     MoreHorizontal,
@@ -25,12 +26,13 @@
   import CanvasEditor from './lib/components/editor/CanvasEditor.svelte'
   import { validateImportedImage } from './lib/domain/importImage'
   import { layoutCatalog } from './lib/layouts/catalog'
-  import { previewFrames } from './lib/layouts/preview'
+  import { previewFrames, previewFrameStyle } from './lib/layouts/preview'
   import { ProjectStore } from './lib/state/projectStore'
   import { AssetRegistry } from './lib/render/assetRegistry'
   import { onMount } from 'svelte'
   import * as Collapsible from '$lib/components/ui/collapsible'
   import Button from '$lib/components/ui/button/button.svelte'
+  import * as Dialog from '$lib/components/ui/dialog'
   import Input from '$lib/components/ui/input/input.svelte'
   import * as DropdownMenu from '$lib/components/ui/dropdown-menu'
   import * as Popover from '$lib/components/ui/popover'
@@ -44,6 +46,11 @@
   import { linkedDocument, matchLinkedAssets } from './lib/persistence/linkedAssets'
 
   type SidebarTab = 'layouts' | 'images'
+  const minSidebarWidth = 210
+  const defaultSidebarWidth = 255
+  const maxSidebarWidth = 360
+  const sidebarWidthsStorageKey = 'collage-builder:sidebar-widths'
+  const recentColorsStorageKey = 'collage-builder:recent-custom-colors'
 
   const project = new ProjectStore(createProject())
   const assetRegistry = new AssetRegistry()
@@ -76,34 +83,41 @@
   function rememberColor(color: string) {
     const normalized = color.slice(0, 7).toUpperCase()
     recentColors = [normalized, ...recentColors.filter((candidate) => candidate !== normalized)].slice(0, 4)
+    try {
+      globalThis.localStorage.setItem(recentColorsStorageKey, JSON.stringify(recentColors))
+    } catch {
+      // Color selection should still work when persistent storage is unavailable.
+    }
   }
-  function setBackgroundColor(color: string) {
-    rememberColor(color)
+  function setBackgroundColor(color: string, rememberCustom = false) {
+    if (rememberCustom) rememberColor(color)
     updateStyle({ backgroundColor: `${color.slice(0, 7).toUpperCase()}FF` })
   }
-  function setShadowColor(color: string) {
+  function setShadowColor(color: string, rememberCustom = false) {
     const normalized = color.slice(0, 7).toUpperCase()
-    rememberColor(normalized)
+    if (rememberCustom) rememberColor(normalized)
     updateStyle({ shadow: { ...activePage.style.shadow, color: normalized } })
   }
   let libraryTargetSlotId: string | null = null
   let uploadInput: HTMLInputElement
   let cropZoom = 1
+  let imageListOverflows = false
+  let pageAspectLinked = false
   let viewportZoom = 1
   let isViewportFit = true
   let fittedViewportZoom = 1
-  let leftSidebarWidth = 255
-  let rightSidebarWidth = 255
+  let leftSidebarWidth = defaultSidebarWidth
+  let rightSidebarWidth = defaultSidebarWidth
   let sidebarResize: { side: 'left' | 'right'; startX: number; startWidth: number } | null =
     null
   let cropModeSlotId: string | null = null
   let cropOrigin: { pageId: string; slotId: string; placement: SlotContentV1['placement'] } | null =
     null
   let selectedAssetId: string | null = null
-  let usageAssetId: string | null = null
   let isPageMenuOpen = false
   let pendingNavigation: 'new' | 'open' | null = null
-  let collapsedLayoutCounts = new Set<number>()
+  let expandedLayoutCount: number | null = null
+  let layoutAccordionPageId: string | null = null
   let replaceInput: HTMLInputElement
   let relinkInput: HTMLInputElement
   let openInput: HTMLInputElement
@@ -117,8 +131,6 @@
   let imageManagerView: 'grid' | 'list' = 'grid'
   let pendingRemovalAssetIds: string[] | null = null
   let isExportOpen = false
-  let isExportMenuOpen = false
-  let isSaveMenuOpen = false
   let exportScope: 'current' | 'all' | 'range' = 'current'
   let exportRange = '1-1'
   let exportWidth = 1600
@@ -129,6 +141,7 @@
   let isDirty = false
   let recoveredOnly = false
   let missingAssetIds = new Set<string>()
+  let prefersDark = false
   function scheduleRecovery(value: typeof document) {
     if (!recoveryReady) return
     if (autosaveTimer) clearTimeout(autosaveTimer)
@@ -148,6 +161,12 @@
   project.isDirty.subscribe((value) => (isDirty = value))
 
   onMount(() => {
+    restoreSidebarWidths()
+    restoreRecentColors()
+    const darkMedia = globalThis.matchMedia('(prefers-color-scheme: dark)')
+    const syncDarkMode = () => (prefersDark = darkMedia.matches)
+    syncDarkMode()
+    darkMedia.addEventListener('change', syncDarkMode)
     void (async () => {
       try {
         const recovery = await loadLatestRecovery().catch(() => undefined)
@@ -245,6 +264,7 @@
       if (autosaveTimer) clearTimeout(autosaveTimer)
       globalThis.removeEventListener('keydown', keyboard)
       globalThis.removeEventListener('beforeunload', beforeUnload)
+      darkMedia.removeEventListener('change', syncDarkMode)
     }
   })
 
@@ -254,25 +274,12 @@
   let projectTitle = document.title
 
   $: activePage = document.pages.find((page) => page.id === activePageId) ?? document.pages[0]
+  $: syncLayoutAccordion(activePage.id, Object.keys(activePage.slots).length)
   $: selectedContent = selectedSlotId ? activePage.slots[selectedSlotId] : null
   $: if (selectedContent) cropZoom = selectedContent.placement.zoom
   $: assets = Object.values(document.assets)
-  $: assetUsages = usageAssetId
-    ? document.pages.flatMap((page) =>
-        resolveLayout(page).flatMap((frame, index) =>
-          page.slots[frame.slotId]?.assetId === usageAssetId
-            ? [
-                {
-                  pageId: page.id,
-                  pageName: page.name,
-                  slotId: frame.slotId,
-                  frameNumber: index + 1,
-                },
-              ]
-            : [],
-        ),
-      )
-    : []
+  $: assetLibraryBytes = assets.reduce((total, asset) => total + asset.byteLength, 0)
+  $: unusedAssetIds = assets.filter((asset) => assetUsage(asset.id) === 0).map((asset) => asset.id)
   $: filteredAssets = assets
     .filter(
       (asset) =>
@@ -305,11 +312,12 @@
     announce(`${layoutCatalog.find((preset) => preset.id === presetId)?.name} layout selected.`)
   }
   function setLayoutGroupOpen(frameCount: number, open: boolean) {
-    collapsedLayoutCounts = new Set(
-      open
-        ? [...collapsedLayoutCounts].filter((count) => count !== frameCount)
-        : [...collapsedLayoutCounts, frameCount],
-    )
+    expandedLayoutCount = open ? frameCount : null
+  }
+  function syncLayoutAccordion(pageId: string, frameCount: number) {
+    if (layoutAccordionPageId === pageId) return
+    expandedLayoutCount = Math.min(frameCount, 11)
+    layoutAccordionPageId = pageId
   }
 
   function renameProject() {
@@ -381,6 +389,58 @@
     setViewportZoom((isViewportFit ? fittedViewportZoom : viewportZoom) * factor)
   }
 
+  function clampSidebarWidth(width: number) {
+    return Math.min(maxSidebarWidth, Math.max(minSidebarWidth, Math.round(width)))
+  }
+  function restoreSidebarWidths() {
+    try {
+      const stored = JSON.parse(globalThis.localStorage.getItem(sidebarWidthsStorageKey) ?? '{}') as {
+        left?: unknown
+        right?: unknown
+      }
+      if (
+        typeof stored.left === 'number' &&
+        Number.isFinite(stored.left) &&
+        stored.left > defaultSidebarWidth
+      )
+        leftSidebarWidth = clampSidebarWidth(stored.left)
+      if (
+        typeof stored.right === 'number' &&
+        Number.isFinite(stored.right) &&
+        stored.right > defaultSidebarWidth
+      )
+        rightSidebarWidth = clampSidebarWidth(stored.right)
+    } catch {
+      // Local storage may be unavailable or contain stale data.
+    }
+  }
+  function restoreRecentColors() {
+    try {
+      const stored = JSON.parse(globalThis.localStorage.getItem(recentColorsStorageKey) ?? '[]')
+      if (!Array.isArray(stored)) return
+      recentColors = [...new Set(
+        stored
+          .filter((color): color is string => typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color))
+          .map((color) => color.toUpperCase()),
+      )].slice(0, 4)
+    } catch {
+      // Ignore stale or unavailable local storage.
+    }
+  }
+  function persistSidebarWidths() {
+    try {
+      globalThis.localStorage.setItem(
+        sidebarWidthsStorageKey,
+        JSON.stringify({
+          left: leftSidebarWidth > defaultSidebarWidth ? leftSidebarWidth : undefined,
+          right: rightSidebarWidth > defaultSidebarWidth ? rightSidebarWidth : undefined,
+        }),
+      )
+    } catch {
+      // Resizing should still work when persistent storage is unavailable.
+    }
+  }
+
   function startSidebarResize(side: 'left' | 'right', event: PointerEvent) {
     if (event.button !== 0) return
     const target = event.currentTarget as HTMLElement
@@ -391,13 +451,21 @@
     }
     target.setPointerCapture(event.pointerId)
   }
+  function resetSidebarWidth(side: 'left' | 'right') {
+    if (side === 'left') leftSidebarWidth = defaultSidebarWidth
+    else rightSidebarWidth = defaultSidebarWidth
+    persistSidebarWidths()
+  }
 
   function resizeSidebar(event: PointerEvent) {
     if (!sidebarResize) return
     const delta = event.clientX - sidebarResize.startX
     const width = Math.min(
-      360,
-      Math.max(210, sidebarResize.startWidth + (sidebarResize.side === 'left' ? delta : -delta)),
+      maxSidebarWidth,
+      Math.max(
+        minSidebarWidth,
+        sidebarResize.startWidth + (sidebarResize.side === 'left' ? delta : -delta),
+      ),
     )
     if (sidebarResize.side === 'left') leftSidebarWidth = width
     else rightSidebarWidth = width
@@ -406,6 +474,7 @@
   function stopSidebarResize(event: PointerEvent) {
     const target = event.currentTarget as HTMLElement
     if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId)
+    if (sidebarResize) persistSidebarWidths()
     sidebarResize = null
   }
 
@@ -415,12 +484,16 @@
     const direction = side === 'left' ? 1 : -1
     const next =
       event.key === 'Home'
-        ? 210
+        ? minSidebarWidth
         : event.key === 'End'
-          ? 360
-          : Math.min(360, Math.max(210, current + (event.key === 'ArrowRight' ? 12 : -12) * direction))
+          ? maxSidebarWidth
+          : Math.min(
+              maxSidebarWidth,
+              Math.max(minSidebarWidth, current + (event.key === 'ArrowRight' ? 12 : -12) * direction),
+            )
     if (side === 'left') leftSidebarWidth = next
     else rightSidebarWidth = next
+    persistSidebarWidths()
     event.preventDefault()
   }
 
@@ -469,8 +542,20 @@
     })
   }
   function resizeActivePage(axis: 'width' | 'height', value: number) {
-    const width = axis === 'width' ? value : activePage.width
-    const height = axis === 'height' ? value : activePage.height
+    if (!Number.isFinite(value)) return
+    const aspectRatio = activePage.width / activePage.height
+    const width =
+      axis === 'width'
+        ? value
+        : pageAspectLinked
+          ? Math.round(value * aspectRatio)
+          : activePage.width
+    const height =
+      axis === 'height'
+        ? value
+        : pageAspectLinked
+          ? Math.round(value / aspectRatio)
+          : activePage.height
     try {
       project.resizePage(activePage.id, width, height)
     } catch (error) {
@@ -546,22 +631,56 @@
       announce('Image added to frame.')
     }
   }
+  function addAssetToActivePage(assetId: string) {
+    if (missingAssetIds.has(assetId)) {
+      announce('Locate this image before adding it to a page.')
+      return
+    }
+    const targetSlotId =
+      (selectedSlotId && !activePage.slots[selectedSlotId] ? selectedSlotId : undefined) ??
+      Object.entries(activePage.slots).find(([, content]) => !content)?.[0]
+    if (!targetSlotId) {
+      announce('This page has no empty frames. Drag the image onto a frame to replace it.')
+      return
+    }
+    project.assignAsset(activePage.id, targetSlotId, assetId)
+    selectedSlotId = targetSlotId
+    selectedAssetId = assetId
+    selectedAssetIds = [assetId]
+    announce('Image added to page.')
+  }
   function startAssetDrag(event: DragEvent, assetId: string) {
     event.dataTransfer?.setData('application/x-collage-asset', assetId)
     if (event.dataTransfer) event.dataTransfer.effectAllowed = 'copy'
   }
-  function showUsage(assetId: string) {
-    usageAssetId = assetId
-  }
-  function jumpToUsage(pageId: string, slotId: string) {
-    activePageId = pageId
-    selectedSlotId = slotId
-    activeTab = 'layouts'
-    isImageManagerOpen = false
-    usageAssetId = null
+  function trackImageListOverflow(element: HTMLElement) {
+    const update = () => {
+      imageListOverflows = element.scrollHeight > element.clientHeight + 1
+      element.style.setProperty(
+        '--image-list-scrollbar-width',
+        `${Math.max(0, element.offsetWidth - element.clientWidth)}px`,
+      )
+    }
+    const resizeObserver = new ResizeObserver(update)
+    const mutationObserver = new MutationObserver(update)
+    resizeObserver.observe(element)
+    mutationObserver.observe(element, { childList: true, subtree: true })
+    requestAnimationFrame(update)
+    return {
+      destroy() {
+        resizeObserver.disconnect()
+        mutationObserver.disconnect()
+      },
+    }
   }
   function requestRemoveAssets(assetIds: string[]) {
-    pendingRemovalAssetIds = [...new Set(assetIds)].filter((assetId) => document.assets[assetId])
+    const removable = [...new Set(assetIds)].filter((assetId) => document.assets[assetId])
+    if (!removable.length) return
+    if (removable.some((assetId) => assetUsage(assetId) > 0)) {
+      pendingRemovalAssetIds = removable
+      return
+    }
+    removeAssets(removable)
   }
   function removeAssets(assetIds: string[]) {
     assetIds.forEach((assetId) => {
@@ -630,7 +749,6 @@
   }
   function chooseExport(scope: typeof exportScope) {
     exportScope = scope
-    isExportMenuOpen = false
     isExportOpen = true
   }
   async function saveProject(): Promise<boolean> {
@@ -865,23 +983,17 @@
     <div class="toolbar-group">
       <Button class="button button-primary" onclick={requestNew}>New</Button>
       <Button class="button" variant="outline" onclick={requestOpen}>Open</Button>
-      <div class="save-menu">
+      <DropdownMenu.Root>
+        <div class="save-menu">
         <Button class="button save-primary" variant="outline" onclick={saveProject}>Save</Button>
-        <Button
+        <DropdownMenu.Trigger
           class="button save-caret"
-          variant="outline"
-          aria-label="More save options"
-          aria-expanded={isSaveMenuOpen}
-          onclick={() => (isSaveMenuOpen = !isSaveMenuOpen)}><ChevronDown size={14}></ChevronDown></Button
-        >{#if isSaveMenuOpen}<div class="save-menu-popover">
-            <button
-              onclick={() => {
-                isSaveMenuOpen = false
-                requestLinkedSave()
-              }}>Save linked…</button
-            >
-          </div>{/if}
-      </div>
+          aria-label="More save options"><ChevronDown size={14}></ChevronDown></DropdownMenu.Trigger
+        ><DropdownMenu.Content class="save-menu-popover" align="start"
+          ><DropdownMenu.Item onclick={requestLinkedSave}>Save linked…</DropdownMenu.Item
+        ></DropdownMenu.Content>
+        </div>
+      </DropdownMenu.Root>
     </div>
     <div class="toolbar-group history-controls" aria-label="History">
       <Button
@@ -950,19 +1062,20 @@
             ? 'Recovered locally'
             : 'Saved'}</span
       >
-      <div class="export-menu">
+      <DropdownMenu.Root>
+        <div class="export-menu">
         <Button class="button button-primary" onclick={() => chooseExport('current')}
           >Export PNG</Button
-        ><Button
+        ><DropdownMenu.Trigger
           class="button button-primary export-caret"
-          aria-label="Choose export scope"
-          onclick={() => (isExportMenuOpen = !isExportMenuOpen)}><ChevronDown size={14}></ChevronDown></Button
-        >{#if isExportMenuOpen}<div class="export-menu-popover">
-            <button onclick={() => chooseExport('current')}>Current page</button><button
-              onclick={() => chooseExport('all')}>All pages (ZIP)</button
-            ><button onclick={() => chooseExport('range')}>Page range…</button>
-          </div>{/if}
-      </div>
+          aria-label="Choose export scope"><ChevronDown size={14}></ChevronDown></DropdownMenu.Trigger
+        ><DropdownMenu.Content class="export-menu-popover" align="end"
+          ><DropdownMenu.Item onclick={() => chooseExport('current')}>Current page</DropdownMenu.Item
+          ><DropdownMenu.Item onclick={() => chooseExport('all')}>All pages (ZIP)</DropdownMenu.Item
+          ><DropdownMenu.Item onclick={() => chooseExport('range')}>Page range…</DropdownMenu.Item
+        ></DropdownMenu.Content>
+        </div>
+      </DropdownMenu.Root>
     </div>
   </header>
 
@@ -995,13 +1108,13 @@
             {#each layoutGroups as group (group.frameCount)}
               <Collapsible.Root
                 class="layout-group"
-                open={!collapsedLayoutCounts.has(group.frameCount)}
+                open={expandedLayoutCount === group.frameCount}
                 onOpenChange={(open) => setLayoutGroupOpen(group.frameCount, open)}
                 ><h3>
                   <Collapsible.Trigger
                     ><span class="collapsible-icon" aria-hidden="true"
-                      >{#if collapsedLayoutCounts.has(group.frameCount)}<ChevronRight size={13}></ChevronRight
-                      >{:else}<ChevronDown size={13}></ChevronDown>{/if}</span
+                      >{#if expandedLayoutCount === group.frameCount}<ChevronDown size={13}></ChevronDown
+                      >{:else}<ChevronRight size={13}></ChevronRight>{/if}</span
                     >{group.label} photos</Collapsible.Trigger
                   >
                 </h3>
@@ -1018,7 +1131,7 @@
                       >
                         <span class="layout-preview" aria-hidden="true"
                           >{#each frames as frame (frame.slotId)}<i
-                              style={`left:${(frame.x / 80) * 100}%;top:${(frame.y / 80) * 100}%;width:${(frame.width / 80) * 100}%;height:${(frame.height / 80) * 100}%`}
+                              style={previewFrameStyle(frame, 80, 80)}
                             ></i>{/each}</span
                         >
                       </button>
@@ -1062,7 +1175,7 @@
                   class="asset-search"
                   aria-label="Search images"
                   bind:value={assetQuery}
-                  placeholder="Search images"
+                  placeholder={`Search ${assets.length} image${assets.length === 1 ? '' : 's'}`}
                 /><DropdownMenu.Root
                   ><DropdownMenu.Trigger
                     class="asset-sort-menu"
@@ -1091,64 +1204,63 @@
                 >
               </div>
             </div>
-            <p class="asset-total">
-              {assets.length} images · {formatBytes(
-                assets.reduce((total, asset) => total + asset.byteLength, 0),
-              )}
-            </p>
-            <div class="asset-list">
-              {#each filteredAssets as asset (asset.id)}<button
-                  draggable={!missingAssetIds.has(asset.id)}
-                  class:selected-asset={selectedAssetIds.includes(asset.id)}
-                  class="asset-row"
-                  title={`${asset.originalName} · ${asset.width} × ${asset.height} · ${
-                    missingAssetIds.has(asset.id)
-                      ? 'Missing — relink required'
-                      : assetUsage(asset.id) > 0
-                        ? 'Used in this project'
-                        : 'Unused'
-                  }`}
-                  ondragstart={(event) => startAssetDrag(event, asset.id)}
-                  onclick={(event) => selectAsset(asset.id, event.ctrlKey || event.metaKey)}
-                  >{#if assetRegistry.getObjectUrl(asset.id)}<img
-                      class="asset-thumb"
-                      src={assetRegistry.getObjectUrl(asset.id)}
-                      alt=""
-                    />{:else}<span class="asset-thumb"><ImageIcon size={20}></ImageIcon></span>{/if}<span
-                      class:asset-used={assetUsage(asset.id) > 0}
-                      class="asset-status-dot"
-                      role="img"
-                      aria-label={assetUsage(asset.id) > 0 ? 'Used in this project' : 'Unused'}
-                    ></span><span
-                    ><strong>{asset.originalName}</strong><small
-                      >{missingAssetIds.has(asset.id)
+            <div
+              use:trackImageListOverflow
+              class:image-list-overflow={imageListOverflows}
+              class="asset-list"
+            >
+              {#each filteredAssets as asset (asset.id)}<div class="sidebar-asset-card">
+                  <button
+                    draggable={!missingAssetIds.has(asset.id)}
+                    class:selected-asset={selectedAssetIds.includes(asset.id)}
+                    class="asset-row"
+                    title={`${asset.originalName} · ${asset.width} × ${asset.height} · ${
+                      missingAssetIds.has(asset.id)
                         ? 'Missing — relink required'
-                        : `${asset.width} × ${asset.height} · ${assetUsage(asset.id)} use${assetUsage(asset.id) === 1 ? '' : 's'}`}</small
-                    ></span
-                  ></button
-                >{/each}
+                        : `${formatBytes(asset.byteLength)} · ${assetUsage(asset.id)} use${assetUsage(asset.id) === 1 ? '' : 's'}`
+                    }`}
+                    ondragstart={(event) => startAssetDrag(event, asset.id)}
+                    onclick={(event) => selectAsset(asset.id, event.ctrlKey || event.metaKey)}
+                    >{#if assetRegistry.getObjectUrl(asset.id)}<img
+                        class="asset-thumb"
+                        src={assetRegistry.getObjectUrl(asset.id)}
+                        alt=""
+                      />{:else}<span class="asset-thumb"><ImageIcon size={20}></ImageIcon></span>{/if}<span
+                      ><strong
+                        class:asset-unused={assetUsage(asset.id) === 0}
+                        class:asset-missing={missingAssetIds.has(asset.id)}
+                        >{asset.originalName}</strong
+                      ><small
+                        >{missingAssetIds.has(asset.id)
+                          ? 'Missing — relink required'
+                          : `${asset.width} × ${asset.height} · ${assetUsage(asset.id)} use${assetUsage(asset.id) === 1 ? '' : 's'}`}</small
+                      ></span
+                    ></button
+                  ><DropdownMenu.Root
+                    ><DropdownMenu.Trigger
+                      class="asset-overflow"
+                      aria-label={`Actions for ${asset.originalName}`}><MoreHorizontal size={17}></MoreHorizontal></DropdownMenu.Trigger
+                    ><DropdownMenu.Content class="asset-menu" align="end"
+                      ><DropdownMenu.Item onclick={() => addAssetToActivePage(asset.id)}
+                        ><Plus size={14}></Plus> Add to page</DropdownMenu.Item
+                      >{#if missingAssetIds.has(asset.id)}<DropdownMenu.Item
+                          onclick={() => {
+                            selectedAssetId = asset.id
+                            relinkInput.click()
+                          }}>Locate image</DropdownMenu.Item
+                        >{:else}<DropdownMenu.Item
+                          onclick={() => {
+                            selectedAssetId = asset.id
+                            replaceInput.click()
+                          }}>Replace original</DropdownMenu.Item
+                        >{/if}<DropdownMenu.Item variant="destructive" onclick={() => requestRemoveAssets([asset.id])}
+                        >Remove from project</DropdownMenu.Item
+                      ></DropdownMenu.Content
+                    ></DropdownMenu.Root
+                  >
+                </div>{/each}
             </div>
-            {#if selectedAssetId}<div class="asset-actions">
-                <button
-                  class="button button-primary"
-                  disabled={!selectedSlotId || missingAssetIds.has(selectedAssetId)}
-                  onclick={() => {
-                    if (selectedSlotId)
-                      project.assignAsset(activePage.id, selectedSlotId, selectedAssetId!)
-                  }}>Assign to frame</button
-                ><button class="button" onclick={() => showUsage(selectedAssetId!)}
-                  >Show usage</button
-                >{#if missingAssetIds.has(selectedAssetId)}<button
-                    class="button button-primary"
-                    onclick={() => relinkInput.click()}>Locate image</button
-                  >{:else}<button class="button" onclick={() => replaceInput.click()}
-                    >Replace original</button
-                  >{/if}<button
-                  class="text-button danger"
-                  onclick={() => requestRemoveAssets([selectedAssetId!])}
-                  >Remove from project</button
-                >
-              </div>{/if}{#if selectedAssetIds.length > 1}<button
+            {#if selectedAssetIds.length > 1}<button
                 class="text-button danger"
                 onclick={() => requestRemoveAssets(selectedAssetIds)}
               >Remove selected ({selectedAssetIds.length})</button
@@ -1159,12 +1271,12 @@
               <p>Upload photos to use them across every page in this project.</p>
             </div>
           {/if}
-          <button class="button button-primary" onclick={() => uploadInput.click()}
-            >Upload images</button
-          >
-          <button class="text-button" onclick={() => (isImageManagerOpen = true)}
-            >Open image manager <ArrowRight size={14} aria-hidden="true"></ArrowRight></button
-          >
+          <div class="image-panel-actions">
+            <button class="button button-primary" onclick={() => uploadInput.click()}
+              >Upload images</button
+            >
+            <button class="button" onclick={() => (isImageManagerOpen = true)}>Manage images</button>
+          </div>
         </div>
       {/if}
     </aside>
@@ -1183,6 +1295,7 @@
       onpointermove={resizeSidebar}
       onpointerup={stopSidebarResize}
       onpointercancel={stopSidebarResize}
+      ondblclick={() => resetSidebarWidth('left')}
       onkeydown={(event) => resizeSidebarWithKeyboard('left', event)}
     ></button>
 
@@ -1196,6 +1309,7 @@
             cropSlotId={cropModeSlotId}
             {viewportZoom}
             fitToViewport={isViewportFit}
+            darkMode={prefersDark}
             onfitzoomchange={(zoom) => (fittedViewportZoom = zoom)}
             getImage={(assetId) => assetRegistry.getImage(assetId)}
             onselect={selectCanvasFrame}
@@ -1341,6 +1455,7 @@
       onpointermove={resizeSidebar}
       onpointerup={stopSidebarResize}
       onpointercancel={stopSidebarResize}
+      ondblclick={() => resetSidebarWidth('right')}
       onkeydown={(event) => resizeSidebarWithKeyboard('right', event)}
     ></button>
     <aside class="sidebar right-panel" aria-label="Properties">
@@ -1378,6 +1493,16 @@
                       resizeActivePage('height', Number(event.currentTarget.value))}
                   />
                 </label>
+                <button
+                  class:active={pageAspectLinked}
+                  class="aspect-ratio-toggle"
+                  type="button"
+                  aria-label={pageAspectLinked ? 'Unlock page aspect ratio' : 'Lock page aspect ratio'}
+                  aria-pressed={pageAspectLinked}
+                  title={pageAspectLinked ? 'Unlock aspect ratio' : 'Lock aspect ratio'}
+                  onclick={() => (pageAspectLinked = !pageAspectLinked)}
+                  >{#if pageAspectLinked}<Link2 size={15}></Link2>{:else}<Link2Off size={15}></Link2Off>{/if}</button
+                >
               </div>
               <div>
                 <span>Transparent background</span><Switch.Root
@@ -1434,7 +1559,7 @@
                         aria-label="Background color"
                         type="color"
                         value={activePage.style.backgroundColor.slice(0, 7)}
-                        onchange={(event) => setBackgroundColor(event.currentTarget.value)}
+                        onchange={(event) => setBackgroundColor(event.currentTarget.value, true)}
                       /></label
                     ></div></Popover.Content
                   ></Popover.Root
@@ -1532,7 +1657,7 @@
         >
         {#if activePage.style.shadow.enabled}<Collapsible.Root class="property-group shadow-properties" open
           ><div class="property-group-heading">
-            <Collapsible.Trigger>Shadow <ChevronDown size={14} aria-hidden="true"></ChevronDown></Collapsible.Trigger>
+            <Collapsible.Trigger>Shadow Appearance <ChevronDown size={14} aria-hidden="true"></ChevronDown></Collapsible.Trigger>
           </div>
           <Collapsible.Content
             ><div class="property-list">
@@ -1569,7 +1694,7 @@
                           aria-label="Frame shadow color"
                           type="color"
                           value={activePage.style.shadow.color}
-                          onchange={(event) => setShadowColor(event.currentTarget.value)}
+                          onchange={(event) => setShadowColor(event.currentTarget.value, true)}
                         /></label
                       ></div></Popover.Content
                     ></Popover.Root
@@ -1819,11 +1944,9 @@
     </aside>
   </section>
 
-  {#if isImageManagerOpen}
-    <div class="dialog-backdrop">
-      <dialog
+  <Dialog.Root bind:open={isImageManagerOpen}>
+      <Dialog.Content
         class="dialog image-manager-dialog"
-        open
         aria-modal="true"
         aria-labelledby="image-manager-title"
       >
@@ -1912,20 +2035,23 @@
                   ></ToggleGroup.Root
                 >
               </div>
-              <ToggleGroup.Root
-                class="asset-filters"
-                type="single"
-                value={assetFilter}
-                onValueChange={(value) => {
-                  if (value) assetFilter = value as typeof assetFilter
-                }}
-                aria-label="Filter project images"
-                ><ToggleGroup.Item value="all">All</ToggleGroup.Item><ToggleGroup.Item value="used"
-                  >Used</ToggleGroup.Item
-                ><ToggleGroup.Item value="unused">Unused</ToggleGroup.Item><ToggleGroup.Item
-                  value="missing">Missing ({missingAssetIds.size})</ToggleGroup.Item
-                ></ToggleGroup.Root
-              >
+              <div class="manager-filter-row">
+                <ToggleGroup.Root
+                  class="asset-filters"
+                  type="single"
+                  value={assetFilter}
+                  onValueChange={(value) => {
+                    if (value) assetFilter = value as typeof assetFilter
+                  }}
+                  aria-label="Filter project images"
+                  ><ToggleGroup.Item value="all">All</ToggleGroup.Item><ToggleGroup.Item value="used"
+                    >Used</ToggleGroup.Item
+                  ><ToggleGroup.Item value="unused">Unused</ToggleGroup.Item><ToggleGroup.Item
+                    value="missing">Missing ({missingAssetIds.size})</ToggleGroup.Item
+                  ></ToggleGroup.Root
+                >
+                <span class="manager-summary">{assets.length} images · {formatBytes(assetLibraryBytes)} embedded</span>
+              </div>
             </div>
             <div
               class="asset-list manager-asset-list"
@@ -1945,10 +2071,11 @@
                         src={assetRegistry.getObjectUrl(asset.id)}
                         alt=""
                       />{:else}<span class="asset-thumb"><ImageIcon size={20}></ImageIcon></span>{/if}<span
-                      ><strong>{asset.originalName}</strong><small
+                      ><strong class:asset-missing={missingAssetIds.has(asset.id)}>{asset.originalName}</strong><small
+                        class:asset-missing={missingAssetIds.has(asset.id)}
                         >{missingAssetIds.has(asset.id)
                           ? 'Missing — relink required'
-                          : `${asset.width} × ${asset.height} · ${formatBytes(asset.byteLength)} · ${assetUsage(asset.id)} use${assetUsage(asset.id) === 1 ? '' : 's'} · Ready`}</small
+                          : `${asset.width} × ${asset.height} · ${formatBytes(asset.byteLength)} · ${assetUsage(asset.id)} use${assetUsage(asset.id) === 1 ? '' : 's'}`}</small
                       ></span
                     ></button
                   ><DropdownMenu.Root
@@ -1956,8 +2083,6 @@
                       class="asset-overflow"
                       aria-label={`Actions for ${asset.originalName}`}><MoreHorizontal size={17}></MoreHorizontal></DropdownMenu.Trigger
                     ><DropdownMenu.Content class="asset-menu"
-                      ><DropdownMenu.Item onclick={() => showUsage(asset.id)}
-                        >Show usages</DropdownMenu.Item
                       >{#if missingAssetIds.has(asset.id)}<DropdownMenu.Item
                           onclick={() => {
                             selectedAssetId = asset.id
@@ -1981,31 +2106,22 @@
                   class="button"
                   onclick={() => requestRemoveAssets(selectedAssetIds)}
                   >Remove selected ({selectedAssetIds.length})</button
-                >{/if}<button
-                class="text-button danger"
-                onclick={() => {
-                  const unused = assets.filter((asset) => assetUsage(asset.id) === 0)
-                  if (unused.length) requestRemoveAssets(unused.map((asset) => asset.id))
-                }}>Remove all unused</button
-              >
+                >{/if}
             </div>
           </div>{/if}
-        <div class="dialog-footer">
-          <span
-            >{Object.keys(document.assets).length} images · {formatBytes(
-              Object.values(document.assets).reduce(
-                (total, asset) => total + asset.byteLength,
-                0,
-              ),
-            )} embedded</span
+        <div class="dialog-footer image-manager-footer">
+          <button
+            class="text-button danger"
+            disabled={unusedAssetIds.length === 0}
+            onclick={() => requestRemoveAssets(unusedAssetIds)}>Remove unused images</button
           ><button class="button" onclick={() => (isImageManagerOpen = false)}>Done</button>
         </div>
-      </dialog>
-    </div>
-  {/if}
+      </Dialog.Content>
+  </Dialog.Root>
 
-  {#if pendingRemovalAssetIds?.length}<div class="dialog-backdrop">
-      <dialog class="dialog" open aria-modal="true" aria-labelledby="remove-images-title">
+  <Dialog.Root open={Boolean(pendingRemovalAssetIds?.length)} onOpenChange={(open) => !open && (pendingRemovalAssetIds = null)}>
+    {#if pendingRemovalAssetIds}
+      <Dialog.Content class="dialog" aria-modal="true" aria-labelledby="remove-images-title">
         <div class="dialog-header">
           <div>
             <p class="eyebrow">Project collection</p>
@@ -2052,40 +2168,12 @@
             >Remove images</button
           >
         </div>
-      </dialog>
-    </div>{/if}
+      </Dialog.Content>
+    {/if}
+  </Dialog.Root>
 
-  {#if usageAssetId}<div class="dialog-backdrop">
-      <dialog class="dialog" open aria-labelledby="usage-title">
-        <div class="dialog-header">
-          <div>
-            <p class="eyebrow">Image placements</p>
-            <h2 id="usage-title">
-              Used in {assetUsages.length} frame{assetUsages.length === 1 ? '' : 's'}
-            </h2>
-          </div>
-          <button
-            class="icon-button"
-            aria-label="Close image usages"
-            onclick={() => (usageAssetId = null)}><X size={17}></X></button
-          >
-        </div>
-        <div class="usage-list">
-          {#if assetUsages.length}{#each assetUsages as usage (`${usage.pageId}-${usage.slotId}`)}<button
-                onclick={() => jumpToUsage(usage.pageId, usage.slotId)}
-                ><strong>{usage.pageName}</strong><span>Frame {usage.frameNumber}</span><span
-                  aria-hidden="true"><ArrowRight size={14}></ArrowRight></span
-                ></button
-              >{/each}{:else}<p>This image is not used on any page.</p>{/if}
-        </div>
-        <div class="dialog-footer">
-          <button class="button" onclick={() => (usageAssetId = null)}>Done</button>
-        </div>
-      </dialog>
-    </div>{/if}
-
-  {#if pendingNavigation}<div class="dialog-backdrop">
-      <dialog class="dialog" open aria-modal="true" aria-labelledby="unsaved-title">
+  <Dialog.Root open={Boolean(pendingNavigation)} onOpenChange={(open) => !open && (pendingNavigation = null)}>
+      <Dialog.Content class="dialog" aria-modal="true" aria-labelledby="unsaved-title">
         <div class="dialog-header">
           <div>
             <p class="eyebrow">Unsaved changes</p>
@@ -2106,11 +2194,11 @@
             ></span
           >
         </div>
-      </dialog>
-    </div>{/if}
+      </Dialog.Content>
+  </Dialog.Root>
 
-  {#if pendingLinkedDocument}<div class="dialog-backdrop">
-      <dialog class="dialog" open aria-modal="true" aria-labelledby="linked-assets-title">
+  <Dialog.Root open={Boolean(pendingLinkedDocument)} onOpenChange={(open) => !open && (pendingLinkedDocument = null)}>
+      <Dialog.Content class="dialog" aria-modal="true" aria-labelledby="linked-assets-title">
         <div class="dialog-header">
           <div>
             <p class="eyebrow">External originals</p>
@@ -2127,11 +2215,11 @@
           <button class="button" onclick={() => (pendingLinkedDocument = null)}>Not now</button>
           <button class="button button-primary" onclick={requestLinkedFolder}>Choose folder…</button>
         </div>
-      </dialog>
-    </div>{/if}
+      </Dialog.Content>
+  </Dialog.Root>
 
-  {#if isExportOpen}<div class="dialog-backdrop">
-      <dialog class="dialog" open aria-labelledby="export-title">
+  <Dialog.Root bind:open={isExportOpen}>
+      <Dialog.Content class="dialog" aria-labelledby="export-title">
         <div class="dialog-header">
           <div>
             <p class="eyebrow">PNG export</p>
@@ -2146,10 +2234,21 @@
         </div>
         <div class="export-form">
           <label
-            >Scope <select bind:value={exportScope} disabled={isExporting}
-              ><option value="current">Current page</option><option value="all">All pages</option
-              ><option value="range">Page range</option></select
-            ></label
+            >Scope <Select.Root
+              type="single"
+              value={exportScope}
+              disabled={isExporting}
+              onValueChange={(value) => {
+                if (value) exportScope = value as typeof exportScope
+              }}
+              ><Select.Trigger class="export-scope" aria-label="Export scope"
+                ><span>{exportScope === 'current' ? 'Current page' : exportScope === 'all' ? 'All pages' : 'Page range'}</span></Select.Trigger
+              ><Select.Content
+                ><Select.Item value="current">Current page</Select.Item
+                ><Select.Item value="all">All pages</Select.Item
+                ><Select.Item value="range">Page range</Select.Item
+              ></Select.Content
+            ></Select.Root></label
           >{#if exportScope === 'range'}<label
               >Range <input
                 bind:value={exportRange}
@@ -2177,8 +2276,8 @@
             >{isExporting ? 'Exporting…' : 'Export'}</button
           >
         </div>
-      </dialog>
-    </div>{/if}
+      </Dialog.Content>
+  </Dialog.Root>
 
   {#if toast}
     <div class="toast" role="status">{toast}</div>

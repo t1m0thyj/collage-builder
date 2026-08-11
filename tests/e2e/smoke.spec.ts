@@ -12,7 +12,7 @@ async function expectOnTop(page: import('@playwright/test').Page, dialogName: st
   const isTopmost = await page.evaluate(
     ({ x, y, dialogName }) => {
       const element = document.elementFromPoint(x, y)
-      return element?.closest('dialog')?.getAttribute('aria-labelledby') === dialogName
+      return element?.closest('[role="dialog"]')?.getAttribute('aria-labelledby') === dialogName
     },
     { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2, dialogName: dialogName === 'Image Manager' ? 'image-manager-title' : 'export-title' },
   )
@@ -31,9 +31,18 @@ test('renders the editor shell and opens image manager', async ({ page }) => {
 test('page-range export dialog overlays the editor', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Choose export scope' }).click()
-  await page.getByRole('button', { name: 'Page range…' }).click()
+  await page.getByRole('menuitem', { name: 'Page range…' }).click()
   await expect(page.getByRole('dialog', { name: 'Export pages' })).toBeVisible()
   await expectOnTop(page, 'Export pages')
+})
+
+test('opening tab actions does not remove the active page', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Add page' }).click()
+  await expect(page.getByRole('button', { name: 'Page 2' })).toBeVisible()
+  await page.getByRole('button', { name: 'Page actions' }).click()
+  await expect(page.getByRole('menuitem', { name: 'Rename' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Page 2' })).toBeVisible()
 })
 
 test('imports and removes an image from the project collection', async ({ page }) => {
@@ -48,7 +57,6 @@ test('imports and removes an image from the project collection', async ({ page }
   await expect(page.getByRole('dialog', { name: 'Image Manager' }).getByText('remove-me.png')).toBeVisible()
   await page.getByRole('button', { name: 'Actions for remove-me.png' }).click()
   await page.getByRole('menuitem', { name: 'Remove from project' }).click()
-  await page.getByRole('button', { name: 'Remove images' }).click()
   await expect(page.getByText('remove-me.png', { exact: true })).toHaveCount(0)
 })
 

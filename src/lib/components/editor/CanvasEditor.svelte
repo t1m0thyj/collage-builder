@@ -21,6 +21,7 @@
   export let onassetdrop: (assetId: AssetId, slotId: SlotId) => void
   export let viewportZoom = 1
   export let fitToViewport = true
+  export let darkMode = false
   export let onfitzoomchange: (zoom: number) => void = () => undefined
   export let onrequestcrop: (slotId: SlotId) => void
   export let onviewportzoom: (factor: number) => void
@@ -350,8 +351,8 @@
         )
       : undefined
   $: fittedZoom = Math.min(
-    (viewportWidth - 96) / page.width,
-    (viewportHeight - 96) / page.height,
+    (viewportWidth - 48) / page.width,
+    (viewportHeight - 48) / page.height,
     1,
   )
   $: fitScale = fitToViewport ? fittedZoom : viewportZoom
@@ -402,7 +403,7 @@
       <Rect
         width={viewportWidth}
         height={viewportHeight}
-        fill="#E8E6E0"
+        fill={darkMode ? '#1C1C1C' : '#E8E6E0'}
         onpointerclick={onexitcrop}
       />
       <Group x={stageX} y={stageY} scaleX={fitScale} scaleY={fitScale}>
