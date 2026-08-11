@@ -8,5 +8,9 @@ export interface PageRenderModel {
 }
 
 export function createPageRenderModel(page: PageV1): PageRenderModel {
-  return { page, frames: resolveLayout(page), cornerRadius: Math.min(page.style.cornerRadius, page.width / 2, page.height / 2) }
+  return {
+    page,
+    frames: resolveLayout(page),
+    cornerRadius: Math.min(page.style.cornerRadius, page.width / 2, page.height / 2),
+  }
 }

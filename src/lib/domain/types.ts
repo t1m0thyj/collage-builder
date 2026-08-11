@@ -2,7 +2,10 @@ export type ProjectId = string
 export type PageId = string
 export type AssetId = string
 export type SlotId = string
-export interface NormalizedPoint { x: number; y: number }
+export interface NormalizedPoint {
+  x: number
+  y: number
+}
 
 export interface CollageDocumentV1 {
   format: 'collage-builder'
@@ -31,14 +34,31 @@ export interface PageStyleV1 {
   padding: number
   gap: number
   cornerRadius: number
-  shadow: { enabled: boolean; color: string; opacity: number; blur: number; offsetX: number; offsetY: number }
+  shadow: {
+    enabled: boolean
+    color: string
+    opacity: number
+    blur: number
+    offsetX: number
+    offsetY: number
+  }
 }
 
 export type LayoutNodeV1 =
   | { kind: 'leaf'; slotId: SlotId; polygon?: NormalizedPoint[] }
   | { kind: 'split'; axis: 'x' | 'y'; weights: number[]; children: LayoutNodeV1[] }
+  | {
+      kind: 'grid'
+      columns: number
+      rows: number
+      cells: Array<{ slotId: SlotId; x: number; y: number; width: number; height: number }>
+    }
 
-export interface LayoutSnapshotV1 { presetId: string; presetRevision: number; root: LayoutNodeV1 }
+export interface LayoutSnapshotV1 {
+  presetId: string
+  presetRevision: number
+  root: LayoutNodeV1
+}
 
 export interface SlotContentV1 {
   assetId: AssetId
@@ -53,12 +73,20 @@ export interface AssetRecordV1 {
   width: number
   height: number
   sha256: string
-  storage: { kind: 'embedded'; archivePath: string } | { kind: 'linked'; displayHint: string; lastModified?: number }
+  storage:
+    | { kind: 'embedded'; archivePath: string }
+    | { kind: 'linked'; displayHint: string; relativePath?: string; lastModified?: number }
 }
 
 export type LayoutPresetNode =
   | { kind: 'leaf'; key: string; polygon?: NormalizedPoint[] }
   | { kind: 'split'; axis: 'x' | 'y'; weights: number[]; children: LayoutPresetNode[] }
+  | {
+      kind: 'grid'
+      columns: number
+      rows: number
+      cells: Array<{ key: string; x: number; y: number; width: number; height: number }>
+    }
 
 export interface LayoutPresetDefinition {
   id: string
@@ -69,4 +97,11 @@ export interface LayoutPresetDefinition {
   root: LayoutPresetNode
 }
 
-export interface ResolvedFrame { slotId: SlotId; x: number; y: number; width: number; height: number; polygon?: NormalizedPoint[] }
+export interface ResolvedFrame {
+  slotId: SlotId
+  x: number
+  y: number
+  width: number
+  height: number
+  polygon?: NormalizedPoint[]
+}

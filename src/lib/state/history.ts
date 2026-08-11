@@ -4,8 +4,12 @@ export class History<T> {
 
   constructor(private readonly limit = 100) {}
 
-  get canUndo(): boolean { return this.undoStack.length > 0 }
-  get canRedo(): boolean { return this.redoStack.length > 0 }
+  get canUndo(): boolean {
+    return this.undoStack.length > 0
+  }
+  get canRedo(): boolean {
+    return this.redoStack.length > 0
+  }
 
   push(snapshot: T): void {
     this.undoStack.push(snapshot)
@@ -27,5 +31,8 @@ export class History<T> {
     return next
   }
 
-  clear(): void { this.undoStack = []; this.redoStack = [] }
+  clear(): void {
+    this.undoStack = []
+    this.redoStack = []
+  }
 }

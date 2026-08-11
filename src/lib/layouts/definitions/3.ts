@@ -1,10 +1,226 @@
 import type { LayoutPresetDefinition } from '../../domain/types'
 
-export const threeFramePresets: LayoutPresetDefinition[] = [
-  { id: 'feature-right', revision: 1, name: 'One left, two right', frameCount: 3, tags: ['asymmetric', 'portrait-led'], root: { kind: 'split', axis: 'x', weights: [1.6, 1], children: [{ kind: 'leaf', key: 'a' }, { kind: 'split', axis: 'y', weights: [1, 1], children: [{ kind: 'leaf', key: 'b' }, { kind: 'leaf', key: 'c' }] }] } },
-  { id: 'feature-top', revision: 1, name: 'One top, two bottom', frameCount: 3, tags: ['asymmetric', 'landscape-led'], root: { kind: 'split', axis: 'y', weights: [1.3, 1], children: [{ kind: 'leaf', key: 'a' }, { kind: 'split', axis: 'x', weights: [1, 1], children: [{ kind: 'leaf', key: 'b' }, { kind: 'leaf', key: 'c' }] }] } },
-  { id: 'three-columns', revision: 1, name: 'Three columns', frameCount: 3, tags: ['uniform'], root: { kind: 'split', axis: 'x', weights: [1, 1, 1], children: [{ kind: 'leaf', key: 'a' }, { kind: 'leaf', key: 'b' }, { kind: 'leaf', key: 'c' }] } },
-  { id: 'three-rows', revision: 1, name: 'Three rows', frameCount: 3, tags: ['uniform'], root: { kind: 'split', axis: 'y', weights: [1, 1, 1], children: [{ kind: 'leaf', key: 'a' }, { kind: 'leaf', key: 'b' }, { kind: 'leaf', key: 'c' }] } },
-  { id: 'two-top-one-bottom', revision: 1, name: 'Two top, one bottom', frameCount: 3, tags: ['asymmetric', 'landscape-led'], root: { kind: 'split', axis: 'y', weights: [1, 1.3], children: [{ kind: 'split', axis: 'x', weights: [1, 1], children: [{ kind: 'leaf', key: 'a' }, { kind: 'leaf', key: 'b' }] }, { kind: 'leaf', key: 'c' }] } },
-  { id: 'two-left-one-right', revision: 1, name: 'Two left, one right', frameCount: 3, tags: ['asymmetric', 'portrait-led'], root: { kind: 'split', axis: 'x', weights: [1, 1.3], children: [{ kind: 'split', axis: 'y', weights: [1, 1], children: [{ kind: 'leaf', key: 'a' }, { kind: 'leaf', key: 'b' }] }, { kind: 'leaf', key: 'c' }] } },
+export const layout3Presets: LayoutPresetDefinition[] = [
+  {
+    "id": "layout-3-001",
+    "revision": 1,
+    "name": "Layout 1",
+    "frameCount": 3,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "grid",
+      "columns": 2,
+      "rows": 2,
+      "cells": [
+        {
+          "key": "cell-1",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 2
+        },
+        {
+          "key": "cell-2",
+          "x": 1,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-3",
+          "x": 1,
+          "y": 1,
+          "width": 1,
+          "height": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-3-002",
+    "revision": 1,
+    "name": "Layout 2",
+    "frameCount": 3,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "grid",
+      "columns": 2,
+      "rows": 2,
+      "cells": [
+        {
+          "key": "cell-1",
+          "x": 0,
+          "y": 0,
+          "width": 2,
+          "height": 1
+        },
+        {
+          "key": "cell-2",
+          "x": 0,
+          "y": 1,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-3",
+          "x": 1,
+          "y": 1,
+          "width": 1,
+          "height": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-3-003",
+    "revision": 1,
+    "name": "Layout 3",
+    "frameCount": 3,
+    "tags": [
+      "uniform"
+    ],
+    "root": {
+      "kind": "grid",
+      "columns": 3,
+      "rows": 1,
+      "cells": [
+        {
+          "key": "cell-1",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-2",
+          "x": 1,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-3",
+          "x": 2,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-3-004",
+    "revision": 1,
+    "name": "Layout 4",
+    "frameCount": 3,
+    "tags": [
+      "uniform"
+    ],
+    "root": {
+      "kind": "grid",
+      "columns": 1,
+      "rows": 3,
+      "cells": [
+        {
+          "key": "cell-1",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-2",
+          "x": 0,
+          "y": 1,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-3",
+          "x": 0,
+          "y": 2,
+          "width": 1,
+          "height": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-3-005",
+    "revision": 1,
+    "name": "Layout 5",
+    "frameCount": 3,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "grid",
+      "columns": 2,
+      "rows": 2,
+      "cells": [
+        {
+          "key": "cell-1",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-2",
+          "x": 1,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-3",
+          "x": 0,
+          "y": 1,
+          "width": 2,
+          "height": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-3-006",
+    "revision": 1,
+    "name": "Layout 6",
+    "frameCount": 3,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "grid",
+      "columns": 2,
+      "rows": 2,
+      "cells": [
+        {
+          "key": "cell-1",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-2",
+          "x": 1,
+          "y": 0,
+          "width": 1,
+          "height": 2
+        },
+        {
+          "key": "cell-3",
+          "x": 0,
+          "y": 1,
+          "width": 1,
+          "height": 1
+        }
+      ]
+    }
+  }
 ]

@@ -1,10 +1,1196 @@
 import type { LayoutPresetDefinition } from '../../domain/types'
 
-export const fourFramePresets: LayoutPresetDefinition[] = [
-  { id: 'grid-2x2', revision: 1, name: '2 × 2 grid', frameCount: 4, tags: ['uniform'], root: { kind: 'split', axis: 'y', weights: [1, 1], children: [{ kind: 'split', axis: 'x', weights: [1, 1], children: [{ kind: 'leaf', key: 'a' }, { kind: 'leaf', key: 'b' }] }, { kind: 'split', axis: 'x', weights: [1, 1], children: [{ kind: 'leaf', key: 'c' }, { kind: 'leaf', key: 'd' }] }] } },
-  { id: 'one-left-three-right', revision: 1, name: 'One left, three right', frameCount: 4, tags: ['asymmetric', 'portrait-led'], root: { kind: 'split', axis: 'x', weights: [1.5, 1], children: [{ kind: 'leaf', key: 'a' }, { kind: 'split', axis: 'y', weights: [1, 1, 1], children: [{ kind: 'leaf', key: 'b' }, { kind: 'leaf', key: 'c' }, { kind: 'leaf', key: 'd' }] }] } },
-  { id: 'four-rows', revision: 1, name: 'Four rows', frameCount: 4, tags: ['uniform'], root: { kind: 'split', axis: 'y', weights: [1, 1, 1, 1], children: [{ kind: 'leaf', key: 'a' }, { kind: 'leaf', key: 'b' }, { kind: 'leaf', key: 'c' }, { kind: 'leaf', key: 'd' }] } },
-  { id: 'four-columns', revision: 1, name: 'Four columns', frameCount: 4, tags: ['uniform'], root: { kind: 'split', axis: 'x', weights: [1, 1, 1, 1], children: [{ kind: 'leaf', key: 'a' }, { kind: 'leaf', key: 'b' }, { kind: 'leaf', key: 'c' }, { kind: 'leaf', key: 'd' }] } },
-  { id: 'three-top-one-bottom', revision: 1, name: 'Three top, one bottom', frameCount: 4, tags: ['asymmetric', 'landscape-led'], root: { kind: 'split', axis: 'y', weights: [1, 1.3], children: [{ kind: 'split', axis: 'x', weights: [1, 1, 1], children: [{ kind: 'leaf', key: 'a' }, { kind: 'leaf', key: 'b' }, { kind: 'leaf', key: 'c' }] }, { kind: 'leaf', key: 'd' }] } },
-  { id: 'one-top-three-bottom', revision: 1, name: 'One top, three bottom', frameCount: 4, tags: ['asymmetric', 'landscape-led'], root: { kind: 'split', axis: 'y', weights: [1.3, 1], children: [{ kind: 'leaf', key: 'a' }, { kind: 'split', axis: 'x', weights: [1, 1, 1], children: [{ kind: 'leaf', key: 'b' }, { kind: 'leaf', key: 'c' }, { kind: 'leaf', key: 'd' }] }] } },
+export const layout4Presets: LayoutPresetDefinition[] = [
+  {
+    "id": "layout-4-001",
+    "revision": 1,
+    "name": "Layout 1",
+    "frameCount": 4,
+    "tags": [
+      "uniform"
+    ],
+    "root": {
+      "kind": "grid",
+      "columns": 2,
+      "rows": 2,
+      "cells": [
+        {
+          "key": "cell-1",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-2",
+          "x": 1,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-3",
+          "x": 0,
+          "y": 1,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-4",
+          "x": 1,
+          "y": 1,
+          "width": 1,
+          "height": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-4-002",
+    "revision": 1,
+    "name": "Layout 2",
+    "frameCount": 4,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "split",
+      "axis": "x",
+      "weights": [
+        0.6666666666666666,
+        0.3333333333333333
+      ],
+      "children": [
+        {
+          "kind": "leaf",
+          "key": "cell-1"
+        },
+        {
+          "kind": "split",
+          "axis": "y",
+          "weights": [
+            0.3333333333333333,
+            0.3333333333333333,
+            0.3333333333333333
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-2"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-3"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-4"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-4-003",
+    "revision": 1,
+    "name": "Layout 3",
+    "frameCount": 4,
+    "tags": [
+      "uniform"
+    ],
+    "root": {
+      "kind": "grid",
+      "columns": 1,
+      "rows": 4,
+      "cells": [
+        {
+          "key": "cell-1",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-2",
+          "x": 0,
+          "y": 1,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-3",
+          "x": 0,
+          "y": 2,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-4",
+          "x": 0,
+          "y": 3,
+          "width": 1,
+          "height": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-4-004",
+    "revision": 1,
+    "name": "Layout 4",
+    "frameCount": 4,
+    "tags": [
+      "uniform"
+    ],
+    "root": {
+      "kind": "grid",
+      "columns": 4,
+      "rows": 1,
+      "cells": [
+        {
+          "key": "cell-1",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-2",
+          "x": 1,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-3",
+          "x": 2,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-4",
+          "x": 3,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-4-005",
+    "revision": 1,
+    "name": "Layout 5",
+    "frameCount": 4,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "split",
+      "axis": "y",
+      "weights": [
+        0.4,
+        0.6
+      ],
+      "children": [
+        {
+          "kind": "split",
+          "axis": "x",
+          "weights": [
+            0.6,
+            0.4
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-1"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-2"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "x",
+          "weights": [
+            0.3333333333333333,
+            0.6666666666666666
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-3"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-4"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-4-006",
+    "revision": 1,
+    "name": "Layout 6",
+    "frameCount": 4,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "grid",
+      "columns": 3,
+      "rows": 3,
+      "cells": [
+        {
+          "key": "cell-1",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-2",
+          "x": 1,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-3",
+          "x": 2,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-4",
+          "x": 0,
+          "y": 1,
+          "width": 3,
+          "height": 2
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-4-007",
+    "revision": 1,
+    "name": "Layout 7",
+    "frameCount": 4,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "grid",
+      "columns": 3,
+      "rows": 3,
+      "cells": [
+        {
+          "key": "cell-1",
+          "x": 0,
+          "y": 0,
+          "width": 3,
+          "height": 2
+        },
+        {
+          "key": "cell-2",
+          "x": 0,
+          "y": 2,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-3",
+          "x": 1,
+          "y": 2,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-4",
+          "x": 2,
+          "y": 2,
+          "width": 1,
+          "height": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-4-008",
+    "revision": 1,
+    "name": "Layout 8",
+    "frameCount": 4,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "split",
+      "axis": "x",
+      "weights": [
+        0.3333333333333333,
+        0.6666666666666666
+      ],
+      "children": [
+        {
+          "kind": "split",
+          "axis": "y",
+          "weights": [
+            0.6666666666666666,
+            0.3333333333333333
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-1"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-2"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "y",
+          "weights": [
+            0.6666666666666666,
+            0.3333333333333333
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-3"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-4"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-4-009",
+    "revision": 1,
+    "name": "Layout 9",
+    "frameCount": 4,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "grid",
+      "columns": 3,
+      "rows": 2,
+      "cells": [
+        {
+          "key": "cell-1",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 2
+        },
+        {
+          "key": "cell-2",
+          "x": 1,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-3",
+          "x": 2,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-4",
+          "x": 1,
+          "y": 1,
+          "width": 2,
+          "height": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-4-010",
+    "revision": 1,
+    "name": "Layout 10",
+    "frameCount": 4,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "split",
+      "axis": "x",
+      "weights": [
+        0.3333333333333333,
+        0.6666666666666666
+      ],
+      "children": [
+        {
+          "kind": "split",
+          "axis": "y",
+          "weights": [
+            0.3333333333333333,
+            0.3333333333333333,
+            0.3333333333333333
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-1"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-2"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-3"
+            }
+          ]
+        },
+        {
+          "kind": "leaf",
+          "key": "cell-4"
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-4-011",
+    "revision": 1,
+    "name": "Layout 11",
+    "frameCount": 4,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "grid",
+      "columns": 3,
+      "rows": 4,
+      "cells": [
+        {
+          "key": "cell-1",
+          "x": 0,
+          "y": 0,
+          "width": 3,
+          "height": 2
+        },
+        {
+          "key": "cell-2",
+          "x": 0,
+          "y": 2,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-3",
+          "x": 1,
+          "y": 2,
+          "width": 2,
+          "height": 2
+        },
+        {
+          "key": "cell-4",
+          "x": 0,
+          "y": 3,
+          "width": 1,
+          "height": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-4-012",
+    "revision": 1,
+    "name": "Layout 12",
+    "frameCount": 4,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "grid",
+      "columns": 6,
+      "rows": 3,
+      "cells": [
+        {
+          "key": "cell-1",
+          "x": 0,
+          "y": 0,
+          "width": 2,
+          "height": 2
+        },
+        {
+          "key": "cell-2",
+          "x": 2,
+          "y": 0,
+          "width": 4,
+          "height": 2
+        },
+        {
+          "key": "cell-3",
+          "x": 0,
+          "y": 2,
+          "width": 3,
+          "height": 1
+        },
+        {
+          "key": "cell-4",
+          "x": 3,
+          "y": 2,
+          "width": 3,
+          "height": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-4-013",
+    "revision": 1,
+    "name": "Layout 13",
+    "frameCount": 4,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "split",
+      "axis": "x",
+      "weights": [
+        0.625,
+        0.375
+      ],
+      "children": [
+        {
+          "kind": "split",
+          "axis": "y",
+          "weights": [
+            0.625,
+            0.375
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-1"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-2"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "y",
+          "weights": [
+            0.375,
+            0.625
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-3"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-4"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-4-014",
+    "revision": 1,
+    "name": "Layout 14",
+    "frameCount": 4,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "grid",
+      "columns": 2,
+      "rows": 3,
+      "cells": [
+        {
+          "key": "cell-1",
+          "x": 0,
+          "y": 0,
+          "width": 2,
+          "height": 1
+        },
+        {
+          "key": "cell-2",
+          "x": 0,
+          "y": 1,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-3",
+          "x": 1,
+          "y": 1,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-4",
+          "x": 0,
+          "y": 2,
+          "width": 2,
+          "height": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-4-015",
+    "revision": 1,
+    "name": "Layout 15",
+    "frameCount": 4,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "grid",
+      "columns": 3,
+      "rows": 2,
+      "cells": [
+        {
+          "key": "cell-1",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-2",
+          "x": 1,
+          "y": 0,
+          "width": 1,
+          "height": 2
+        },
+        {
+          "key": "cell-3",
+          "x": 2,
+          "y": 0,
+          "width": 1,
+          "height": 2
+        },
+        {
+          "key": "cell-4",
+          "x": 0,
+          "y": 1,
+          "width": 1,
+          "height": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-4-016",
+    "revision": 1,
+    "name": "Layout 16",
+    "frameCount": 4,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "split",
+      "axis": "x",
+      "weights": [
+        0.625,
+        0.375
+      ],
+      "children": [
+        {
+          "kind": "split",
+          "axis": "y",
+          "weights": [
+            0.3333333333333333,
+            0.6666666666666666
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-1"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-2"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "y",
+          "weights": [
+            0.5,
+            0.5
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-3"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-4"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-4-017",
+    "revision": 1,
+    "name": "Layout 17",
+    "frameCount": 4,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "grid",
+      "columns": 2,
+      "rows": 3,
+      "cells": [
+        {
+          "key": "cell-1",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-2",
+          "x": 1,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-3",
+          "x": 0,
+          "y": 1,
+          "width": 2,
+          "height": 1
+        },
+        {
+          "key": "cell-4",
+          "x": 0,
+          "y": 2,
+          "width": 2,
+          "height": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-4-018",
+    "revision": 1,
+    "name": "Layout 18",
+    "frameCount": 4,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "grid",
+      "columns": 3,
+      "rows": 2,
+      "cells": [
+        {
+          "key": "cell-1",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 2
+        },
+        {
+          "key": "cell-2",
+          "x": 1,
+          "y": 0,
+          "width": 2,
+          "height": 1
+        },
+        {
+          "key": "cell-3",
+          "x": 1,
+          "y": 1,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-4",
+          "x": 2,
+          "y": 1,
+          "width": 1,
+          "height": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-4-019",
+    "revision": 1,
+    "name": "Layout 19",
+    "frameCount": 4,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "grid",
+      "columns": 3,
+      "rows": 2,
+      "cells": [
+        {
+          "key": "cell-1",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 2
+        },
+        {
+          "key": "cell-2",
+          "x": 1,
+          "y": 0,
+          "width": 1,
+          "height": 2
+        },
+        {
+          "key": "cell-3",
+          "x": 2,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-4",
+          "x": 2,
+          "y": 1,
+          "width": 1,
+          "height": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-4-020",
+    "revision": 1,
+    "name": "Layout 20",
+    "frameCount": 4,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "grid",
+      "columns": 2,
+      "rows": 4,
+      "cells": [
+        {
+          "key": "cell-1",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-2",
+          "x": 1,
+          "y": 0,
+          "width": 1,
+          "height": 2
+        },
+        {
+          "key": "cell-3",
+          "x": 0,
+          "y": 1,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-4",
+          "x": 0,
+          "y": 2,
+          "width": 2,
+          "height": 2
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-4-021",
+    "revision": 1,
+    "name": "Layout 21",
+    "frameCount": 4,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "grid",
+      "columns": 3,
+      "rows": 2,
+      "cells": [
+        {
+          "key": "cell-1",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-2",
+          "x": 1,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-3",
+          "x": 2,
+          "y": 0,
+          "width": 1,
+          "height": 2
+        },
+        {
+          "key": "cell-4",
+          "x": 0,
+          "y": 1,
+          "width": 2,
+          "height": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-4-022",
+    "revision": 1,
+    "name": "Layout 22",
+    "frameCount": 4,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "grid",
+      "columns": 3,
+      "rows": 4,
+      "cells": [
+        {
+          "key": "cell-1",
+          "x": 0,
+          "y": 0,
+          "width": 3,
+          "height": 2
+        },
+        {
+          "key": "cell-2",
+          "x": 0,
+          "y": 2,
+          "width": 2,
+          "height": 2
+        },
+        {
+          "key": "cell-3",
+          "x": 2,
+          "y": 2,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-4",
+          "x": 2,
+          "y": 3,
+          "width": 1,
+          "height": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-4-023",
+    "revision": 1,
+    "name": "Layout 23",
+    "frameCount": 4,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "grid",
+      "columns": 2,
+      "rows": 4,
+      "cells": [
+        {
+          "key": "cell-1",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 2
+        },
+        {
+          "key": "cell-2",
+          "x": 1,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-3",
+          "x": 1,
+          "y": 1,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-4",
+          "x": 0,
+          "y": 2,
+          "width": 2,
+          "height": 2
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-4-024",
+    "revision": 1,
+    "name": "Layout 24",
+    "frameCount": 4,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "grid",
+      "columns": 3,
+      "rows": 2,
+      "cells": [
+        {
+          "key": "cell-1",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 2
+        },
+        {
+          "key": "cell-2",
+          "x": 1,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-3",
+          "x": 2,
+          "y": 0,
+          "width": 1,
+          "height": 2
+        },
+        {
+          "key": "cell-4",
+          "x": 1,
+          "y": 1,
+          "width": 1,
+          "height": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-4-025",
+    "revision": 1,
+    "name": "Layout 25",
+    "frameCount": 4,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "grid",
+      "columns": 2,
+      "rows": 3,
+      "cells": [
+        {
+          "key": "cell-1",
+          "x": 0,
+          "y": 0,
+          "width": 2,
+          "height": 1
+        },
+        {
+          "key": "cell-2",
+          "x": 0,
+          "y": 1,
+          "width": 2,
+          "height": 1
+        },
+        {
+          "key": "cell-3",
+          "x": 0,
+          "y": 2,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-4",
+          "x": 1,
+          "y": 2,
+          "width": 1,
+          "height": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "layout-4-026",
+    "revision": 1,
+    "name": "Layout 26",
+    "frameCount": 4,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "grid",
+      "columns": 3,
+      "rows": 2,
+      "cells": [
+        {
+          "key": "cell-1",
+          "x": 0,
+          "y": 0,
+          "width": 2,
+          "height": 1
+        },
+        {
+          "key": "cell-2",
+          "x": 2,
+          "y": 0,
+          "width": 1,
+          "height": 2
+        },
+        {
+          "key": "cell-3",
+          "x": 0,
+          "y": 1,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "key": "cell-4",
+          "x": 1,
+          "y": 1,
+          "width": 1,
+          "height": 1
+        }
+      ]
+    }
+  }
 ]

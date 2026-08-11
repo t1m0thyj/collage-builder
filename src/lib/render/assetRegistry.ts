@@ -22,10 +22,18 @@ export class AssetRegistry {
     return image
   }
 
-  getImage(assetId: AssetId): HTMLImageElement | undefined { return this.images.get(assetId) }
-  getBlob(assetId: AssetId): Blob | undefined { return this.blobs.get(assetId) }
-  getObjectUrl(assetId: AssetId): string | undefined { return this.objectUrls.get(assetId) }
-  hasRetained(assetId: AssetId, sha256: string): boolean { return this.retained.has(`${assetId}:${sha256}`) }
+  getImage(assetId: AssetId): HTMLImageElement | undefined {
+    return this.images.get(assetId)
+  }
+  getBlob(assetId: AssetId): Blob | undefined {
+    return this.blobs.get(assetId)
+  }
+  getObjectUrl(assetId: AssetId): string | undefined {
+    return this.objectUrls.get(assetId)
+  }
+  hasRetained(assetId: AssetId, sha256: string): boolean {
+    return this.retained.has(`${assetId}:${sha256}`)
+  }
 
   retain(assetId: AssetId, sha256: string): void {
     const blob = this.blobs.get(assetId)
@@ -60,5 +68,9 @@ export class AssetRegistry {
     this.activeHashes.delete(assetId)
   }
 
-  clear(): void { [...this.objectUrls.keys()].forEach((assetId) => this.release(assetId)); this.retained.clear(); this.retainedBytes = 0 }
+  clear(): void {
+    ;[...this.objectUrls.keys()].forEach((assetId) => this.release(assetId))
+    this.retained.clear()
+    this.retainedBytes = 0
+  }
 }

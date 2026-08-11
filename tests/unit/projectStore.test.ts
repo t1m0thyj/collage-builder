@@ -9,13 +9,26 @@ describe('project history', () => {
     const store = new ProjectStore(project)
     const pageId = project.pages[0].id
     store.renameProject('Updated')
-    store.changeLayout(pageId, 'grid-2x2')
-    expect(get(store.document).pages[0].layout.presetId).toBe('grid-2x2')
+    store.changeLayout(pageId, 'layout-4-001')
+    expect(get(store.document).pages[0].layout.presetId).toBe('layout-4-001')
     expect(get(store.canUndo)).toBe(true)
     store.undo()
-    expect(get(store.document).pages[0].layout.presetId).toBe('feature-right')
+    expect(get(store.document).pages[0].layout.presetId).toBe('layout-3-001')
     store.redo()
     expect(get(store.document).title).toBe('Updated')
+  })
+
+  it('duplicates an embedded layout even when its catalog id is retired', () => {
+    const project = createProject('Legacy layout')
+    project.pages[0].layout.presetId = 'retired-layout-id'
+    const store = new ProjectStore(project)
+
+    store.duplicatePage(project.pages[0].id)
+
+    const pages = get(store.document).pages
+    expect(pages).toHaveLength(2)
+    expect(pages[1].layout.root).toEqual(pages[0].layout.root)
+    expect(pages[1].id).not.toBe(pages[0].id)
   })
 
   it('moves or swaps complete frame content in one undoable command', () => {
@@ -23,13 +36,40 @@ describe('project history', () => {
     const store = new ProjectStore(project)
     const page = project.pages[0]
     const [first, second] = Object.keys(page.slots)
-    store.addAsset({ id: 'first', originalName: 'first.png', mediaType: 'image/png', byteLength: 1, width: 1, height: 1, sha256: 'first', storage: { kind: 'embedded', archivePath: 'assets/first.png' } })
-    store.addAsset({ id: 'second', originalName: 'second.png', mediaType: 'image/png', byteLength: 1, width: 1, height: 1, sha256: 'second', storage: { kind: 'embedded', archivePath: 'assets/second.png' } })
-    store.setSlotContent(page.id, first, { assetId: 'first', placement: { zoom: 1.5, positionX: 0.2, positionY: 0.8 } })
-    store.setSlotContent(page.id, second, { assetId: 'second', placement: { zoom: 2, positionX: 0.7, positionY: 0.3 } })
+    store.addAsset({
+      id: 'first',
+      originalName: 'first.png',
+      mediaType: 'image/png',
+      byteLength: 1,
+      width: 1,
+      height: 1,
+      sha256: 'first',
+      storage: { kind: 'embedded', archivePath: 'assets/first.png' },
+    })
+    store.addAsset({
+      id: 'second',
+      originalName: 'second.png',
+      mediaType: 'image/png',
+      byteLength: 1,
+      width: 1,
+      height: 1,
+      sha256: 'second',
+      storage: { kind: 'embedded', archivePath: 'assets/second.png' },
+    })
+    store.setSlotContent(page.id, first, {
+      assetId: 'first',
+      placement: { zoom: 1.5, positionX: 0.2, positionY: 0.8 },
+    })
+    store.setSlotContent(page.id, second, {
+      assetId: 'second',
+      placement: { zoom: 2, positionX: 0.7, positionY: 0.3 },
+    })
     store.moveOrSwapSlots(page.id, first, second)
     expect(get(store.document).pages[0].slots[first]?.assetId).toBe('second')
-    expect(get(store.document).pages[0].slots[second]?.placement).toMatchObject({ zoom: 1.5, positionX: 0.2 })
+    expect(get(store.document).pages[0].slots[second]?.placement).toMatchObject({
+      zoom: 1.5,
+      positionX: 0.2,
+    })
     store.undo()
     expect(get(store.document).pages[0].slots[first]?.assetId).toBe('first')
   })
@@ -40,12 +80,27 @@ describe('project history', () => {
     const page = project.pages[0]
     const slotId = Object.keys(page.slots)[0]
     const original = { zoom: 1, positionX: 0.5, positionY: 0.5 }
-    store.addAsset({ id: 'asset', originalName: 'asset.png', mediaType: 'image/png', byteLength: 1, width: 1, height: 1, sha256: 'asset', storage: { kind: 'embedded', archivePath: 'assets/asset.png' } })
+    store.addAsset({
+      id: 'asset',
+      originalName: 'asset.png',
+      mediaType: 'image/png',
+      byteLength: 1,
+      width: 1,
+      height: 1,
+      sha256: 'asset',
+      storage: { kind: 'embedded', archivePath: 'assets/asset.png' },
+    })
     store.setSlotContent(page.id, slotId, { assetId: 'asset', placement: original })
-    store.previewSlotContent(page.id, slotId, { assetId: 'asset', placement: { zoom: 2, positionX: 0.2, positionY: 0.7 } })
+    store.previewSlotContent(page.id, slotId, {
+      assetId: 'asset',
+      placement: { zoom: 2, positionX: 0.2, positionY: 0.7 },
+    })
     store.cancelCrop(page.id, slotId, original)
     expect(get(store.document).pages[0].slots[slotId]?.placement).toEqual(original)
-    store.previewSlotContent(page.id, slotId, { assetId: 'asset', placement: { zoom: 2, positionX: 0.2, positionY: 0.7 } })
+    store.previewSlotContent(page.id, slotId, {
+      assetId: 'asset',
+      placement: { zoom: 2, positionX: 0.2, positionY: 0.7 },
+    })
     store.commitCrop(page.id, slotId, original)
     store.undo()
     expect(get(store.document).pages[0].slots[slotId]?.placement).toEqual(original)
