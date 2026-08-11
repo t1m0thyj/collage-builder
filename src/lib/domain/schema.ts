@@ -78,6 +78,7 @@ export const collageDocumentSchema = z.object({
         ),
         style: z.object({
           backgroundColor: color,
+          transparentBackground: z.boolean().default(false),
           padding: nonNegative,
           gap: nonNegative,
           cornerRadius: nonNegative,

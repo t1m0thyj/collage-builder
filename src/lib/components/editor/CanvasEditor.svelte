@@ -409,7 +409,7 @@
         <Rect
           width={page.width}
           height={page.height}
-          fill={page.style.backgroundColor}
+          fill={page.style.transparentBackground ? 'rgba(0,0,0,0)' : page.style.backgroundColor}
           onpointerclick={onexitcrop}
         />
 

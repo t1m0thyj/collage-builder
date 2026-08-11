@@ -12,6 +12,7 @@ import type {
 
 export const defaultPageStyle = (): PageStyleV1 => ({
   backgroundColor: '#808080',
+  transparentBackground: false,
   padding: 30,
   gap: 30,
   cornerRadius: 30,

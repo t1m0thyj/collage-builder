@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { ChevronDown } from '@lucide/svelte'
+
   export let open = false
   export let pageIndex: number
   export let pageCount: number
@@ -21,7 +23,7 @@
     aria-label="Page actions"
     aria-haspopup="menu"
     aria-expanded={open}
-    onclick={() => (open = !open)}>▾</button
+    onclick={() => (open = !open)}><ChevronDown size={14}></ChevronDown></button
   >
   {#if open}
     <div class="page-actions-menu" role="menu">

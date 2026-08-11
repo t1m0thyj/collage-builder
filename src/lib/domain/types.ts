@@ -31,6 +31,7 @@ export interface PageV1 {
 
 export interface PageStyleV1 {
   backgroundColor: string
+  transparentBackground: boolean
   padding: number
   gap: number
   cornerRadius: number

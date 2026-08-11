@@ -83,8 +83,10 @@ export async function renderPagePng(
   if (!context) throw new Error('Canvas rendering is unavailable')
   const scale = width / page.width
   context.scale(scale, scale)
-  context.fillStyle = page.style.backgroundColor
-  context.fillRect(0, 0, page.width, page.height)
+  if (!page.style.transparentBackground) {
+    context.fillStyle = page.style.backgroundColor
+    context.fillRect(0, 0, page.width, page.height)
+  }
   if (page.style.shadow.enabled)
     for (const frame of resolveLayout(page)) {
       if (!page.slots[frame.slotId]) continue

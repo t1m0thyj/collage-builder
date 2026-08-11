@@ -5,6 +5,13 @@ import { migrateDocument } from '../../src/lib/domain/migrations'
 describe('document migration boundary', () => {
   it('accepts the current document version', () =>
     expect(migrateDocument(createProject()).schemaVersion).toBe(1))
+  it('defaults transparent backgrounds off for existing projects', () => {
+    const legacyProject = createProject()
+    const legacyStyle = legacyProject.pages[0].style as { transparentBackground?: boolean }
+    delete legacyStyle.transparentBackground
+
+    expect(migrateDocument(legacyProject).pages[0].style.transparentBackground).toBe(false)
+  })
   it('rejects an unsupported document', () =>
     expect(() => migrateDocument({ schemaVersion: 99 })).toThrow('Invalid project document'))
 })

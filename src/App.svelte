@@ -1,7 +1,25 @@
 <script lang="ts">
   import { createProject } from './lib/domain/factories'
   import { resolveLayout } from './lib/domain/geometry'
-  import { Palette, SlidersHorizontal } from '@lucide/svelte'
+  import {
+    ArrowRight,
+    ChevronDown,
+    ChevronLeft,
+    ChevronRight,
+    Grid2X2,
+    ImageIcon,
+    List,
+    Minus,
+    MoreHorizontal,
+    Palette,
+    Plus,
+    Redo2,
+    SlidersHorizontal,
+    Sparkles,
+    Undo2,
+    Upload,
+    X,
+  } from '@lucide/svelte'
   import PageActions from './lib/components/PageActions.svelte'
   import type { PageV1, SlotContentV1 } from './lib/domain/types'
   import CanvasEditor from './lib/components/editor/CanvasEditor.svelte'
@@ -74,6 +92,10 @@
   let viewportZoom = 1
   let isViewportFit = true
   let fittedViewportZoom = 1
+  let leftSidebarWidth = 255
+  let rightSidebarWidth = 255
+  let sidebarResize: { side: 'left' | 'right'; startX: number; startWidth: number } | null =
+    null
   let cropModeSlotId: string | null = null
   let cropOrigin: { pageId: string; slotId: string; placement: SlotContentV1['placement'] } | null =
     null
@@ -357,6 +379,49 @@
 
   function applyViewportWheelZoom(factor: number) {
     setViewportZoom((isViewportFit ? fittedViewportZoom : viewportZoom) * factor)
+  }
+
+  function startSidebarResize(side: 'left' | 'right', event: PointerEvent) {
+    if (event.button !== 0) return
+    const target = event.currentTarget as HTMLElement
+    sidebarResize = {
+      side,
+      startX: event.clientX,
+      startWidth: side === 'left' ? leftSidebarWidth : rightSidebarWidth,
+    }
+    target.setPointerCapture(event.pointerId)
+  }
+
+  function resizeSidebar(event: PointerEvent) {
+    if (!sidebarResize) return
+    const delta = event.clientX - sidebarResize.startX
+    const width = Math.min(
+      360,
+      Math.max(210, sidebarResize.startWidth + (sidebarResize.side === 'left' ? delta : -delta)),
+    )
+    if (sidebarResize.side === 'left') leftSidebarWidth = width
+    else rightSidebarWidth = width
+  }
+
+  function stopSidebarResize(event: PointerEvent) {
+    const target = event.currentTarget as HTMLElement
+    if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId)
+    sidebarResize = null
+  }
+
+  function resizeSidebarWithKeyboard(side: 'left' | 'right', event: KeyboardEvent) {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+    const current = side === 'left' ? leftSidebarWidth : rightSidebarWidth
+    const direction = side === 'left' ? 1 : -1
+    const next =
+      event.key === 'Home'
+        ? 210
+        : event.key === 'End'
+          ? 360
+          : Math.min(360, Math.max(210, current + (event.key === 'ArrowRight' ? 12 : -12) * direction))
+    if (side === 'left') leftSidebarWidth = next
+    else rightSidebarWidth = next
+    event.preventDefault()
   }
 
   function updateCropPosition(axis: 'positionX' | 'positionY', percent: number) {
@@ -807,7 +872,7 @@
           variant="outline"
           aria-label="More save options"
           aria-expanded={isSaveMenuOpen}
-          onclick={() => (isSaveMenuOpen = !isSaveMenuOpen)}>▾</Button
+          onclick={() => (isSaveMenuOpen = !isSaveMenuOpen)}><ChevronDown size={14}></ChevronDown></Button
         >{#if isSaveMenuOpen}<div class="save-menu-popover">
             <button
               onclick={() => {
@@ -826,7 +891,7 @@
         aria-label="Undo"
         title="Undo"
         disabled={!project.canUndo}
-        onclick={() => project.undo()}>↶</Button
+        onclick={() => project.undo()}><Undo2 size={15}></Undo2></Button
       >
       <Button
         class="icon-button"
@@ -835,7 +900,7 @@
         aria-label="Redo"
         title="Redo"
         disabled={!project.canRedo}
-        onclick={() => project.redo()}>↷</Button
+        onclick={() => project.redo()}><Redo2 size={15}></Redo2></Button
       >
     </div>
     <div class="toolbar-group editor-zoom" aria-label="Canvas zoom">
@@ -845,14 +910,15 @@
         size="icon"
         aria-label="Zoom out"
         disabled={(isViewportFit ? fittedViewportZoom : viewportZoom) <= 0.5}
-        onclick={() => stepViewportZoom(-0.1)}>−</Button
+        onclick={() => stepViewportZoom(-0.1)}><Minus size={15}></Minus></Button
       ><DropdownMenu.Root
         ><DropdownMenu.Trigger
           class="zoom-menu-trigger"
           aria-label={`Canvas zoom: ${isViewportFit ? 'Fit' : `${Math.round(viewportZoom * 100)}%`}`}
-          >{isViewportFit ? 'Fit' : `${Math.round(viewportZoom * 100)}%`} <span aria-hidden="true"
-            >▾</span
-          ></DropdownMenu.Trigger
+          >{isViewportFit ? 'Fit' : `${Math.round(viewportZoom * 100)}%`} <ChevronDown
+            size={13}
+            aria-hidden="true"
+          ></ChevronDown></DropdownMenu.Trigger
         ><DropdownMenu.Content class="zoom-menu-content" align="center"
           ><DropdownMenu.Item onclick={() => (isViewportFit = true)}>Fit</DropdownMenu.Item
           ><DropdownMenu.Item onclick={() => setViewportZoom(0.5)}>50%</DropdownMenu.Item
@@ -869,7 +935,7 @@
         size="icon"
         aria-label="Zoom in"
         disabled={!isViewportFit && viewportZoom >= 2}
-        onclick={() => stepViewportZoom(0.1)}>+</Button
+        onclick={() => stepViewportZoom(0.1)}><Plus size={15}></Plus></Button
       >
     </div>
     <label class="project-title">
@@ -890,7 +956,7 @@
         ><Button
           class="button button-primary export-caret"
           aria-label="Choose export scope"
-          onclick={() => (isExportMenuOpen = !isExportMenuOpen)}>▾</Button
+          onclick={() => (isExportMenuOpen = !isExportMenuOpen)}><ChevronDown size={14}></ChevronDown></Button
         >{#if isExportMenuOpen}<div class="export-menu-popover">
             <button onclick={() => chooseExport('current')}>Current page</button><button
               onclick={() => chooseExport('all')}>All pages (ZIP)</button
@@ -900,7 +966,11 @@
     </div>
   </header>
 
-  <section class="workspace" aria-label="Collage editor">
+  <section
+    class="workspace"
+    aria-label="Collage editor"
+    style={`--left-sidebar-width:${leftSidebarWidth}px;--right-sidebar-width:${rightSidebarWidth}px`}
+  >
     <aside class="sidebar left-panel" aria-label="Layouts and images">
       <div class="panel-tabs" role="tablist" aria-label="Editor panel">
         <button
@@ -929,8 +999,9 @@
                 onOpenChange={(open) => setLayoutGroupOpen(group.frameCount, open)}
                 ><h3>
                   <Collapsible.Trigger
-                    ><span aria-hidden="true"
-                      >{collapsedLayoutCounts.has(group.frameCount) ? '▸' : '▾'}</span
+                    ><span class="collapsible-icon" aria-hidden="true"
+                      >{#if collapsedLayoutCounts.has(group.frameCount)}<ChevronRight size={13}></ChevronRight
+                      >{:else}<ChevronDown size={13}></ChevronDown>{/if}</span
                     >{group.label} photos</Collapsible.Trigger
                   >
                 </h3>
@@ -1043,7 +1114,7 @@
                       class="asset-thumb"
                       src={assetRegistry.getObjectUrl(asset.id)}
                       alt=""
-                    />{:else}<span class="asset-thumb">▧</span>{/if}<span
+                    />{:else}<span class="asset-thumb"><ImageIcon size={20}></ImageIcon></span>{/if}<span
                       class:asset-used={assetUsage(asset.id) > 0}
                       class="asset-status-dot"
                       role="img"
@@ -1084,7 +1155,7 @@
               >{/if}
           {:else}
             <div class="empty-library">
-              <div class="image-icon" aria-hidden="true">▧</div>
+              <div class="image-icon" aria-hidden="true"><ImageIcon size={30}></ImageIcon></div>
               <p>Upload photos to use them across every page in this project.</p>
             </div>
           {/if}
@@ -1092,11 +1163,28 @@
             >Upload images</button
           >
           <button class="text-button" onclick={() => (isImageManagerOpen = true)}
-            >Open image manager <span aria-hidden="true">→</span></button
+            >Open image manager <ArrowRight size={14} aria-hidden="true"></ArrowRight></button
           >
         </div>
       {/if}
     </aside>
+    <button
+      class:active-resizer={sidebarResize?.side === 'left'}
+      class="sidebar-resizer sidebar-resizer-left"
+      type="button"
+      role="slider"
+      aria-label="Resize layouts and images sidebar"
+      aria-orientation="vertical"
+      aria-valuemin="210"
+      aria-valuemax="360"
+      aria-valuenow={leftSidebarWidth}
+      tabindex="0"
+      onpointerdown={(event) => startSidebarResize('left', event)}
+      onpointermove={resizeSidebar}
+      onpointerup={stopSidebarResize}
+      onpointercancel={stopSidebarResize}
+      onkeydown={(event) => resizeSidebarWithKeyboard('left', event)}
+    ></button>
 
     <section class="editor-column">
       <section class="canvas-area" aria-label="Canvas preview">
@@ -1139,7 +1227,7 @@
             class="icon-button"
             aria-label="Previous page"
             disabled={document.pages.findIndex((page) => page.id === activePageId) === 0}
-            onclick={previousPage}>‹</button
+            onclick={previousPage}><ChevronLeft size={17}></ChevronLeft></button
           >
         {/if}
         {#if document.pages.length <= 4}
@@ -1149,7 +1237,7 @@
                 <strong>{page.name}</strong>
                 <div
                   class="page-tab-preview-canvas"
-                  style={`aspect-ratio: ${page.width} / ${page.height}; background: ${page.style.backgroundColor}`}
+                  style={`aspect-ratio: ${page.width} / ${page.height}; background: ${page.style.transparentBackground ? 'transparent' : page.style.backgroundColor}`}
                 >{#each resolveLayout(page) as frame (frame.slotId)}
                     {@const content = page.slots[frame.slotId]}
                     <i
@@ -1225,19 +1313,36 @@
             />
           </div>
         {/if}
-        <button class="add-page" onclick={addPage} aria-label="Add page">+</button>
+        <button class="add-page" onclick={addPage} aria-label="Add page"><Plus size={16}></Plus></button>
         {#if document.pages.length > 4}
           <button
             class="icon-button"
             aria-label="Next page"
             disabled={document.pages.findIndex((page) => page.id === activePageId) ===
               document.pages.length - 1}
-            onclick={nextPage}>›</button
+            onclick={nextPage}><ChevronRight size={17}></ChevronRight></button
           >
         {/if}
       </footer>
     </section>
 
+    <button
+      class:active-resizer={sidebarResize?.side === 'right'}
+      class="sidebar-resizer sidebar-resizer-right"
+      type="button"
+      role="slider"
+      aria-label="Resize properties sidebar"
+      aria-orientation="vertical"
+      aria-valuemin="210"
+      aria-valuemax="360"
+      aria-valuenow={rightSidebarWidth}
+      tabindex="0"
+      onpointerdown={(event) => startSidebarResize('right', event)}
+      onpointermove={resizeSidebar}
+      onpointerup={stopSidebarResize}
+      onpointercancel={stopSidebarResize}
+      onkeydown={(event) => resizeSidebarWithKeyboard('right', event)}
+    ></button>
     <aside class="sidebar right-panel" aria-label="Properties">
       <div class="panel-heading">
         <p class="eyebrow">
@@ -1249,32 +1354,56 @@
       <div class="property-groups">
         <Collapsible.Root class="property-group page-properties" open
           ><div class="property-group-heading">
-            <Collapsible.Trigger>Page setup <span aria-hidden="true">▾</span></Collapsible.Trigger>
+            <Collapsible.Trigger>Page setup <ChevronDown size={14} aria-hidden="true"></ChevronDown></Collapsible.Trigger>
+          </div>
+          <Collapsible.Content
+            ><div class="property-list">
+              <div class="page-dimensions">
+                <label>
+                  <span>Width</span><input
+                    aria-label="Page width"
+                    type="number"
+                    min="64"
+                    value={activePage.width}
+                    onchange={(event) => resizeActivePage('width', Number(event.currentTarget.value))}
+                  />
+                </label>
+                <label>
+                  <span>Height</span><input
+                    aria-label="Page height"
+                    type="number"
+                    min="64"
+                    value={activePage.height}
+                    onchange={(event) =>
+                      resizeActivePage('height', Number(event.currentTarget.value))}
+                  />
+                </label>
+              </div>
+              <div>
+                <span>Transparent background</span><Switch.Root
+                  class="switch"
+                  aria-label="Transparent background"
+                  checked={activePage.style.transparentBackground}
+                  onCheckedChange={(transparentBackground) => updateStyle({ transparentBackground })}
+                />
+              </div>
+            </div></Collapsible.Content
+          ></Collapsible.Root
+        >
+        <Collapsible.Root class="property-group appearance-properties" open
+          ><div class="property-group-heading">
+            <Collapsible.Trigger
+              >Frame appearance <ChevronDown size={14} aria-hidden="true"></ChevronDown></Collapsible.Trigger
+            >
           </div>
           <Collapsible.Content
             ><div class="property-list">
               <div>
-                <span>Width</span><input
-                  aria-label="Page width"
-                  type="number"
-                  min="64"
-                  value={activePage.width}
-                  onchange={(event) => resizeActivePage('width', Number(event.currentTarget.value))}
-                />
-              </div>
-              <div>
-                <span>Height</span><input
-                  aria-label="Page height"
-                  type="number"
-                  min="64"
-                  value={activePage.height}
-                  onchange={(event) =>
-                    resizeActivePage('height', Number(event.currentTarget.value))}
-                />
-              </div>
-              <div>
                 <span>Background</span><Popover.Root
-                  ><Popover.Trigger class="color-trigger" aria-label="Choose background color"
+                  ><Popover.Trigger
+                    class="color-trigger"
+                    aria-label="Choose background color"
+                    disabled={activePage.style.transparentBackground}
                     ><i style={`background:${activePage.style.backgroundColor.slice(0, 7)}`}
                     ></i><span>{activePage.style.backgroundColor.slice(0, 7)}</span
                     ></Popover.Trigger
@@ -1311,17 +1440,6 @@
                   ></Popover.Root
                 >
               </div>
-            </div></Collapsible.Content
-          ></Collapsible.Root
-        >
-        <Collapsible.Root class="property-group appearance-properties" open
-          ><div class="property-group-heading">
-            <Collapsible.Trigger
-              >Frame appearance <span aria-hidden="true">▾</span></Collapsible.Trigger
-            >
-          </div>
-          <Collapsible.Content
-            ><div class="property-list">
               <div>
                 <span>Outer margin</span>
                 <div class="inspector-slider">
@@ -1409,8 +1527,16 @@
                     updateStyle({ shadow: { ...activePage.style.shadow, enabled } })}
                 />
               </div>
-              {#if activePage.style.shadow.enabled}
-                <div>
+            </div></Collapsible.Content
+          ></Collapsible.Root
+        >
+        {#if activePage.style.shadow.enabled}<Collapsible.Root class="property-group shadow-properties" open
+          ><div class="property-group-heading">
+            <Collapsible.Trigger>Shadow <ChevronDown size={14} aria-hidden="true"></ChevronDown></Collapsible.Trigger>
+          </div>
+          <Collapsible.Content
+            ><div class="property-list">
+              <div>
                   <span>Shadow color</span><Popover.Root
                     ><Popover.Trigger class="color-trigger" aria-label="Choose frame shadow color"
                       ><i style={`background:${activePage.style.shadow.color}`}></i><span
@@ -1449,7 +1575,7 @@
                     ></Popover.Root
                   >
                 </div>
-                <div>
+                <div class="slider-row-wide-label">
                   <span>Transparency</span>
                   <div class="inspector-slider">
                     <Slider.Root
@@ -1564,13 +1690,12 @@
                         )}
                     />
                   </div>
-                </div>
-              {/if}
+              </div>
             </div></Collapsible.Content
           ></Collapsible.Root
-        >
+        >{/if}
         <div class="property-note">
-          <span aria-hidden="true">✦</span>
+          <span aria-hidden="true"><Sparkles size={14}></Sparkles></span>
           <p>
             {selectedContent
               ? 'Click the image to focus it, then drag or use the precise crop controls.'
@@ -1581,7 +1706,7 @@
           <Collapsible.Root class="property-group selected-properties" open
             ><div class="property-group-heading">
               <Collapsible.Trigger
-                >Selected frame <span aria-hidden="true">▾</span></Collapsible.Trigger
+                >Selected frame <ChevronDown size={14} aria-hidden="true"></ChevronDown></Collapsible.Trigger
               >
             </div>
             <Collapsible.Content
@@ -1597,7 +1722,7 @@
           <Collapsible.Root class="property-group selected-properties" open
             ><div class="property-group-heading">
               <Collapsible.Trigger
-                >Image & crop <span aria-hidden="true">▾</span></Collapsible.Trigger
+                >Image & crop <ChevronDown size={14} aria-hidden="true"></ChevronDown></Collapsible.Trigger
               >
             </div>
             <Collapsible.Content
@@ -1676,19 +1801,14 @@
                 </div>
                 <div class="image-actions">
                   <button
-                    class="button"
+                    class="button image-action-button"
                     onclick={() => {
                       selectedAssetId = selectedContent!.assetId
                       replaceInput.click()
-                    }}>Replace original</button
+                    }}>Replace</button
                   ><button
-                    class="button"
-                    onclick={() => project.clearSlot(activePage.id, selectedSlotId!)}
-                    >Remove from frame</button
-                  ><button
-                    class="text-button danger"
-                    onclick={() => requestRemoveAssets([selectedContent!.assetId])}
-                    >Remove from project</button
+                    class="button image-action-button"
+                    onclick={() => project.clearSlot(activePage.id, selectedSlotId!)}>Remove</button
                   >
                 </div>
               </div></Collapsible.Content
@@ -1715,23 +1835,37 @@
           <button
             class="icon-button"
             aria-label="Close image manager"
-            onclick={() => (isImageManagerOpen = false)}>×</button
+            onclick={() => (isImageManagerOpen = false)}><X size={17}></X></button
           >
         </div>
-        <div
-          class="upload-well"
-          role="region"
-          aria-label="Upload images drop zone"
-          ondragover={(event) => event.preventDefault()}
-          ondrop={dropImages}
-        >
-          <div class="upload-mark" aria-hidden="true">↑</div>
-          <strong>Drop PNG, JPEG, or WebP files here</strong><span
-            >Original files remain local and are embedded in saved projects.</span
-          ><button class="button button-primary" onclick={() => uploadInput.click()}
-            >Choose images</button
+        {#if !assets.length}
+          <div
+            class="upload-well"
+            role="region"
+            aria-label="Upload images drop zone"
+            ondragover={(event) => event.preventDefault()}
+            ondrop={dropImages}
           >
-        </div>
+            <div class="upload-mark" aria-hidden="true"><Upload size={19}></Upload></div>
+            <strong>Drop PNG, JPEG, or WebP files here</strong><span
+              >Original files remain local and are embedded in saved projects.</span
+            ><button class="button button-primary" onclick={() => uploadInput.click()}
+              >Choose images</button
+            >
+          </div>
+        {:else}
+          <div
+            class="manager-add-images"
+            role="region"
+            aria-label="Add images drop zone"
+            ondragover={(event) => event.preventDefault()}
+            ondrop={dropImages}
+          >
+            <span>Drop more images here, or</span><button class="text-button" onclick={() => uploadInput.click()}
+              ><Upload size={14}></Upload> Add images</button
+            >
+          </div>
+        {/if}
         {#if assets.length}<div class="manager-content">
             <div class="manager-toolbar">
               <div class="asset-tools">
@@ -1773,8 +1907,8 @@
                     if (value) imageManagerView = value as typeof imageManagerView
                   }}
                   aria-label="Image manager view"
-                  ><ToggleGroup.Item value="grid" aria-label="Grid view">▦</ToggleGroup.Item
-                  ><ToggleGroup.Item value="list" aria-label="List view">☷</ToggleGroup.Item
+                  ><ToggleGroup.Item value="grid" aria-label="Grid view"><Grid2X2 size={15}></Grid2X2></ToggleGroup.Item
+                  ><ToggleGroup.Item value="list" aria-label="List view"><List size={15}></List></ToggleGroup.Item
                   ></ToggleGroup.Root
                 >
               </div>
@@ -1810,7 +1944,7 @@
                         class="asset-thumb"
                         src={assetRegistry.getObjectUrl(asset.id)}
                         alt=""
-                      />{:else}<span class="asset-thumb">▧</span>{/if}<span
+                      />{:else}<span class="asset-thumb"><ImageIcon size={20}></ImageIcon></span>{/if}<span
                       ><strong>{asset.originalName}</strong><small
                         >{missingAssetIds.has(asset.id)
                           ? 'Missing — relink required'
@@ -1820,7 +1954,7 @@
                   ><DropdownMenu.Root
                     ><DropdownMenu.Trigger
                       class="asset-overflow"
-                      aria-label={`Actions for ${asset.originalName}`}>•••</DropdownMenu.Trigger
+                      aria-label={`Actions for ${asset.originalName}`}><MoreHorizontal size={17}></MoreHorizontal></DropdownMenu.Trigger
                     ><DropdownMenu.Content class="asset-menu"
                       ><DropdownMenu.Item onclick={() => showUsage(asset.id)}
                         >Show usages</DropdownMenu.Item
@@ -1884,7 +2018,7 @@
           <button
             class="icon-button"
             aria-label="Cancel removal"
-            onclick={() => (pendingRemovalAssetIds = null)}>×</button
+            onclick={() => (pendingRemovalAssetIds = null)}><X size={17}></X></button
           >
         </div>
         <div class="export-form">
@@ -1933,14 +2067,14 @@
           <button
             class="icon-button"
             aria-label="Close image usages"
-            onclick={() => (usageAssetId = null)}>×</button
+            onclick={() => (usageAssetId = null)}><X size={17}></X></button
           >
         </div>
         <div class="usage-list">
           {#if assetUsages.length}{#each assetUsages as usage (`${usage.pageId}-${usage.slotId}`)}<button
                 onclick={() => jumpToUsage(usage.pageId, usage.slotId)}
                 ><strong>{usage.pageName}</strong><span>Frame {usage.frameNumber}</span><span
-                  aria-hidden="true">→</span
+                  aria-hidden="true"><ArrowRight size={14}></ArrowRight></span
                 ></button
               >{/each}{:else}<p>This image is not used on any page.</p>{/if}
         </div>
@@ -1958,7 +2092,7 @@
             <h2 id="unsaved-title">Save before continuing?</h2>
           </div>
           <button class="icon-button" aria-label="Cancel" onclick={() => (pendingNavigation = null)}
-            >×</button
+            ><X size={17}></X></button
           >
         </div>
         <div class="export-form">
@@ -2007,7 +2141,7 @@
             class="icon-button"
             aria-label="Close export dialog"
             disabled={isExporting}
-            onclick={() => (isExportOpen = false)}>×</button
+            onclick={() => (isExportOpen = false)}><X size={17}></X></button
           >
         </div>
         <div class="export-form">
