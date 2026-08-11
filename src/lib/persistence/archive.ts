@@ -8,7 +8,6 @@ export const maxProjectBytes = 1024 * 1024 * 1024
 export interface ArchiveAssets {
   get(assetId: string): Blob | undefined
 }
-export type ArchiveMode = 'portable' | 'linked'
 export interface OpenedArchive {
   document: CollageDocumentV1
   assets: Map<string, Blob>
@@ -35,7 +34,6 @@ async function sha256(bytes: Uint8Array): Promise<string> {
 export async function createArchive(
   document: CollageDocumentV1,
   assets: ArchiveAssets,
-  mode: ArchiveMode = 'portable',
 ): Promise<Blob> {
   if (
     Object.values(document.assets).reduce((total, asset) => total + asset.byteLength, 0) >
@@ -44,17 +42,13 @@ export async function createArchive(
     throw new Error('Project assets exceed the 1 GB safety limit')
   const savedDocument = structuredClone(document)
   for (const asset of Object.values(savedDocument.assets)) {
-    if (mode === 'portable') {
-      asset.storage = { kind: 'embedded', archivePath: `assets/${asset.id}` }
-    } else if (asset.storage.kind !== 'linked' || !asset.storage.relativePath) {
-      throw new Error(`Choose an asset folder containing ${asset.originalName} before saving linked`)
-    }
+    asset.storage = { kind: 'embedded', archivePath: `assets/${asset.id}` }
   }
   const files: Zippable = {
     mimetype: [strToU8(collageMimeType), { level: 0 }],
     'document.json': strToU8(JSON.stringify(savedDocument)),
   }
-  if (mode === 'portable') for (const asset of Object.values(savedDocument.assets)) {
+  for (const asset of Object.values(savedDocument.assets)) {
     const blob = assets.get(asset.id)
     if (!blob) throw new Error(`Missing original bytes for ${asset.originalName}`)
     files[`assets/${asset.id}`] = [new Uint8Array(await blob.arrayBuffer()), { level: 0 }]
@@ -75,6 +69,8 @@ export async function openArchive(file: Blob): Promise<OpenedArchive> {
   } catch (error) {
     throw error instanceof Error ? error : new Error('Invalid project document')
   }
+  if (Object.values(document.assets).some((asset) => asset.storage.kind !== 'embedded'))
+    throw new Error('Embedded project contains linked asset metadata')
   const assets = new Map<string, Blob>()
   const missingAssetIds: string[] = []
   for (const asset of Object.values(document.assets)) {

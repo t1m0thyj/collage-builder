@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ChevronDown } from '@lucide/svelte'
+  import { ArrowLeft, ArrowRight, ChevronDown, Copy, Eraser, Pencil, Trash2 } from '@lucide/svelte'
   import * as DropdownMenu from '$lib/components/ui/dropdown-menu'
 
   export let open = false
@@ -27,13 +27,16 @@
       ><ChevronDown size={14}></ChevronDown></DropdownMenu.Trigger
     >
     <DropdownMenu.Content class="page-actions-menu" align="end"
-      ><DropdownMenu.Item onclick={() => run(onRename)}>Rename</DropdownMenu.Item
-      ><DropdownMenu.Item onclick={() => run(onDuplicate)}>Duplicate</DropdownMenu.Item
-      ><DropdownMenu.Item disabled={pageIndex === 0} onclick={() => run(onMoveLeft)}>Move left</DropdownMenu.Item
-      ><DropdownMenu.Item disabled={pageIndex === pageCount - 1} onclick={() => run(onMoveRight)}>Move right</DropdownMenu.Item
-      ><DropdownMenu.Item variant="destructive" onclick={() => run(onClear)}>Clear page</DropdownMenu.Item
+      ><DropdownMenu.Item onclick={() => run(onRename)}><Pencil size={14}></Pencil> Rename</DropdownMenu.Item
+      ><DropdownMenu.Item onclick={() => run(onDuplicate)}><Copy size={14}></Copy> Duplicate</DropdownMenu.Item
+      ><DropdownMenu.Item disabled={pageIndex === 0} onclick={() => run(onMoveLeft)}><ArrowLeft size={14}></ArrowLeft>
+        Move left</DropdownMenu.Item
+      ><DropdownMenu.Item disabled={pageIndex === pageCount - 1} onclick={() => run(onMoveRight)}><ArrowRight size={14}></ArrowRight>
+        Move right</DropdownMenu.Item
+      ><DropdownMenu.Item variant="destructive" onclick={() => run(onClear)}><Eraser size={14}></Eraser>
+        Clear page</DropdownMenu.Item
       >{#if pageCount > 1}<DropdownMenu.Item variant="destructive" onclick={() => run(onDelete)}
-          >Delete page</DropdownMenu.Item
+          ><Trash2 size={14}></Trash2> Delete page</DropdownMenu.Item
         >{/if}
     </DropdownMenu.Content>
   </div>

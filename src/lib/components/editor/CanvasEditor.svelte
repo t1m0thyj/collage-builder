@@ -37,6 +37,7 @@
   let activeDividerKey: string | null = null
   let dragSourceSlotId: SlotId | null = null
   let dragTargetSlotId: SlotId | null = null
+  let frameDragCancelled = false
   let lastFrameClick: { slotId: SlotId; at: number } | null = null
   let sideCropDrag: {
     slotId: SlotId
@@ -295,6 +296,7 @@
   }
   function beginFrameDrag(slotId: SlotId) {
     if (!cropSlotId) {
+      frameDragCancelled = false
       dragSourceSlotId = slotId
       dragTargetSlotId = null
     }
@@ -324,6 +326,12 @@
     },
     sourceSlotId: SlotId,
   ) {
+    if (frameDragCancelled) {
+      frameDragCancelled = false
+      dragSourceSlotId = null
+      dragTargetSlotId = null
+      return
+    }
     previewFrameDrag(event, sourceSlotId)
     const target = dragTargetSlotId
     dragSourceSlotId = null
@@ -371,6 +379,7 @@
     resize()
     const cancelDrag = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && dragSourceSlotId) {
+        frameDragCancelled = true
         dragSourceSlotId = null
         dragTargetSlotId = null
         event.preventDefault()
@@ -389,6 +398,12 @@
   bind:this={host}
   aria-label="Collage canvas"
   role="region"
+  data-stage-x={stageX}
+  data-stage-y={stageY}
+  data-fit-scale={fitScale}
+  data-divider-hitboxes={JSON.stringify(
+    displayDividers.map(({ axis, x, y, width, height }) => ({ axis, x, y, width, height })),
+  )}
   ondragover={(event) => event.preventDefault()}
   ondrop={dropAsset}
 >

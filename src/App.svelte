@@ -5,6 +5,9 @@
     ChevronDown,
     ChevronLeft,
     ChevronRight,
+    FileImage,
+    Files,
+    FolderOpen,
     Grid2X2,
     ImageIcon,
     Link2,
@@ -15,11 +18,13 @@
     Palette,
     Plus,
     Redo2,
+    RefreshCw,
     SlidersHorizontal,
     Sparkles,
     Undo2,
     Upload,
     X,
+    Trash2,
   } from '@lucide/svelte'
   import PageActions from './lib/components/PageActions.svelte'
   import type { PageV1, SlotContentV1 } from './lib/domain/types'
@@ -41,11 +46,31 @@
   import * as Switch from '$lib/components/ui/switch'
   import * as ToggleGroup from '$lib/components/ui/toggle-group'
   import { renderPagePng, resolveExportRange, zipPngs } from './lib/render/exportPng'
-  import { createArchive, maxProjectBytes, openArchive } from './lib/persistence/archive'
+  import {
+    collageMimeType,
+    createArchive,
+    maxProjectBytes,
+    openArchive,
+  } from './lib/persistence/archive'
   import { loadLatestRecovery, loadRecoveryAssets, saveRecovery } from './lib/persistence/autosave'
-  import { linkedDocument, matchLinkedAssets } from './lib/persistence/linkedAssets'
+  import {
+    createLinkedProject,
+    linkedProjectMimeType,
+    matchLinkedAssets,
+    openLinkedProject,
+  } from './lib/persistence/linkedAssets'
 
   type SidebarTab = 'layouts' | 'images'
+  type ProjectSaveFormat = 'embedded' | 'linked'
+  type SaveTarget = { format: ProjectSaveFormat; handle?: FileSystemFileHandle }
+  type SavePickerWindow = Window &
+    typeof globalThis & {
+      showSaveFilePicker?: (options: {
+        suggestedName?: string
+        excludeAcceptAllOption?: boolean
+        types?: Array<{ description: string; accept: Record<string, string[]> }>
+      }) => Promise<FileSystemFileHandle>
+    }
   const minSidebarWidth = 210
   const defaultSidebarWidth = 255
   const maxSidebarWidth = 360
@@ -102,6 +127,7 @@
   let uploadInput: HTMLInputElement
   let cropZoom = 1
   let imageListOverflows = false
+  let layoutListOverflows = false
   let pageAspectLinked = false
   let viewportZoom = 1
   let isViewportFit = true
@@ -122,8 +148,14 @@
   let relinkInput: HTMLInputElement
   let openInput: HTMLInputElement
   let linkedFolderInput: HTMLInputElement
-  let linkedFolderAction: 'save' | 'open' | null = null
+  let linkedFolderResolver: ((files: FileList | null) => void) | null = null
   let pendingLinkedDocument: typeof document | null = null
+  let isSaveFormatOpen = false
+  let saveFormatResolver: ((format: ProjectSaveFormat | null) => void) | null = null
+  let currentSaveTarget: SaveTarget | null = null
+  let currentSaveFormat: ProjectSaveFormat = 'embedded'
+  let hasSavedProject = false
+  let linkedSaveMatches = new Map<string, { file: File; relativePath: string }>()
   let assetFilter: 'all' | 'used' | 'unused' | 'missing' = 'all'
   let assetQuery = ''
   let assetSort: 'import' | 'name' | 'size' | 'usage' = 'import'
@@ -142,6 +174,11 @@
   let recoveredOnly = false
   let missingAssetIds = new Set<string>()
   let prefersDark = false
+
+  function applySystemTheme(systemPrefersDark: boolean) {
+    prefersDark = systemPrefersDark
+    globalThis.document.documentElement.dataset.theme = prefersDark ? 'dark' : 'light'
+  }
   function scheduleRecovery(value: typeof document) {
     if (!recoveryReady) return
     if (autosaveTimer) clearTimeout(autosaveTimer)
@@ -164,7 +201,7 @@
     restoreSidebarWidths()
     restoreRecentColors()
     const darkMedia = globalThis.matchMedia('(prefers-color-scheme: dark)')
-    const syncDarkMode = () => (prefersDark = darkMedia.matches)
+    const syncDarkMode = () => applySystemTheme(darkMedia.matches)
     syncDarkMode()
     darkMedia.addEventListener('change', syncDarkMode)
     void (async () => {
@@ -200,7 +237,7 @@
       const modifier = event.ctrlKey || event.metaKey
       if (modifier && event.key.toLowerCase() === 's') {
         event.preventDefault()
-        void saveProject()
+        void saveProject(event.shiftKey)
         return
       }
       if (modifier && event.key.toLowerCase() === 'o') {
@@ -275,6 +312,7 @@
 
   $: activePage = document.pages.find((page) => page.id === activePageId) ?? document.pages[0]
   $: syncLayoutAccordion(activePage.id, Object.keys(activePage.slots).length)
+  $: selectedLayoutGroup = layoutGroups.find((group) => group.frameCount === expandedLayoutCount)
   $: selectedContent = selectedSlotId ? activePage.slots[selectedSlotId] : null
   $: if (selectedContent) cropZoom = selectedContent.placement.zoom
   $: assets = Object.values(document.assets)
@@ -311,8 +349,8 @@
     project.changeLayout(activePage.id, presetId)
     announce(`${layoutCatalog.find((preset) => preset.id === presetId)?.name} layout selected.`)
   }
-  function setLayoutGroupOpen(frameCount: number, open: boolean) {
-    expandedLayoutCount = open ? frameCount : null
+  function selectLayoutGroup(frameCount: number) {
+    expandedLayoutCount = frameCount
   }
   function syncLayoutAccordion(pageId: string, frameCount: number) {
     if (layoutAccordionPageId === pageId) return
@@ -575,6 +613,10 @@
     const next = createProject('Untitled collage')
     assetRegistry.clear()
     missingAssetIds = new Set()
+    currentSaveTarget = null
+    currentSaveFormat = 'embedded'
+    hasSavedProject = false
+    linkedSaveMatches = new Map()
     recoveredOnly = false
     project.replaceDocument(next)
     projectTitle = next.title
@@ -673,6 +715,26 @@
       },
     }
   }
+  function trackLayoutListOverflow(element: HTMLElement) {
+    const update = () => {
+      layoutListOverflows = element.scrollHeight > element.clientHeight + 1
+      element.style.setProperty(
+        '--layout-list-scrollbar-width',
+        `${Math.max(0, element.offsetWidth - element.clientWidth)}px`,
+      )
+    }
+    const resizeObserver = new ResizeObserver(update)
+    const mutationObserver = new MutationObserver(update)
+    resizeObserver.observe(element)
+    mutationObserver.observe(element, { childList: true, subtree: true })
+    requestAnimationFrame(update)
+    return {
+      destroy() {
+        resizeObserver.disconnect()
+        mutationObserver.disconnect()
+      },
+    }
+  }
   function requestRemoveAssets(assetIds: string[]) {
     const removable = [...new Set(assetIds)].filter((assetId) => document.assets[assetId])
     if (!removable.length) return
@@ -751,66 +813,145 @@
     exportScope = scope
     isExportOpen = true
   }
-  async function saveProject(): Promise<boolean> {
+  function formatFromProjectFilename(name: string): ProjectSaveFormat {
+    const normalized = name.toLocaleLowerCase()
+    if (normalized.endsWith('.collage.json')) return 'linked'
+    if (normalized.endsWith('.collage')) return 'embedded'
+    throw new Error('Choose either .collage or .collage.json')
+  }
+  function resolveSaveFormat(format: ProjectSaveFormat | null) {
+    const resolve = saveFormatResolver
+    saveFormatResolver = null
+    isSaveFormatOpen = false
+    resolve?.(format)
+  }
+  function chooseFallbackSaveFormat(): Promise<ProjectSaveFormat | null> {
+    isSaveFormatOpen = true
+    return new Promise((resolve) => (saveFormatResolver = resolve))
+  }
+  async function chooseSaveTarget(preferredFormat: ProjectSaveFormat): Promise<SaveTarget | null> {
+    const pickerWindow = globalThis as unknown as SavePickerWindow
+    if (!pickerWindow.showSaveFilePicker) {
+      const format = await chooseFallbackSaveFormat()
+      return format ? { format } : null
+    }
     try {
-      const archive = await createArchive(document, {
-        get: (assetId) => assetRegistry.getBlob(assetId),
+      const handle = await pickerWindow.showSaveFilePicker({
+        suggestedName: `${projectTitle || 'collage'}${
+          preferredFormat === 'linked' ? '.collage.json' : '.collage'
+        }`,
+        excludeAcceptAllOption: true,
+        types: [
+          {
+            description: 'Collage archive — embedded images',
+            accept: { [collageMimeType]: ['.collage'] },
+          },
+          {
+            description: 'Collage project — linked images',
+            accept: { [linkedProjectMimeType]: ['.collage.json'] },
+          },
+        ],
       })
-      const link = globalThis.document.createElement('a')
-      link.href = URL.createObjectURL(archive)
-      link.download = `${projectTitle || 'collage'}.collage`
-      link.click()
-      URL.revokeObjectURL(link.href)
+      return { format: formatFromProjectFilename(handle.name), handle }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return null
+      throw error
+    }
+  }
+  function finishLinkedFolderSelection(files: FileList | null) {
+    const resolve = linkedFolderResolver
+    linkedFolderResolver = null
+    resolve?.(files?.length ? files : null)
+  }
+  function chooseLinkedFolderFiles(): Promise<FileList | null> {
+    linkedFolderInput.value = ''
+    return new Promise((resolve) => {
+      linkedFolderResolver = resolve
+      linkedFolderInput.click()
+    })
+  }
+  function downloadBlob(blob: Blob, filename: string) {
+    const link = globalThis.document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = filename
+    link.click()
+    URL.revokeObjectURL(link.href)
+  }
+  async function writeProjectBlob(target: SaveTarget, blob: Blob, filename: string) {
+    if (target.handle) {
+      const writable = await target.handle.createWritable()
+      await writable.write(blob)
+      await writable.close()
+    } else downloadBlob(blob, filename)
+  }
+  async function linkedMatchesForSave(forceChooseFolder: boolean) {
+    const assetIds = Object.keys(document.assets)
+    if (!assetIds.length) return new Map<string, { file: File; relativePath: string }>()
+    const cachedMatchesAreComplete = assetIds.every((assetId) => linkedSaveMatches.has(assetId))
+    if (!forceChooseFolder && cachedMatchesAreComplete) return linkedSaveMatches
+    const files = await chooseLinkedFolderFiles()
+    if (!files) return null
+    const matches = await matchLinkedAssets(document.assets, files)
+    linkedSaveMatches = matches
+    return matches
+  }
+  async function saveProject(saveAs = false): Promise<boolean> {
+    try {
+      const choosingDestination = saveAs || !hasSavedProject
+      const target = choosingDestination
+        ? await chooseSaveTarget(currentSaveFormat)
+        : currentSaveTarget ?? { format: currentSaveFormat }
+      if (!target) return false
+      const baseName = projectTitle || 'collage'
+      if (target.format === 'embedded') {
+        const archive = await createArchive(document, {
+          get: (assetId) => assetRegistry.getBlob(assetId),
+        })
+        await writeProjectBlob(target, archive, `${baseName}.collage`)
+      } else {
+        const matches = await linkedMatchesForSave(choosingDestination)
+        if (!matches) return false
+        const linkedProject = createLinkedProject(document, matches)
+        await writeProjectBlob(target, linkedProject, `${baseName}.collage.json`)
+      }
+      currentSaveTarget = target.handle ? target : null
+      currentSaveFormat = target.format
+      hasSavedProject = true
       project.markClean()
       recoveredOnly = false
-      announce('Project archive downloaded.')
+      announce(
+        target.format === 'embedded'
+          ? 'Embedded project saved.'
+          : 'Linked project saved. Images remain in the chosen folder.',
+      )
       return true
     } catch (error) {
       announce(error instanceof Error ? error.message : 'Unable to save project')
       return false
     }
   }
-  function requestLinkedSave() {
-    linkedFolderAction = 'save'
-    linkedFolderInput.value = ''
-    linkedFolderInput.click()
+  function saveAsModifierPressed(event: MouseEvent) {
+    const platform = globalThis.navigator.platform
+    const isApplePlatform = /Mac|iPhone|iPad|iPod/.test(platform)
+    return isApplePlatform ? event.altKey : event.shiftKey
   }
-  function requestLinkedFolder() {
-    linkedFolderAction = 'open'
-    linkedFolderInput.value = ''
-    linkedFolderInput.click()
-  }
-  async function handleLinkedFolder(files: FileList | null) {
-    const action = linkedFolderAction
-    linkedFolderAction = null
-    if (!action || !files?.length) return
+  async function requestLinkedFolder() {
+    const target = pendingLinkedDocument
+    if (!target) return
+    const files = await chooseLinkedFolderFiles()
+    if (!files) return
     try {
-      const target = action === 'save' ? document : pendingLinkedDocument
-      if (!target) return
       const matches = await matchLinkedAssets(target.assets, files)
-      if (action === 'save') {
-        const archive = await createArchive(linkedDocument(document, matches), {
-          get: (assetId) => assetRegistry.getBlob(assetId),
-        }, 'linked')
-        const link = globalThis.document.createElement('a')
-        link.href = URL.createObjectURL(archive)
-        link.download = `${projectTitle || 'collage'}-linked.collage`
-        link.click()
-        URL.revokeObjectURL(link.href)
-        announce('Linked project downloaded. Images remain in the chosen folder.')
-      } else {
-        for (const [assetId, match] of matches)
-          await assetRegistry.register(assetId, match.file, target.assets[assetId]?.sha256)
-        missingAssetIds = new Set(
-          [...missingAssetIds].filter((assetId) => !matches.has(assetId)),
-        )
-        pendingLinkedDocument = null
-        announce(
-          matches.size === Object.values(target.assets).filter((asset) => asset.storage.kind === 'linked').length
-            ? 'Linked images loaded.'
-            : `${matches.size} linked image(s) found; the rest still need relinking.`,
-        )
-      }
+      linkedSaveMatches = matches
+      for (const [assetId, match] of matches)
+        await assetRegistry.register(assetId, match.file, target.assets[assetId]?.sha256)
+      missingAssetIds = new Set([...missingAssetIds].filter((assetId) => !matches.has(assetId)))
+      pendingLinkedDocument = null
+      announce(
+        matches.size === Object.keys(target.assets).length
+          ? 'Linked images loaded.'
+          : `${matches.size} linked image(s) found; the rest still need relinking.`,
+      )
     } catch (error) {
       announce(error instanceof Error ? error.message : 'Unable to use the selected asset folder')
     }
@@ -818,13 +959,19 @@
   async function openProject(file: File | undefined) {
     if (!file) return
     try {
-      const opened = await openArchive(file)
+      const format = formatFromProjectFilename(file.name)
+      const opened =
+        format === 'embedded'
+          ? await openArchive(file)
+          : { document: await openLinkedProject(file), assets: new Map<string, Blob>(), missingAssetIds: [] }
       assetRegistry.clear()
       for (const [assetId, blob] of opened.assets)
         await assetRegistry.register(assetId, blob, opened.document.assets[assetId]?.sha256)
-      const linkedIds = Object.values(opened.document.assets)
-        .filter((asset) => asset.storage.kind === 'linked')
-        .map((asset) => asset.id)
+      const linkedIds = format === 'linked' ? Object.keys(opened.document.assets) : []
+      currentSaveTarget = null
+      currentSaveFormat = format
+      hasSavedProject = false
+      linkedSaveMatches = new Map()
       missingAssetIds = new Set([...opened.missingAssetIds, ...linkedIds])
       pendingLinkedDocument = linkedIds.length ? opened.document : null
       recoveredOnly = false
@@ -941,7 +1088,7 @@
   <meta name="description" content="A local-first collage editor." />
 </svelte:head>
 
-<main class="app-shell">
+<main class="app-shell" data-theme={prefersDark ? 'dark' : 'light'}>
   <input
     class="sr-only"
     bind:this={uploadInput}
@@ -968,7 +1115,7 @@
     class="sr-only"
     bind:this={openInput}
     type="file"
-    accept=".collage,application/vnd.collage-builder+zip"
+    accept=".collage,.collage.json,application/vnd.collage-builder+zip,application/json"
     onchange={(event) => openProject(event.currentTarget.files?.[0])}
   />
   <input
@@ -977,23 +1124,19 @@
     type="file"
     multiple
     webkitdirectory
-    onchange={(event) => handleLinkedFolder(event.currentTarget.files)}
+    onchange={(event) => finishLinkedFolderSelection(event.currentTarget.files)}
+    oncancel={() => finishLinkedFolderSelection(null)}
   />
   <header class="topbar" aria-label="Project controls">
     <div class="toolbar-group">
       <Button class="button button-primary" onclick={requestNew}>New</Button>
       <Button class="button" variant="outline" onclick={requestOpen}>Open</Button>
-      <DropdownMenu.Root>
-        <div class="save-menu">
-        <Button class="button save-primary" variant="outline" onclick={saveProject}>Save</Button>
-        <DropdownMenu.Trigger
-          class="button save-caret"
-          aria-label="More save options"><ChevronDown size={14}></ChevronDown></DropdownMenu.Trigger
-        ><DropdownMenu.Content class="save-menu-popover" align="start"
-          ><DropdownMenu.Item onclick={requestLinkedSave}>Save linked…</DropdownMenu.Item
-        ></DropdownMenu.Content>
-        </div>
-      </DropdownMenu.Root>
+      <Button
+        class="button"
+        variant="outline"
+        title="Save (Ctrl/Cmd+S) · Save As (Ctrl/Cmd+Shift+S, Option-click on Apple devices, Shift-click elsewhere)"
+        onclick={(event) => void saveProject(saveAsModifierPressed(event))}>Save</Button
+      >
     </div>
     <div class="toolbar-group history-controls" aria-label="History">
       <Button
@@ -1070,9 +1213,12 @@
           class="button button-primary export-caret"
           aria-label="Choose export scope"><ChevronDown size={14}></ChevronDown></DropdownMenu.Trigger
         ><DropdownMenu.Content class="export-menu-popover" align="end"
-          ><DropdownMenu.Item onclick={() => chooseExport('current')}>Current page</DropdownMenu.Item
-          ><DropdownMenu.Item onclick={() => chooseExport('all')}>All pages (ZIP)</DropdownMenu.Item
-          ><DropdownMenu.Item onclick={() => chooseExport('range')}>Page range…</DropdownMenu.Item
+          ><DropdownMenu.Item onclick={() => chooseExport('current')}><FileImage size={14}></FileImage>
+            Current page</DropdownMenu.Item
+          ><DropdownMenu.Item onclick={() => chooseExport('all')}><Files size={14}></Files>
+            All pages (ZIP)</DropdownMenu.Item
+          ><DropdownMenu.Item onclick={() => chooseExport('range')}><Files size={14}></Files>
+            Page range…</DropdownMenu.Item
         ></DropdownMenu.Content>
         </div>
       </DropdownMenu.Root>
@@ -1101,46 +1247,40 @@
       </div>
 
       {#if activeTab === 'layouts'}
-        <div class="panel-body">
+        <div class="panel-body layout-panel">
           <p class="eyebrow">Choose a layout</p>
-          <p class="panel-copy">Pick a preset to start composing your page.</p>
-          <div class="layout-list">
-            {#each layoutGroups as group (group.frameCount)}
-              <Collapsible.Root
-                class="layout-group"
-                open={expandedLayoutCount === group.frameCount}
-                onOpenChange={(open) => setLayoutGroupOpen(group.frameCount, open)}
-                ><h3>
-                  <Collapsible.Trigger
-                    ><span class="collapsible-icon" aria-hidden="true"
-                      >{#if expandedLayoutCount === group.frameCount}<ChevronDown size={13}></ChevronDown
-                      >{:else}<ChevronRight size={13}></ChevronRight>{/if}</span
-                    >{group.label} photos</Collapsible.Trigger
-                  >
-                </h3>
-                <Collapsible.Content
-                  ><div class="layout-options">
-                    {#each group.layouts as layout (layout.id)}
-                      {@const frames = previewFrames(layout, 80, 80)}
-                      <button
-                        class:selected={layout.id === activePage.layout.presetId}
-                        class="layout-card"
-                        title={layout.name}
-                        aria-label={layout.name}
-                        onclick={() => selectLayout(layout.id)}
-                      >
-                        <span class="layout-preview" aria-hidden="true"
-                          >{#each frames as frame (frame.slotId)}<i
-                              style={previewFrameStyle(frame, 80, 80)}
-                            ></i>{/each}</span
-                        >
-                      </button>
-                    {/each}
-                  </div></Collapsible.Content
-                ></Collapsible.Root
-              >
-            {/each}
+          <p class="panel-copy">Pick a preset grid for your page.</p>
+          <div class="layout-count-tabs" role="tablist" aria-label="Photo count">
+            {#each layoutGroups as group (group.frameCount)}<button
+                class:active={expandedLayoutCount === group.frameCount}
+                role="tab"
+                aria-selected={expandedLayoutCount === group.frameCount}
+                onclick={() => selectLayoutGroup(group.frameCount)}
+                >{group.label}</button
+              >{/each}
           </div>
+          {#if selectedLayoutGroup}<div
+              use:trackLayoutListOverflow
+              class:layout-list-overflow={layoutListOverflows}
+              class="layout-options"
+            >
+              {#each selectedLayoutGroup.layouts as layout (layout.id)}
+                {@const frames = previewFrames(layout, 80, 80)}
+                <button
+                  class:selected={layout.id === activePage.layout.presetId}
+                  class="layout-card"
+                  title={layout.name}
+                  aria-label={layout.name}
+                  onclick={() => selectLayout(layout.id)}
+                >
+                  <span class="layout-preview" aria-hidden="true"
+                    >{#each frames as frame (frame.slotId)}<i
+                        style={previewFrameStyle(frame, 80, 80)}
+                      ></i>{/each}</span
+                  >
+                </button>
+              {/each}
+            </div>{/if}
         </div>
       {:else}
         <div
@@ -1247,14 +1387,14 @@
                           onclick={() => {
                             selectedAssetId = asset.id
                             relinkInput.click()
-                          }}>Locate image</DropdownMenu.Item
+                          }}><FolderOpen size={14}></FolderOpen> Locate image</DropdownMenu.Item
                         >{:else}<DropdownMenu.Item
                           onclick={() => {
                             selectedAssetId = asset.id
                             replaceInput.click()
-                          }}>Replace original</DropdownMenu.Item
+                          }}><RefreshCw size={14}></RefreshCw> Replace original</DropdownMenu.Item
                         >{/if}<DropdownMenu.Item variant="destructive" onclick={() => requestRemoveAssets([asset.id])}
-                        >Remove from project</DropdownMenu.Item
+                        ><Trash2 size={14}></Trash2> Remove from project</DropdownMenu.Item
                       ></DropdownMenu.Content
                     ></DropdownMenu.Root
                   >
@@ -2087,14 +2227,14 @@
                           onclick={() => {
                             selectedAssetId = asset.id
                             relinkInput.click()
-                          }}>Locate image</DropdownMenu.Item
+                          }}><FolderOpen size={14}></FolderOpen> Locate image</DropdownMenu.Item
                         >{:else}<DropdownMenu.Item
                           onclick={() => {
                             selectedAssetId = asset.id
                             replaceInput.click()
-                          }}>Replace original</DropdownMenu.Item
-                        >{/if}<DropdownMenu.Item onclick={() => requestRemoveAssets([asset.id])}
-                        >Remove from project</DropdownMenu.Item
+                          }}><RefreshCw size={14}></RefreshCw> Replace original</DropdownMenu.Item
+                        >{/if}<DropdownMenu.Item variant="destructive" onclick={() => requestRemoveAssets([asset.id])}
+                        ><Trash2 size={14}></Trash2> Remove from project</DropdownMenu.Item
                       ></DropdownMenu.Content
                     ></DropdownMenu.Root
                   >
@@ -2172,6 +2312,37 @@
     {/if}
   </Dialog.Root>
 
+  <Dialog.Root
+    open={isSaveFormatOpen}
+    onOpenChange={(open) => {
+      if (!open) resolveSaveFormat(null)
+    }}
+  >
+    <Dialog.Content class="dialog" aria-modal="true" aria-labelledby="save-format-title">
+      <div class="dialog-header">
+        <div>
+          <p class="eyebrow">Save project</p>
+          <h2 id="save-format-title">Choose a project format</h2>
+        </div>
+        <button class="icon-button" aria-label="Cancel save" onclick={() => resolveSaveFormat(null)}
+          ><X size={17}></X></button
+        >
+      </div>
+      <div class="export-form">
+        <p><strong>Embedded archive (.collage)</strong> includes every original image and is fully portable.</p>
+        <p><strong>Linked project (.collage.json)</strong> stores relative paths and keeps image bytes in a chosen folder.</p>
+      </div>
+      <div class="dialog-footer">
+        <button class="button" onclick={() => resolveSaveFormat(null)}>Cancel</button><span
+          ><button class="button" onclick={() => resolveSaveFormat('linked')}>Save linked JSON</button><button
+            class="button button-primary"
+            onclick={() => resolveSaveFormat('embedded')}>Save embedded archive</button
+          ></span
+        >
+      </div>
+    </Dialog.Content>
+  </Dialog.Root>
+
   <Dialog.Root open={Boolean(pendingNavigation)} onOpenChange={(open) => !open && (pendingNavigation = null)}>
       <Dialog.Content class="dialog" aria-modal="true" aria-labelledby="unsaved-title">
         <div class="dialog-header">
@@ -2207,7 +2378,7 @@
         </div>
         <div class="export-form">
           <p>
-            This project keeps its originals outside the .collage file. Choose the root image
+            This .collage.json project keeps its originals outside the project file. Choose the root image
             folder; saved relative paths and image hashes will be used to find them safely.
           </p>
         </div>

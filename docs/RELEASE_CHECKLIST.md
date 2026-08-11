@@ -10,4 +10,4 @@
 
 ## Current browser notes
 
-The core editor targets current Chrome, Edge, Firefox, and Safari. The application uses browser downloads for Save and Export. File System Access API enhancements are intentionally not enabled yet, so Save behaves consistently as a download across browsers.
+The core editor targets current Chrome, Edge, Firefox, and Safari. Save uses the native File System Access picker when available so `.collage` and `.collage.json` appear as separate file types. Other browsers use an in-app format dialog and download fallback. PNG export remains download-based.

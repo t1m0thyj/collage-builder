@@ -56,7 +56,7 @@ The first five directions below are confirmed. The remaining entries are impleme
 
 - **Svelte 5 + TypeScript + Vite** for the client application. Use a plain SPA because no server rendering or route-level data loading is needed. It can be hosted as static assets and later wrapped as a PWA.
 - **Konva + svelte-konva** for the interactive 2D scene graph. Konva supplies canvas hit testing, clipping, dragging, shadows, and high-resolution blob export. Keep Konva nodes out of the saved state.
-- **Zod** for strict parsing of `.collage` JSON and migration boundaries. Types may be inferred from schemas where practical.
+- **Zod** for strict parsing of project JSON and migration boundaries. Types may be inferred from schemas where practical.
 - **idb** as a small IndexedDB wrapper for autosaves, asset blobs, thumbnails, and optional file handles.
 - **fflate** for asynchronous/streaming ZIP read and write. Store already-compressed JPEG/PNG/WebP bytes with ZIP compression level 0.
 - **Vitest** for domain/unit tests and **Playwright** for browser workflows and export assertions.
@@ -434,7 +434,7 @@ Do not accept arbitrary remote image URLs in v1. A remote server that does not o
 - Compute SHA-256 with Web Crypto. If an identical hash already exists, reuse the existing asset and discard the duplicate bytes.
 - Enforce configurable per-file and aggregate safety thresholds with a clear message; do not fail midway without naming the offending file.
 
-## 9. `.collage` file format
+## 9. Project file formats
 
 Define `.collage` as a ZIP container with MIME type `application/vnd.collage-builder+zip`:
 
@@ -460,6 +460,8 @@ Rules:
 - Saving writes a fresh coherent archive to a temporary stream/blob, then replaces/downloads the destination. Never mutate an existing ZIP in place.
 - `Save` uses an existing writable handle when supported and authorized. `Save As` chooses a new destination. Other browsers download a new file.
 - Mark the project clean only after the archive writer completes successfully.
+
+Define `.collage.json` as the linked alternative. It contains the validated document JSON directly, requires every asset record to use a safe relative linked path, and contains no original image bytes. On save and open, the user selects an asset-root directory; the same relative paths may be resolved beneath a different root on another machine. Embedded metadata is invalid in `.collage.json`, and linked metadata is invalid in `.collage`.
 
 ### Safe open pipeline
 

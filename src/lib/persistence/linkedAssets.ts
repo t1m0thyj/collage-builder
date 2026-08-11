@@ -1,4 +1,8 @@
 import type { AssetRecordV1, CollageDocumentV1 } from '../domain/types'
+import { migrateDocument } from '../domain/migrations'
+
+export const linkedProjectMimeType = 'application/json'
+export const maxLinkedProjectBytes = 32 * 1024 * 1024
 
 type DirectoryFile = File & { webkitRelativePath?: string }
 
@@ -6,6 +10,17 @@ export function relativePathFor(file: DirectoryFile): string {
   const path = file.webkitRelativePath?.replaceAll('\\', '/') || file.name
   const parts = path.split('/').filter(Boolean)
   return parts.length > 1 ? parts.slice(1).join('/') : parts[0]
+}
+
+function assertSafeRelativePath(path: string): void {
+  const normalized = path.replaceAll('\\', '/')
+  if (
+    normalized !== path ||
+    normalized.startsWith('/') ||
+    /^[a-z]:\//i.test(normalized) ||
+    normalized.split('/').some((part) => !part || part === '.' || part === '..')
+  )
+    throw new Error(`Linked image has an unsafe relative path: ${path}`)
 }
 
 async function digest(file: Blob): Promise<string> {
@@ -46,6 +61,7 @@ export function linkedDocument(
   for (const asset of Object.values(copy.assets)) {
     const match = matches.get(asset.id)
     if (!match) throw new Error(`The selected folder does not contain ${asset.originalName}`)
+    assertSafeRelativePath(match.relativePath)
     asset.storage = {
       kind: 'linked',
       displayHint: match.relativePath,
@@ -54,4 +70,29 @@ export function linkedDocument(
     }
   }
   return copy
+}
+
+export function createLinkedProject(
+  document: CollageDocumentV1,
+  matches: Map<string, { file: File; relativePath: string }>,
+): Blob {
+  const savedDocument = linkedDocument(document, matches)
+  return new Blob([JSON.stringify(savedDocument, null, 2)], { type: linkedProjectMimeType })
+}
+
+export async function openLinkedProject(file: Blob): Promise<CollageDocumentV1> {
+  if (file.size > maxLinkedProjectBytes)
+    throw new Error('Linked project exceeds the 32 MB safety limit')
+  let document: CollageDocumentV1
+  try {
+    document = migrateDocument(JSON.parse(await file.text()))
+  } catch (error) {
+    throw error instanceof Error ? error : new Error('Invalid linked project document')
+  }
+  for (const asset of Object.values(document.assets)) {
+    if (asset.storage.kind !== 'linked' || !asset.storage.relativePath)
+      throw new Error('Linked project contains embedded asset metadata')
+    assertSafeRelativePath(asset.storage.relativePath)
+  }
+  return document
 }
