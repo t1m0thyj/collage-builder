@@ -201,9 +201,11 @@ export class ProjectStore {
     })
   }
 
-  addPage(): void {
+  addPage(sourcePageId?: string): void {
     this.commit((draft) => {
-      const source = draft.pages[draft.pages.length - 1]
+      const source = sourcePageId
+        ? this.findPage(draft, sourcePageId)
+        : draft.pages[draft.pages.length - 1]
       const page = createPage(`Page ${draft.pages.length + 1}`, 'layout-2-001')
       page.width = source.width
       page.height = source.height

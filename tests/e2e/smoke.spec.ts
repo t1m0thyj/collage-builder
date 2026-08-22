@@ -73,11 +73,11 @@ async function twoColumnFrameCenters(page: BrowserPage) {
   const host = page.getByRole('region', { name: 'Collage canvas' })
   const box = await host.boundingBox()
   expect(box).not.toBeNull()
-  const scale = Math.min((box!.width - 48) / 1600, (box!.height - 48) / 1200, 1)
-  const stageX = Math.max(0, (box!.width - 1600 * scale) / 2)
-  const stageY = Math.max(0, (box!.height - 1200 * scale) / 2)
-  const frameWidth = (1600 - 30 * 2 - 30) / 2
-  const frameHeight = 1200 - 30 * 2
+  const scale = Math.min((box!.width - 48) / 3840, (box!.height - 48) / 2880, 1)
+  const stageX = Math.max(0, (box!.width - 3840 * scale) / 2)
+  const stageY = Math.max(0, (box!.height - 2880 * scale) / 2)
+  const frameWidth = (3840 - 30 * 2 - 30) / 2
+  const frameHeight = 2880 - 30 * 2
   const y = box!.y + stageY + (30 + frameHeight / 2) * scale
   return [
     { x: box!.x + stageX + (30 + frameWidth / 2) * scale, y },

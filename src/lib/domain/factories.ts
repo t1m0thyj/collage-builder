@@ -64,7 +64,7 @@ export function instantiateLayout(presetId: string): {
 
 export function createPage(name = 'Page 1', presetId = 'layout-3-001'): PageV1 {
   const instance = instantiateLayout(presetId)
-  return { id: createId(), name, width: 1600, height: 1200, ...instance, style: defaultPageStyle() }
+  return { id: createId(), name, width: 3840, height: 2880, ...instance, style: defaultPageStyle() }
 }
 
 export function createProject(title = 'Untitled collage'): CollageDocumentV1 {

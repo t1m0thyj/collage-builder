@@ -1165,7 +1165,20 @@ h2 {
 }
 .page-tab-with-actions {
   position: relative;
-  margin-right: 2px;
+  margin-right: 0;
+}
+.page-tab-with-actions:not(.active-tab-action)::after {
+  position: absolute;
+  right: 0;
+  bottom: 8px;
+  width: 1px;
+  height: 16px;
+  background: #bdc8d8;
+  content: '';
+  pointer-events: none;
+}
+.page-tab-with-actions:not(.active-tab-action):has(+ .active-tab-action)::after {
+  display: none;
 }
 .page-tab-preview {
   position: absolute;
@@ -1359,13 +1372,17 @@ h2 {
   width: 28px;
   height: 28px;
   padding: 0;
-  border: 1px dashed #bcb8ae;
-  border-radius: 6px;
+  border: 0;
+  border-radius: 50%;
   background: transparent;
   color: #666158;
   font-size: 19px;
   line-height: 1;
   margin: 0 0 2px 5px;
+}
+.add-page:hover {
+  background: rgba(255, 255, 255, 0.64);
+  color: #315c9c;
 }
 .page-actions {
   display: flex;
@@ -1406,6 +1423,13 @@ h2 {
 }
 .dialog-header {
   border-bottom: 1px solid #e7e4de;
+}
+.dialog-header > .icon-button {
+  display: grid;
+  flex: 0 0 31px;
+  place-items: center;
+  margin: 0;
+  line-height: 0;
 }
 .dialog-footer {
   border-top: 1px solid #e7e4de;
@@ -1749,6 +1773,12 @@ h2 {
   .project-title input {
     color: #eaf2ff;
   }
+  .save-status {
+    color: #d4e4f8;
+  }
+  .status-dot.dirty {
+    background: #f1b85b;
+  }
   .history-controls,
   .editor-zoom {
     border-color: #3d3d3d;
@@ -1839,6 +1869,13 @@ h2 {
   .page-tab:hover:not(.active) {
     background: #252525;
     color: #a9cdfc;
+  }
+  .add-page:hover {
+    background: rgba(108, 153, 213, 0.18);
+    color: #b7d5fb;
+  }
+  .page-tab-with-actions:not(.active-tab-action)::after {
+    background: #424242;
   }
   .layout-count-tabs button {
     border-color: #414141;

@@ -12,7 +12,7 @@ describe('export ranges', () => {
 })
 describe('export dimensions', () => {
   it('preserves page aspect ratio and rejects unsafe canvases', () => {
-    expect(exportDimensions(createPage(), 1600)).toEqual({ width: 1600, height: 1200 })
+    expect(exportDimensions(createPage(), 3840)).toEqual({ width: 3840, height: 2880 })
     expect(() => exportDimensions(createPage(), 9000)).toThrow('limit')
   })
 })

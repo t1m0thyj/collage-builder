@@ -165,7 +165,7 @@
   let isExportOpen = false
   let exportScope: 'current' | 'all' | 'range' = 'current'
   let exportRange = '1-1'
-  let exportWidth = 1600
+  let exportWidth = 3840
   let isExporting = false
   let exportProgress = ''
   let autosaveTimer: ReturnType<typeof setTimeout> | undefined
@@ -602,7 +602,7 @@
   }
 
   function addPage() {
-    project.addPage()
+    project.addPage(activePage.id)
     activePageId = document.pages[document.pages.length - 1].id
   }
   function renameActivePage() {

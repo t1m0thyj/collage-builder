@@ -7,6 +7,6 @@ describe('page render model', () => {
     const page = createPage('Page', 'layout-4-001')
     const model = createPageRenderModel(page)
     expect(model.frames).toHaveLength(4)
-    expect(model.frames[0]).toMatchObject({ x: 30, y: 30, width: 755, height: 555 })
+    expect(model.frames[0]).toMatchObject({ x: 30, y: 30, width: 1875, height: 1395 })
   })
 })

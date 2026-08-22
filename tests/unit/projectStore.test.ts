@@ -31,6 +31,25 @@ describe('project history', () => {
     expect(pages[1].id).not.toBe(pages[0].id)
   })
 
+  it('uses the active page settings when adding a page', () => {
+    const project = createProject('Inherited settings')
+    const store = new ProjectStore(project)
+    const firstPageId = project.pages[0].id
+    store.addPage(firstPageId)
+    const secondPage = get(store.document).pages[1]
+    store.resizePage(secondPage.id, 2400, 1800)
+    store.setPageStyle(secondPage.id, { backgroundColor: '#112233', padding: 48 })
+
+    store.addPage(secondPage.id)
+
+    const addedPage = get(store.document).pages[2]
+    expect(addedPage).toMatchObject({
+      width: 2400,
+      height: 1800,
+      style: { backgroundColor: '#112233', padding: 48 },
+    })
+  })
+
   it('moves or swaps complete frame content in one undoable command', () => {
     const project = createProject('Swap')
     const store = new ProjectStore(project)

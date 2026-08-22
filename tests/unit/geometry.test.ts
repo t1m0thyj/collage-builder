@@ -9,16 +9,16 @@ describe('split-tree layout resolution', () => {
     const frames = resolveLayout(page)
     expect(frames).toHaveLength(4)
     expect(frames.map(({ x, y, width, height }) => [x, y, width, height])).toEqual([
-      [30, 30, 755, 555],
-      [815, 30, 755, 555],
-      [30, 615, 755, 555],
-      [815, 615, 755, 555],
+      [30, 30, 1875, 1395],
+      [1935, 30, 1875, 1395],
+      [30, 1455, 1875, 1395],
+      [1935, 1455, 1875, 1395],
     ])
   })
 
   it('rejects padding and gap combinations with no usable frame area', () => {
     const page = createPage()
-    page.style.padding = 800
+    page.style.padding = 2000
     expect(() => resolveLayout(page)).toThrow('Page padding')
   })
 })
