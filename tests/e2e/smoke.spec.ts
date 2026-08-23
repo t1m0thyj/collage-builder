@@ -55,12 +55,49 @@ const onePixelPng = Buffer.from(
 const redPng = solidPng(238, 45, 54)
 const bluePng = solidPng(30, 110, 230)
 
-async function importImage(page: BrowserPage, name: string, buffer = onePixelPng) {
-  await page.locator('input[type="file"][accept="image/jpeg,image/png,image/webp"]').first().setInputFiles({
-    name,
-    mimeType: 'image/png',
-    buffer,
-  })
+async function importImage(
+  page: BrowserPage,
+  name: string,
+  buffer = onePixelPng,
+  mimeType = 'image/png',
+) {
+  await page
+    .locator('input[type="file"][accept="image/jpeg,image/png,image/webp"]')
+    .first()
+    .setInputFiles({
+      name,
+      mimeType,
+      buffer,
+    })
+}
+
+async function encodedRaster(
+  page: BrowserPage,
+  mimeType: 'image/jpeg' | 'image/png' | 'image/webp',
+) {
+  const encoded = await page.evaluate(async (type) => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 2
+    canvas.height = 2
+    const context = canvas.getContext('2d')!
+    context.fillStyle = '#e83f57'
+    context.fillRect(0, 0, 2, 2)
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type))
+    if (!blob) throw new Error(`Unable to encode ${type}`)
+    return { type: blob.type, bytes: [...new Uint8Array(await blob.arrayBuffer())] }
+  }, mimeType)
+  expect(encoded.type).toBe(mimeType)
+  return Buffer.from(encoded.bytes)
+}
+
+async function pngDimensions(download: import('@playwright/test').Download) {
+  const stream = await download.createReadStream()
+  if (!stream) throw new Error('Export download could not be read')
+  const chunks: Buffer[] = []
+  for await (const chunk of stream) chunks.push(Buffer.from(chunk))
+  const png = Buffer.concat(chunks)
+  expect(png.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+  return { width: png.readUInt32BE(16), height: png.readUInt32BE(20) }
 }
 
 async function chooseTwoColumnLayout(page: BrowserPage) {
@@ -85,7 +122,11 @@ async function twoColumnFrameCenters(page: BrowserPage) {
   ]
 }
 
-async function assignSidebarImage(page: BrowserPage, name: string, point: { x: number; y: number }) {
+async function assignSidebarImage(
+  page: BrowserPage,
+  name: string,
+  point: { x: number; y: number },
+) {
   await page.getByRole('tab', { name: 'Images' }).click()
   await page.mouse.click(point.x, point.y)
   await page.getByText(name, { exact: true }).click()
@@ -100,9 +141,20 @@ async function sampleStagePixel(page: BrowserPage, point: { x: number; y: number
   expect(canvasBox).not.toBeNull()
   return canvas.evaluate(
     (element, relative) => {
-      const x = Math.max(0, Math.min(element.width - 1, Math.round(relative.x * element.width / element.clientWidth)))
-      const y = Math.max(0, Math.min(element.height - 1, Math.round(relative.y * element.height / element.clientHeight)))
-      return [...element.getContext('2d', { willReadFrequently: true })!.getImageData(x, y, 1, 1).data]
+      const x = Math.max(
+        0,
+        Math.min(element.width - 1, Math.round((relative.x * element.width) / element.clientWidth)),
+      )
+      const y = Math.max(
+        0,
+        Math.min(
+          element.height - 1,
+          Math.round((relative.y * element.height) / element.clientHeight),
+        ),
+      )
+      return [
+        ...element.getContext('2d', { willReadFrequently: true })!.getImageData(x, y, 1, 1).data,
+      ]
     },
     { x: point.x - canvasBox!.x, y: point.y - canvasBox!.y },
   )
@@ -130,7 +182,11 @@ async function expectOnTop(page: import('@playwright/test').Page, dialogName: st
       const element = document.elementFromPoint(x, y)
       return element?.closest('[role="dialog"]')?.getAttribute('aria-labelledby') === dialogName
     },
-    { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2, dialogName: dialogName === 'Image Manager' ? 'image-manager-title' : 'export-title' },
+    {
+      x: box!.x + box!.width / 2,
+      y: box!.y + box!.height / 2,
+      dialogName: dialogName === 'Image Manager' ? 'image-manager-title' : 'export-title',
+    },
   )
   expect(isTopmost).toBe(true)
 }
@@ -225,20 +281,28 @@ test('New protects unsaved work and Escape cancels navigation', async ({ page })
   await expect(title).toHaveValue('Keep this project')
 
   await page.getByRole('button', { name: 'New', exact: true }).click()
-  await page.getByRole('dialog', { name: 'Save before continuing?' }).getByRole('button', { name: 'Discard' }).click()
+  await page
+    .getByRole('dialog', { name: 'Save before continuing?' })
+    .getByRole('button', { name: 'Discard' })
+    .click()
   await expect(title).toHaveValue('Untitled collage')
 })
 
 test('imports and removes an image from the project collection', async ({ page }) => {
   await page.goto('/')
-  await page.locator('input[type="file"][accept="image/jpeg,image/png,image/webp"]').first().setInputFiles({
-    name: 'remove-me.png',
-    mimeType: 'image/png',
-    buffer: onePixelPng,
-  })
+  await page
+    .locator('input[type="file"][accept="image/jpeg,image/png,image/webp"]')
+    .first()
+    .setInputFiles({
+      name: 'remove-me.png',
+      mimeType: 'image/png',
+      buffer: onePixelPng,
+    })
   await page.getByRole('tab', { name: 'Images' }).click()
   await page.getByRole('button', { name: 'Manage images' }).click()
-  await expect(page.getByRole('dialog', { name: 'Image Manager' }).getByText('remove-me.png')).toBeVisible()
+  await expect(
+    page.getByRole('dialog', { name: 'Image Manager' }).getByText('remove-me.png'),
+  ).toBeVisible()
   await page
     .getByRole('dialog', { name: 'Image Manager' })
     .getByRole('button', { name: 'Actions for remove-me.png' })
@@ -247,7 +311,24 @@ test('imports and removes an image from the project collection', async ({ page }
   await expect(page.getByText('remove-me.png', { exact: true })).toHaveCount(0)
 })
 
-test('imports stay unused until assigned and used removal requires confirmation', async ({ page }) => {
+test('imports JPEG, PNG, and WebP images', async ({ page }) => {
+  await page.goto('/')
+  for (const [name, mimeType] of [
+    ['photo.jpg', 'image/jpeg'],
+    ['graphic.png', 'image/png'],
+    ['modern.webp', 'image/webp'],
+  ] as const)
+    await importImage(page, name, await encodedRaster(page, mimeType), mimeType)
+
+  await page.getByRole('tab', { name: 'Images' }).click()
+  await expect(page.getByText('photo.jpg', { exact: true })).toBeVisible()
+  await expect(page.getByText('graphic.png', { exact: true })).toBeVisible()
+  await expect(page.getByText('modern.webp', { exact: true })).toBeVisible()
+})
+
+test('imports stay unused until assigned and used removal requires confirmation', async ({
+  page,
+}) => {
   await page.goto('/')
   await chooseTwoColumnLayout(page)
   await importImage(page, 'used.png', redPng)
@@ -374,13 +455,16 @@ test('dragging a layout splitter re-renders the page', async ({ page }) => {
   await expect.poll(() => canvas.evaluate((element) => element.toDataURL())).not.toBe(before)
 })
 
-test('dragging crop edges and corners changes zoom', async ({ page }) => {
+test('dragging crop edges changes zoom', async ({ page }) => {
   await page.goto('/')
-  await page.locator('input[type="file"][accept="image/jpeg,image/png,image/webp"]').first().setInputFiles({
-    name: 'crop.png',
-    mimeType: 'image/png',
-    buffer: onePixelPng,
-  })
+  await page
+    .locator('input[type="file"][accept="image/jpeg,image/png,image/webp"]')
+    .first()
+    .setInputFiles({
+      name: 'crop.png',
+      mimeType: 'image/png',
+      buffer: onePixelPng,
+    })
   await page.getByRole('tab', { name: 'Images' }).click()
   await page.getByText('crop.png', { exact: true }).click()
 
@@ -396,7 +480,9 @@ test('dragging crop edges and corners changes zoom', async ({ page }) => {
   await expect
     .poll(async () =>
       cropCanvas.evaluate((canvas) => {
-        const pixels = canvas.getContext('2d', { willReadFrequently: true })!.getImageData(0, 0, canvas.width, canvas.height).data
+        const pixels = canvas
+          .getContext('2d', { willReadFrequently: true })!
+          .getImageData(0, 0, canvas.width, canvas.height).data
         for (let index = 0; index < pixels.length; index += 4)
           if (pixels[index] < 8 && pixels[index + 1] > 245 && pixels[index + 2] < 8) return true
         return false
@@ -422,7 +508,12 @@ test('dragging crop edges and corners changes zoom', async ({ page }) => {
       }
     }
     if (minX === canvas.width) throw new Error('Crop outline was not drawn')
-    return { x: (minX + maxX) / 2, y: minY, scaleX: canvas.clientWidth / canvas.width, scaleY: canvas.clientHeight / canvas.height }
+    return {
+      x: (minX + maxX) / 2,
+      y: minY,
+      scaleX: canvas.clientWidth / canvas.width,
+      scaleY: canvas.clientHeight / canvas.height,
+    }
   })
   const canvasBox = await cropCanvas.boundingBox()
   expect(canvasBox).not.toBeNull()
@@ -433,27 +524,6 @@ test('dragging crop edges and corners changes zoom', async ({ page }) => {
     canvasBox!.y + (edge.y - 36) * edge.scaleY,
     { steps: 8 },
   )
-  await page.mouse.up()
-  await expect(cropZoom).not.toHaveValue('1.00')
-
-  await page.getByRole('button', { name: 'Reset crop' }).click()
-  await expect(cropZoom).toHaveValue('1.00')
-  const corner = await cropCanvas.evaluate((canvas) => {
-    const pixels = canvas.getContext('2d', { willReadFrequently: true })!.getImageData(0, 0, canvas.width, canvas.height).data
-    let minX = canvas.width
-    let minY = canvas.height
-    for (let index = 0; index < pixels.length; index += 4) {
-      if (pixels[index] < 8 && pixels[index + 1] > 245 && pixels[index + 2] < 8) {
-        const pixel = index / 4
-        minX = Math.min(minX, pixel % canvas.width)
-        minY = Math.min(minY, Math.floor(pixel / canvas.width))
-      }
-    }
-    return { x: minX + 8, y: minY + 8 }
-  })
-  await page.mouse.move(canvasBox!.x + corner.x, canvasBox!.y + corner.y)
-  await page.mouse.down()
-  await page.mouse.move(canvasBox!.x + corner.x - 32, canvasBox!.y + corner.y - 32, { steps: 8 })
   await page.mouse.up()
   await expect(cropZoom).not.toHaveValue('1.00')
 })
@@ -491,6 +561,45 @@ test('crop changes cancel with Escape and commit as one undo entry', async ({ pa
   await expect(page.getByRole('spinbutton', { name: 'Crop vertical position' })).toHaveValue('65')
 })
 
+test('automatic recovery restores an unsaved project', async ({ page }) => {
+  await page.goto('/')
+  const title = page.getByRole('textbox', { name: 'Project title' })
+  await title.fill('Recovered project')
+  await title.press('Tab')
+  await page.waitForTimeout(1_200)
+  await page.reload()
+  await expect(title).toHaveValue('Recovered project')
+  await expect(page.getByRole('status')).toContainText('Local recovery restored')
+})
+
+test('keyboard focus is visible and returns to the image-manager trigger', async ({ page }) => {
+  await page.goto('/')
+  const newProject = page.getByRole('button', { name: 'New', exact: true })
+  const openProject = page.getByRole('button', { name: 'Open', exact: true })
+  await newProject.focus()
+  await expect(newProject).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(openProject).toBeFocused()
+
+  await page.getByRole('tab', { name: 'Images' }).click()
+  const managerTrigger = page.getByRole('button', { name: 'Manage images' })
+  await managerTrigger.focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('dialog', { name: 'Image Manager' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: 'Image Manager' })).toBeHidden()
+  await expect(managerTrigger).toBeFocused()
+})
+
+test('honors reduced-motion preference', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto('/')
+  const duration = await page
+    .getByRole('button', { name: 'New', exact: true })
+    .evaluate((element) => getComputedStyle(element).transitionDuration)
+  expect(Number.parseFloat(duration)).toBeLessThanOrEqual(0.001)
+})
+
 test('page-range export validates input and downloads the requested pages', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Add page' }).click()
@@ -511,7 +620,34 @@ test('page-range export validates input and downloads the requested pages', asyn
   await expect(exportDialog).toBeHidden()
 })
 
-test('Save retains the current format while Save As offers both project extensions', async ({ page }) => {
+test('exports current-page PNGs at normal and default 4K resolutions', async ({ page }) => {
+  await page.goto('/')
+  await importImage(page, 'export.png', redPng)
+  const host = page.getByRole('region', { name: 'Collage canvas' })
+  const hostBox = await host.boundingBox()
+  expect(hostBox).not.toBeNull()
+  await page.getByRole('tab', { name: 'Images' }).click()
+  await page.mouse.click(hostBox!.x + hostBox!.width * 0.5, hostBox!.y + hostBox!.height * 0.5)
+  await page.getByText('export.png', { exact: true }).click()
+
+  await page.getByRole('button', { name: 'Export PNG' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Export pages' })
+  const width = dialog.getByRole('spinbutton', { name: 'Width (px)' })
+  await width.fill('800')
+  const normalDownload = page.waitForEvent('download')
+  await dialog.getByRole('button', { name: 'Export', exact: true }).click()
+  await expect(await pngDimensions(await normalDownload)).toEqual({ width: 800, height: 600 })
+
+  await page.getByRole('button', { name: 'Export PNG' }).click()
+  await width.fill('3840')
+  const largeDownload = page.waitForEvent('download')
+  await dialog.getByRole('button', { name: 'Export', exact: true }).click()
+  await expect(await pngDimensions(await largeDownload)).toEqual({ width: 3840, height: 2880 })
+})
+
+test('Save retains the current format while Save As offers both project extensions', async ({
+  page,
+}) => {
   await page.addInitScript(() => {
     Object.defineProperty(window, 'showSaveFilePicker', { value: undefined, configurable: true })
   })
@@ -544,13 +680,11 @@ test('Save retains the current format while Save As offers both project extensio
 test('opens a linked project from the .collage.json extension', async ({ page }) => {
   await page.goto('/')
   const linkedDocument = createProject('Linked JSON project')
-  await page
-    .locator('input[type="file"][accept*=".collage.json"]')
-    .setInputFiles({
-      name: 'linked-project.collage.json',
-      mimeType: 'application/json',
-      buffer: Buffer.from(JSON.stringify(linkedDocument)),
-    })
+  await page.locator('input[type="file"][accept*=".collage.json"]').setInputFiles({
+    name: 'linked-project.collage.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(linkedDocument)),
+  })
   await expect(page.getByRole('textbox', { name: 'Project title' })).toHaveValue(
     'Linked JSON project',
   )

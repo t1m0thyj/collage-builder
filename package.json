@@ -11,6 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:benchmark": "playwright test tests/e2e/benchmark.spec.ts --project=chromium --workers=1",
+    "verify": "npm run check && npm run lint && npm test && npm run build",
     "lint": "eslint .",
     "format": "prettier --plugin=prettier-plugin-svelte --check .",
     "format:write": "prettier --plugin=prettier-plugin-svelte --write ."

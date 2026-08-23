@@ -5,6 +5,7 @@ import path from 'node:path'
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: process.env.BASE_PATH ?? '/',
   plugins: [tailwindcss(), svelte()],
   resolve: {
     alias: {

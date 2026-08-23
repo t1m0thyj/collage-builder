@@ -1140,7 +1140,10 @@ h2 {
   color: #646b76;
   font-size: 12px;
   font-weight: 650;
-  transition: height 120ms ease, background-color 120ms ease, color 120ms ease;
+  transition:
+    height 120ms ease,
+    background-color 120ms ease,
+    color 120ms ease;
 }
 .page-tab:hover:not(.active) {
   background: rgba(255, 255, 255, 0.58);
@@ -1166,6 +1169,16 @@ h2 {
 .page-tab-with-actions {
   position: relative;
   margin-right: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 .page-tab-with-actions:not(.active-tab-action)::after {
   position: absolute;
@@ -1198,7 +1211,9 @@ h2 {
   opacity: 0;
   pointer-events: none;
   transform: translate(-50%, 4px);
-  transition: opacity 180ms ease, transform 180ms ease;
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
   transition-delay: 70ms;
 }
 .page-tab-with-actions:hover .page-tab-preview,
