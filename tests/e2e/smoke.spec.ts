@@ -1,6 +1,10 @@
 import { expect, test } from '@playwright/test'
+import { createHash } from 'node:crypto'
+import { join } from 'node:path'
 import { deflateSync } from 'node:zlib'
+import { strToU8, zipSync } from 'fflate'
 import { createProject } from '../../src/lib/domain/factories'
+import { collageMimeType } from '../../src/lib/persistence/archive'
 
 type BrowserPage = import('@playwright/test').Page
 
@@ -54,6 +58,7 @@ const onePixelPng = Buffer.from(
 
 const redPng = solidPng(238, 45, 54)
 const bluePng = solidPng(30, 110, 230)
+const realPhotoPath = join(process.cwd(), 'tests', 'fixtures', 'real-photo-still-life.png')
 
 async function importImage(
   page: BrowserPage,
@@ -91,13 +96,43 @@ async function encodedRaster(
 }
 
 async function pngDimensions(download: import('@playwright/test').Download) {
+  const png = await downloadBytes(download)
+  expect(png.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+  return { width: png.readUInt32BE(16), height: png.readUInt32BE(20) }
+}
+
+async function downloadBytes(download: import('@playwright/test').Download) {
   const stream = await download.createReadStream()
   if (!stream) throw new Error('Export download could not be read')
   const chunks: Buffer[] = []
   for await (const chunk of stream) chunks.push(Buffer.from(chunk))
-  const png = Buffer.concat(chunks)
-  expect(png.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-  return { width: png.readUInt32BE(16), height: png.readUInt32BE(20) }
+  return Buffer.concat(chunks)
+}
+
+async function sampleDownloadedPng(
+  page: BrowserPage,
+  download: import('@playwright/test').Download,
+  points: Array<{ x: number; y: number }>,
+) {
+  const bytes = await downloadBytes(download)
+  return page.evaluate(
+    async ({ encoded, points }) => {
+      const bitmap = await createImageBitmap(new Blob([new Uint8Array(encoded)]))
+      try {
+        const canvas = document.createElement('canvas')
+        canvas.width = bitmap.width
+        canvas.height = bitmap.height
+        const context = canvas.getContext('2d', { willReadFrequently: true })!
+        context.drawImage(bitmap, 0, 0)
+        return points.map(({ x, y }) => [
+          ...context.getImageData(Math.round(x), Math.round(y), 1, 1).data,
+        ])
+      } finally {
+        bitmap.close()
+      }
+    },
+    { encoded: [...bytes], points },
+  )
 }
 
 async function chooseTwoColumnLayout(page: BrowserPage) {
@@ -324,6 +359,20 @@ test('imports JPEG, PNG, and WebP images', async ({ page }) => {
   await expect(page.getByText('photo.jpg', { exact: true })).toBeVisible()
   await expect(page.getByText('graphic.png', { exact: true })).toBeVisible()
   await expect(page.getByText('modern.webp', { exact: true })).toBeVisible()
+})
+
+test('large originals use bounded thumbnails in the image library', async ({ page }) => {
+  await page.goto('/')
+  await importImage(page, 'large-photo.png', solidPng(80, 140, 210, 1200, 800))
+  await page.getByRole('tab', { name: 'Images' }).click()
+  const thumbnail = page.locator('.asset-row img').first()
+  await expect(thumbnail).toBeVisible()
+  expect(
+    await thumbnail.evaluate((image) => ({
+      width: image.naturalWidth,
+      height: image.naturalHeight,
+    })),
+  ).toEqual({ width: 256, height: 171 })
 })
 
 test('imports stay unused until assigned and used removal requires confirmation', async ({
@@ -591,6 +640,21 @@ test('keyboard focus is visible and returns to the image-manager trigger', async
   await expect(managerTrigger).toBeFocused()
 })
 
+test('initial keyboard focus skips hidden file inputs and canvas frames are named', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await page.keyboard.press('Tab')
+  await expect(page.getByRole('button', { name: 'New', exact: true })).toBeFocused()
+
+  const frameControls = page.locator('.canvas-frame-controls button')
+  await expect(frameControls).toHaveCount(3)
+  await expect(frameControls.first()).toHaveAttribute('aria-label', 'Frame 1, empty')
+  await frameControls.first().focus()
+  await expect(frameControls.first()).toBeFocused()
+  await expect(frameControls.first()).toHaveAttribute('aria-pressed', 'true')
+})
+
 test('honors reduced-motion preference', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto('/')
@@ -643,6 +707,125 @@ test('exports current-page PNGs at normal and default 4K resolutions', async ({ 
   const largeDownload = page.waitForEvent('download')
   await dialog.getByRole('button', { name: 'Export', exact: true }).click()
   await expect(await pngDimensions(await largeDownload)).toEqual({ width: 3840, height: 2880 })
+})
+
+test('export pixels preserve image colors and the configured page gap', async ({ page }) => {
+  await page.goto('/')
+  await chooseTwoColumnLayout(page)
+  await importImage(page, 'red.png', redPng)
+  await importImage(page, 'blue.png', bluePng)
+  const [left, right] = await twoColumnFrameCenters(page)
+  await assignSidebarImage(page, 'red.png', left)
+  await assignSidebarImage(page, 'blue.png', right)
+  await page.getByRole('switch', { name: 'Frame shadow enabled' }).click()
+
+  await page.getByRole('button', { name: 'Export PNG' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Export pages' })
+  await dialog.getByRole('spinbutton', { name: 'Width (px)' }).fill('400')
+  const downloadPromise = page.waitForEvent('download')
+  await dialog.getByRole('button', { name: 'Export', exact: true }).click()
+  const [leftPixel, gapPixel, rightPixel] = await sampleDownloadedPng(
+    page,
+    await downloadPromise,
+    [
+      { x: 100, y: 150 },
+      { x: 200, y: 150 },
+      { x: 300, y: 150 },
+    ],
+  )
+  expect(leftPixel.slice(0, 3)).toEqual([238, 45, 54])
+  expect(gapPixel.slice(0, 3)).toEqual([128, 128, 128])
+  expect(rightPixel.slice(0, 3)).toEqual([30, 110, 230])
+})
+
+test('real photo import, crop, thumbnail, and export stay visually consistent', async ({ page }) => {
+  await page.goto('/')
+  await chooseTwoColumnLayout(page)
+  await page
+    .locator('input[type="file"][accept="image/jpeg,image/png,image/webp"]')
+    .first()
+    .setInputFiles(realPhotoPath)
+  await page.getByRole('tab', { name: 'Images' }).click()
+  await expect(page.getByText('real-photo-still-life.png', { exact: true })).toBeVisible()
+
+  const thumbnail = page.locator('.asset-row img').first()
+  await expect(thumbnail).toBeVisible()
+  expect(
+    await thumbnail.evaluate((image) => ({
+      width: image.naturalWidth,
+      height: image.naturalHeight,
+    })),
+  ).toEqual({ width: 256, height: 171 })
+
+  const [left] = await twoColumnFrameCenters(page)
+  await assignSidebarImage(page, 'real-photo-still-life.png', left)
+  await page.getByRole('button', { name: 'Crop image' }).click()
+  await setNumber(page, 'Crop zoom value', '1.20')
+  await setNumber(page, 'Crop horizontal position', '45')
+  await page.getByRole('button', { name: 'Done' }).click()
+
+  await expect.poll(() => sampleStagePixel(page, left)).not.toEqual([229, 226, 217, 255])
+  const renderedStagePixel = await sampleStagePixel(page, left)
+  expect(renderedStagePixel[3]).toBe(255)
+
+  await page.getByRole('button', { name: 'Export PNG' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Export pages' })
+  await dialog.getByRole('spinbutton', { name: 'Width (px)' }).fill('600')
+  const downloadPromise = page.waitForEvent('download')
+  await dialog.getByRole('button', { name: 'Export', exact: true }).click()
+  const [exportedPixel] = await sampleDownloadedPng(page, await downloadPromise, [
+    { x: 151, y: 225 },
+  ])
+  for (let channel = 0; channel < 3; channel += 1)
+    expect(Math.abs(exportedPixel[channel] - renderedStagePixel[channel])).toBeLessThanOrEqual(12)
+  expect(exportedPixel[3]).toBe(255)
+})
+
+test('a failed project open keeps the current document and decoded assets intact', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await chooseTwoColumnLayout(page)
+  const title = page.getByRole('textbox', { name: 'Project title' })
+  await title.fill('Keep current project')
+  await title.press('Tab')
+  await importImage(page, 'current.png', redPng)
+  const [left] = await twoColumnFrameCenters(page)
+  await assignSidebarImage(page, 'current.png', left)
+  await expect.poll(() => sampleStageColor(page, left)).toBe('red')
+
+  const invalidBytes = Buffer.from('not actually a PNG')
+  const invalidDocument = createProject('Broken incoming project')
+  const assetId = '11111111-1111-4111-8111-111111111111'
+  invalidDocument.assets[assetId] = {
+    id: assetId,
+    originalName: 'broken.png',
+    mediaType: 'image/png',
+    byteLength: invalidBytes.byteLength,
+    width: 10,
+    height: 10,
+    sha256: createHash('sha256').update(invalidBytes).digest('hex'),
+    storage: { kind: 'embedded', archivePath: `assets/${assetId}` },
+  }
+  const slotId = Object.keys(invalidDocument.pages[0].slots)[0]
+  invalidDocument.pages[0].slots[slotId] = {
+    assetId,
+    placement: { zoom: 1, positionX: 0.5, positionY: 0.5 },
+  }
+  const archive = zipSync({
+    mimetype: strToU8(collageMimeType),
+    'document.json': strToU8(JSON.stringify(invalidDocument)),
+    [`assets/${assetId}`]: invalidBytes,
+  })
+  await page.locator('input[type="file"][accept*=".collage.json"]').setInputFiles({
+    name: 'broken.collage',
+    mimeType: collageMimeType,
+    buffer: Buffer.from(archive),
+  })
+
+  await expect(page.getByRole('status')).toContainText(/decode|image|source/i)
+  await expect(title).toHaveValue('Keep current project')
+  await expect.poll(() => sampleStageColor(page, left)).toBe('red')
 })
 
 test('Save retains the current format while Save As offers both project extensions', async ({

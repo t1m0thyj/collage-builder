@@ -6,6 +6,12 @@ export const maxLinkedProjectBytes = 32 * 1024 * 1024
 
 type DirectoryFile = File & { webkitRelativePath?: string }
 
+export interface LinkedAssetMatch {
+  file: File
+  relativePath: string
+  sha256: string
+}
+
 export function relativePathFor(file: DirectoryFile): string {
   const path = file.webkitRelativePath?.replaceAll('\\', '/') || file.name
   const parts = path.split('/').filter(Boolean)
@@ -33,9 +39,9 @@ async function digest(file: Blob): Promise<string> {
 export async function matchLinkedAssets(
   assets: Record<string, AssetRecordV1>,
   files: Iterable<DirectoryFile>,
-): Promise<Map<string, { file: File; relativePath: string }>> {
+): Promise<Map<string, LinkedAssetMatch>> {
   const candidates = [...files].map((file) => ({ file, relativePath: relativePathFor(file) }))
-  const matches = new Map<string, { file: File; relativePath: string }>()
+  const matches = new Map<string, LinkedAssetMatch>()
   for (const asset of Object.values(assets)) {
     const wanted = asset.storage.kind === 'linked' ? asset.storage.relativePath : undefined
     const possible = candidates.filter(
@@ -44,8 +50,9 @@ export async function matchLinkedAssets(
         (!wanted || candidate.relativePath === wanted || candidate.file.name === wanted.split('/').at(-1)),
     )
     for (const candidate of possible) {
-      if ((await digest(candidate.file)) === asset.sha256) {
-        matches.set(asset.id, candidate)
+      const sha256 = await digest(candidate.file)
+      if (sha256 === asset.sha256) {
+        matches.set(asset.id, { ...candidate, sha256 })
         break
       }
     }
@@ -55,12 +62,14 @@ export async function matchLinkedAssets(
 
 export function linkedDocument(
   document: CollageDocumentV1,
-  matches: Map<string, { file: File; relativePath: string }>,
+  matches: Map<string, LinkedAssetMatch>,
 ): CollageDocumentV1 {
   const copy = structuredClone(document)
   for (const asset of Object.values(copy.assets)) {
     const match = matches.get(asset.id)
     if (!match) throw new Error(`The selected folder does not contain ${asset.originalName}`)
+    if (match.file.size !== asset.byteLength || match.sha256 !== asset.sha256)
+      throw new Error(`The selected file for ${asset.originalName} no longer matches this project`)
     assertSafeRelativePath(match.relativePath)
     asset.storage = {
       kind: 'linked',
@@ -74,7 +83,7 @@ export function linkedDocument(
 
 export function createLinkedProject(
   document: CollageDocumentV1,
-  matches: Map<string, { file: File; relativePath: string }>,
+  matches: Map<string, LinkedAssetMatch>,
 ): Blob {
   const savedDocument = linkedDocument(document, matches)
   return new Blob([JSON.stringify(savedDocument, null, 2)], { type: linkedProjectMimeType })

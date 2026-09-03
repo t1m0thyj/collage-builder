@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { exportDimensions, resolveExportRange } from '../../src/lib/render/exportPng'
+import {
+  countUpscaledPlacements,
+  exportDimensions,
+  resolveExportRange,
+} from '../../src/lib/render/exportPng'
+import { createProject } from '../../src/lib/domain/factories'
 import { createPage } from '../../src/lib/domain/factories'
 describe('export ranges', () => {
   it('resolves current, all, and inclusive ranges', () => {
@@ -14,5 +19,27 @@ describe('export dimensions', () => {
   it('preserves page aspect ratio and rejects unsafe canvases', () => {
     expect(exportDimensions(createPage(), 3840)).toEqual({ width: 3840, height: 2880 })
     expect(() => exportDimensions(createPage(), 9000)).toThrow('limit')
+  })
+
+  it('warns when a placed original must be enlarged', () => {
+    const document = createProject()
+    const page = document.pages[0]
+    const assetId = '11111111-1111-4111-8111-111111111111'
+    document.assets[assetId] = {
+      id: assetId,
+      originalName: 'small.png',
+      mediaType: 'image/png',
+      byteLength: 1,
+      width: 100,
+      height: 100,
+      sha256: 'a'.repeat(64),
+      storage: { kind: 'embedded', archivePath: `assets/${assetId}` },
+    }
+    page.slots[Object.keys(page.slots)[0]] = {
+      assetId,
+      placement: { zoom: 1, positionX: 0.5, positionY: 0.5 },
+    }
+    expect(countUpscaledPlacements(page, document.assets, 3840)).toBe(1)
+    expect(countUpscaledPlacements(page, document.assets, 64)).toBe(0)
   })
 })

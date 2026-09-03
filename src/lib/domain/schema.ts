@@ -1,8 +1,10 @@
 import { z } from 'zod'
+import { maxImageDimension, maxImagePixels } from './imageLimits'
 
 const finiteNumber = z.number().finite()
 const nonNegative = finiteNumber.nonnegative()
 const color = z.string().regex(/^#[0-9A-F]{6}(?:[0-9A-F]{2})?$/)
+const imageDimension = z.number().int().positive().max(maxImageDimension)
 
 export const layoutNodeSchema: z.ZodType<unknown> = z.lazy(() =>
   z.discriminatedUnion('kind', [
@@ -96,13 +98,14 @@ export const collageDocumentSchema = z.object({
     .min(1),
   assets: z.record(
     z.string().uuid(),
-    z.object({
+    z
+      .object({
       id: z.string().uuid(),
       originalName: z.string().min(1),
       mediaType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
       byteLength: z.number().int().nonnegative(),
-      width: z.number().int().positive(),
-      height: z.number().int().positive(),
+      width: imageDimension,
+      height: imageDimension,
       sha256: z.string().regex(/^[a-f0-9]{64}$/),
       storage: z.discriminatedUnion('kind', [
         z.object({ kind: z.literal('embedded'), archivePath: z.string().startsWith('assets/') }),
@@ -113,7 +116,10 @@ export const collageDocumentSchema = z.object({
           lastModified: z.number().int().optional(),
         }),
       ]),
-    }),
+      })
+      .refine((asset) => asset.width * asset.height <= maxImagePixels, {
+        message: 'Image dimensions exceed the 100 megapixel limit',
+      }),
   ),
   exportDefaults: z.object({
     width: finiteNumber.positive(),

@@ -40,7 +40,7 @@ describe('collage archive', () => {
     const file = new File([new Uint8Array(42)], 'dogs.jpg', { type: 'image/jpeg' })
     const linked = createLinkedProject(
       document,
-      new Map([[assetId, { file, relativePath: 'dogs/dogs.jpg' }]]),
+      new Map([[assetId, { file, relativePath: 'dogs/dogs.jpg', sha256: 'a'.repeat(64) }]]),
     )
     expect(linked.type).toBe('application/json')
     expect((await linked.text()).trimStart().startsWith('{')).toBe(true)
@@ -49,6 +49,30 @@ describe('collage archive', () => {
       kind: 'linked',
       relativePath: 'dogs/dogs.jpg',
     })
+  })
+
+  it('rejects stale linked-file matches after an original changes', () => {
+    const document = createProject('Changed original')
+    const assetId = '11111111-1111-4111-8111-111111111111'
+    document.assets[assetId] = {
+      id: assetId,
+      originalName: 'dogs.jpg',
+      mediaType: 'image/jpeg',
+      byteLength: 42,
+      width: 10,
+      height: 10,
+      sha256: 'b'.repeat(64),
+      storage: { kind: 'embedded', archivePath: `assets/${assetId}` },
+    }
+    const staleFile = new File([new Uint8Array(42)], 'dogs.jpg', { type: 'image/jpeg' })
+    expect(() =>
+      createLinkedProject(
+        document,
+        new Map([
+          [assetId, { file: staleFile, relativePath: 'dogs/dogs.jpg', sha256: 'a'.repeat(64) }],
+        ]),
+      ),
+    ).toThrow('no longer matches')
   })
 
   it('does not accept linked JSON metadata inside an embedded archive', async () => {

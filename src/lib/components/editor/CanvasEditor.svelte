@@ -22,11 +22,12 @@
   export let viewportZoom = 1
   export let fitToViewport = true
   export let darkMode = false
+  export let imageRevision = 0
   export let onfitzoomchange: (zoom: number) => void = () => undefined
   export let onrequestcrop: (slotId: SlotId) => void
   export let onviewportzoom: (factor: number) => void
   export let onexitcrop: () => void
-  export let getImage: (assetId: AssetId) => HTMLImageElement | undefined
+  export let getImage: (assetId: AssetId, revision?: number) => HTMLImageElement | undefined
   export let assets: Record<AssetId, AssetRecordV1>
 
   let host: HTMLDivElement
@@ -347,7 +348,7 @@
   $: cropFrame = cropSlotId ? model.frames.find((frame) => frame.slotId === cropSlotId) : undefined
   $: cropContent = cropFrame ? page.slots[cropFrame.slotId] : null
   $: cropAsset = cropContent ? assets[cropContent.assetId] : undefined
-  $: cropImage = cropContent ? getImage(cropContent.assetId) : undefined
+  $: cropImage = cropContent ? getImage(cropContent.assetId, imageRevision) : undefined
   $: cropPlacement =
     cropFrame && cropContent && cropAsset
       ? resolveCoverPlacement(
@@ -401,6 +402,7 @@
   data-stage-x={stageX}
   data-stage-y={stageY}
   data-fit-scale={fitScale}
+  data-image-revision={imageRevision}
   data-divider-hitboxes={JSON.stringify(
     displayDividers.map(({ axis, x, y, width, height }) => ({ axis, x, y, width, height })),
   )}
@@ -432,7 +434,7 @@
         {#each model.frames as frame, index (frame.slotId)}
           {@const content = page.slots[frame.slotId]}
           {@const asset = content ? assets[content.assetId] : undefined}
-          {@const image = content ? getImage(content.assetId) : undefined}
+          {@const image = content ? getImage(content.assetId, imageRevision) : undefined}
           {@const placement =
             content && asset
               ? resolveCoverPlacement(
@@ -802,4 +804,20 @@
       </Layer>
     {/if}
   </Stage>
+  <div class="canvas-frame-controls" aria-label="Collage frames">
+    {#each model.frames as frame, index (frame.slotId)}
+      {@const content = page.slots[frame.slotId]}
+      {@const asset = content ? assets[content.assetId] : undefined}
+      <button
+        type="button"
+        aria-pressed={selectedSlotId === frame.slotId}
+        aria-label={`Frame ${index + 1}, ${asset ? asset.originalName : 'empty'}`}
+        aria-keyshortcuts={content ? 'Enter Delete' : undefined}
+        onfocus={() => onselect(frame.slotId)}
+        onclick={() => (content ? onselect(frame.slotId) : onrequestimage(frame.slotId))}
+      >
+        Frame {index + 1}: {asset ? asset.originalName : 'Empty — add an image'}
+      </button>
+    {/each}
+  </div>
 </div>

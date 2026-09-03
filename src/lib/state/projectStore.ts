@@ -170,14 +170,23 @@ export class ProjectStore {
   }
 
   removeAsset(assetId: string): void {
+    this.removeAssets([assetId])
+  }
+
+  removeAssets(assetIds: Iterable<string>): void {
+    const uniqueAssetIds = [...new Set(assetIds)]
+    if (!uniqueAssetIds.length) return
     this.commit((draft) => {
-      if (!draft.assets[assetId]) throw new Error(`Unknown asset: ${assetId}`)
+      for (const assetId of uniqueAssetIds)
+        if (!draft.assets[assetId]) throw new Error(`Unknown asset: ${assetId}`)
+      const removedAssetIds = new Set(uniqueAssetIds)
       draft.pages.forEach((page) =>
         Object.keys(page.slots).forEach((slotId) => {
-          if (page.slots[slotId]?.assetId === assetId) page.slots[slotId] = null
+          if (page.slots[slotId]?.assetId && removedAssetIds.has(page.slots[slotId]!.assetId))
+            page.slots[slotId] = null
         }),
       )
-      delete draft.assets[assetId]
+      uniqueAssetIds.forEach((assetId) => delete draft.assets[assetId])
     })
   }
 

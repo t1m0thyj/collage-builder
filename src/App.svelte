@@ -28,6 +28,7 @@
   } from '@lucide/svelte'
   import PageActions from './lib/components/PageActions.svelte'
   import type { PageV1, SlotContentV1 } from './lib/domain/types'
+  import { assertDocumentInvariants } from './lib/domain/invariants'
   import CanvasEditor from './lib/components/editor/CanvasEditor.svelte'
   import { validateImportedImage } from './lib/domain/importImage'
   import { layoutCatalog } from './lib/layouts/catalog'
@@ -45,7 +46,12 @@
   import * as Slider from '$lib/components/ui/slider'
   import * as Switch from '$lib/components/ui/switch'
   import * as ToggleGroup from '$lib/components/ui/toggle-group'
-  import { renderPagePng, resolveExportRange, zipPngs } from './lib/render/exportPng'
+  import {
+    countUpscaledPlacements,
+    renderPagePng,
+    resolveExportRange,
+    zipPngs,
+  } from './lib/render/exportPng'
   import {
     collageMimeType,
     createArchive,
@@ -58,6 +64,7 @@
     linkedProjectMimeType,
     matchLinkedAssets,
     openLinkedProject,
+    type LinkedAssetMatch,
   } from './lib/persistence/linkedAssets'
 
   type SidebarTab = 'layouts' | 'images'
@@ -78,7 +85,10 @@
   const recentColorsStorageKey = 'collage-builder:recent-custom-colors'
 
   const project = new ProjectStore(createProject())
-  const assetRegistry = new AssetRegistry()
+  const canUndo = project.canUndo
+  const canRedo = project.canRedo
+  let assetRegistry = new AssetRegistry()
+  let imageRevision = 0
   const colorPresets = [
     '#2507B3', '#4F37C1', '#9D8AF6',
     '#377A00', '#67BA24', '#A5E06C',
@@ -155,7 +165,7 @@
   let currentSaveTarget: SaveTarget | null = null
   let currentSaveFormat: ProjectSaveFormat = 'embedded'
   let hasSavedProject = false
-  let linkedSaveMatches = new Map<string, { file: File; relativePath: string }>()
+  let linkedSaveMatches = new Map<string, LinkedAssetMatch>()
   let assetFilter: 'all' | 'used' | 'unused' | 'missing' = 'all'
   let assetQuery = ''
   let assetSort: 'import' | 'name' | 'size' | 'usage' = 'import'
@@ -167,6 +177,7 @@
   let exportRange = '1-1'
   let exportWidth = 3840
   let isExporting = false
+  let cancelExportRequested = false
   let exportProgress = ''
   let autosaveTimer: ReturnType<typeof setTimeout> | undefined
   let recoveryReady = false
@@ -187,11 +198,67 @@
       1000,
     )
   }
+
+  function pageAssetIds(page: PageV1): string[] {
+    return Object.values(page.slots).flatMap((content) => (content ? [content.assetId] : []))
+  }
+
+  async function preparePageImages(page: PageV1, registry = assetRegistry): Promise<void> {
+    const assetIds = pageAssetIds(page).filter((assetId) => registry.getBlob(assetId))
+    try {
+      const changed = await registry.ensureImages(assetIds)
+      if (registry !== assetRegistry || page.id !== activePageId) return
+      registry.releaseDecodedExcept(assetIds)
+      if (changed) imageRevision += 1
+    } catch (error) {
+      announce(error instanceof Error ? error.message : 'Unable to decode a project image')
+    }
+  }
+
+  async function stagedRegistry(
+    nextDocument: typeof document,
+    blobs: Map<string, Blob>,
+  ): Promise<AssetRegistry> {
+    assertDocumentInvariants(nextDocument)
+    const staged = new AssetRegistry()
+    try {
+      for (const [assetId, blob] of blobs) {
+        const asset = nextDocument.assets[assetId]
+        if (!asset) throw new Error(`Project contains bytes for an unknown asset: ${assetId}`)
+        await staged.register(assetId, blob, asset.sha256, asset)
+      }
+      return staged
+    } catch (error) {
+      staged.clear()
+      throw error
+    }
+  }
+
+  async function installDocument(nextDocument: typeof document, blobs: Map<string, Blob>) {
+    const nextRegistry = await stagedRegistry(nextDocument, blobs)
+    const previousRegistry = assetRegistry
+    try {
+      assetRegistry = nextRegistry
+      project.replaceDocument(nextDocument)
+      imageRevision += 1
+    } catch (error) {
+      assetRegistry = previousRegistry
+      nextRegistry.clear()
+      throw error
+    }
+    previousRegistry.clear()
+  }
+
   project.document.subscribe((value) => {
     document = value
     for (const asset of Object.values(value.assets)) {
       if (assetRegistry.hasRetained(asset.id, asset.sha256))
-        void assetRegistry.restoreRetained(asset.id, asset.sha256)
+        void assetRegistry
+          .restoreRetained(asset.id, asset.sha256, asset)
+          .then(() => preparePageImages(activePage, assetRegistry))
+          .catch((error) =>
+            announce(error instanceof Error ? error.message : 'Unable to restore a project image'),
+          )
     }
     scheduleRecovery(value)
   })
@@ -213,10 +280,7 @@
           (asset) => asset.storage.kind === 'embedded',
         )
         if (embedded.some((asset) => !blobs.has(asset.id))) return
-        assetRegistry.clear()
-        for (const [assetId, blob] of blobs)
-          await assetRegistry.register(assetId, blob, recovery.assets[assetId]?.sha256)
-        project.replaceDocument(recovery)
+        await installDocument(recovery, blobs)
         recoveredOnly = true
         activePageId = recovery.pages[0].id
         projectTitle = recovery.title
@@ -311,6 +375,7 @@
   let projectTitle = document.title
 
   $: activePage = document.pages.find((page) => page.id === activePageId) ?? document.pages[0]
+  $: void preparePageImages(activePage, assetRegistry)
   $: syncLayoutAccordion(activePage.id, Object.keys(activePage.slots).length)
   $: selectedLayoutGroup = layoutGroups.find((group) => group.frameCount === expandedLayoutCount)
   $: selectedContent = selectedSlotId ? activePage.slots[selectedSlotId] : null
@@ -745,11 +810,11 @@
     removeAssets(removable)
   }
   function removeAssets(assetIds: string[]) {
-    assetIds.forEach((assetId) => {
+    assetIds.forEach((assetId) =>
       assetRegistry.retain(assetId, document.assets[assetId].sha256)
-      project.removeAsset(assetId)
-      assetRegistry.release(assetId)
-    })
+    )
+    project.removeAssets(assetIds)
+    assetIds.forEach((assetId) => assetRegistry.release(assetId))
     selectedAssetId = null
     selectedAssetIds = []
     pendingRemovalAssetIds = null
@@ -772,6 +837,7 @@
   async function exportPages() {
     try {
       isExporting = true
+      cancelExportRequested = false
       const indices = resolveExportRange(
         exportScope,
         document.pages.findIndex((page) => page.id === activePageId),
@@ -780,16 +846,21 @@
       )
       const rendered: Array<{ name: string; blob: Blob }> = []
       for (const [position, index] of indices.entries()) {
+        if (cancelExportRequested) throw new Error('Export cancelled')
         exportProgress = `Rendering page ${position + 1} of ${indices.length}…`
+        const exportPage = document.pages[index]
+        await assetRegistry.ensureImages(pageAssetIds(exportPage))
         rendered.push({
           name: `${projectTitle || 'collage'}-${String(index + 1).padStart(2, '0')}.png`,
           blob: await renderPagePng(
-            document.pages[index],
+            exportPage,
             document.assets,
             (assetId) => assetRegistry.getImage(assetId),
             exportWidth,
           ),
         })
+        if (cancelExportRequested) throw new Error('Export cancelled')
+        assetRegistry.releaseDecodedExcept(pageAssetIds(activePage))
         await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 0))
       }
       exportProgress = rendered.length > 1 ? 'Packaging ZIP…' : 'Preparing download…'
@@ -807,6 +878,22 @@
     } finally {
       isExporting = false
       exportProgress = ''
+    }
+  }
+  function exportUpscaleCount(): number {
+    try {
+      return resolveExportRange(
+        exportScope,
+        document.pages.findIndex((page) => page.id === activePageId),
+        document.pages.length,
+        exportRange,
+      ).reduce(
+        (count, index) =>
+          count + countUpscaledPlacements(document.pages[index], document.assets, exportWidth),
+        0,
+      )
+    } catch {
+      return 0
     }
   }
   function chooseExport(scope: typeof exportScope) {
@@ -886,7 +973,7 @@
   }
   async function linkedMatchesForSave(forceChooseFolder: boolean) {
     const assetIds = Object.keys(document.assets)
-    if (!assetIds.length) return new Map<string, { file: File; relativePath: string }>()
+    if (!assetIds.length) return new Map<string, LinkedAssetMatch>()
     const cachedMatchesAreComplete = assetIds.every((assetId) => linkedSaveMatches.has(assetId))
     if (!forceChooseFolder && cachedMatchesAreComplete) return linkedSaveMatches
     const files = await chooseLinkedFolderFiles()
@@ -943,9 +1030,13 @@
     try {
       const matches = await matchLinkedAssets(target.assets, files)
       linkedSaveMatches = matches
-      for (const [assetId, match] of matches)
-        await assetRegistry.register(assetId, match.file, target.assets[assetId]?.sha256)
+      for (const [assetId, match] of matches) {
+        const asset = target.assets[assetId]
+        await assetRegistry.register(assetId, match.file, asset?.sha256, asset)
+      }
       missingAssetIds = new Set([...missingAssetIds].filter((assetId) => !matches.has(assetId)))
+      imageRevision += 1
+      await preparePageImages(activePage, assetRegistry)
       pendingLinkedDocument = null
       announce(
         matches.size === Object.keys(target.assets).length
@@ -964,9 +1055,7 @@
         format === 'embedded'
           ? await openArchive(file)
           : { document: await openLinkedProject(file), assets: new Map<string, Blob>(), missingAssetIds: [] }
-      assetRegistry.clear()
-      for (const [assetId, blob] of opened.assets)
-        await assetRegistry.register(assetId, blob, opened.document.assets[assetId]?.sha256)
+      await installDocument(opened.document, opened.assets)
       const linkedIds = format === 'linked' ? Object.keys(opened.document.assets) : []
       currentSaveTarget = null
       currentSaveFormat = format
@@ -975,7 +1064,6 @@
       missingAssetIds = new Set([...opened.missingAssetIds, ...linkedIds])
       pendingLinkedDocument = linkedIds.length ? opened.document : null
       recoveredOnly = false
-      project.replaceDocument(opened.document)
       activePageId = opened.document.pages[0].id
       selectedSlotId = null
       projectTitle = opened.document.title
@@ -996,7 +1084,7 @@
       const { asset } = await validateImportedImage(file)
       const target = selectedAssetId
       assetRegistry.retain(target, document.assets[target].sha256)
-      await assetRegistry.register(target, file, asset.sha256)
+      await assetRegistry.register(target, file, asset.sha256, asset)
       project.replaceAsset(target, {
         ...asset,
         id: target,
@@ -1008,6 +1096,9 @@
               : asset.storage.displayHint,
         },
       })
+      linkedSaveMatches = new Map(
+        [...linkedSaveMatches].filter(([assetId]) => assetId !== target),
+      )
       announce('Original image replaced everywhere it is used.')
     } catch (error) {
       announce(error instanceof Error ? error.message : 'Unable to replace image')
@@ -1028,7 +1119,7 @@
         )
       )
         return
-      await assetRegistry.register(target, file, asset.sha256)
+      await assetRegistry.register(target, file, asset.sha256, asset)
       project.replaceAsset(target, {
         ...asset,
         id: target,
@@ -1040,6 +1131,9 @@
               : asset.storage.displayHint,
         },
       })
+      linkedSaveMatches = new Map(
+        [...linkedSaveMatches].filter(([assetId]) => assetId !== target),
+      )
       missingAssetIds = new Set([...missingAssetIds].filter((id) => id !== target))
       announce('Image relinked everywhere it is used.')
     } catch (error) {
@@ -1059,14 +1153,14 @@
       existingBytes + [...files].reduce((total, file) => total + file.size, 0) >
       maxProjectBytes
     ) {
-      announce('This import would exceed the 1 GB project asset limit.')
+      announce('This import would exceed the 256 MB project asset limit.')
       return
     }
     let added = 0
     for (const file of files) {
       try {
         const { asset } = await validateImportedImage(file)
-        await assetRegistry.register(asset.id, file, asset.sha256)
+        await assetRegistry.register(asset.id, file, asset.sha256, asset)
         try {
           project.addAsset(asset)
         } catch (error) {
@@ -1091,6 +1185,8 @@
 <main class="app-shell" data-theme={prefersDark ? 'dark' : 'light'}>
   <input
     class="sr-only"
+    tabindex="-1"
+    aria-hidden="true"
     bind:this={uploadInput}
     type="file"
     accept="image/jpeg,image/png,image/webp"
@@ -1099,6 +1195,8 @@
   />
   <input
     class="sr-only"
+    tabindex="-1"
+    aria-hidden="true"
     bind:this={replaceInput}
     type="file"
     accept="image/jpeg,image/png,image/webp"
@@ -1106,6 +1204,8 @@
   />
   <input
     class="sr-only"
+    tabindex="-1"
+    aria-hidden="true"
     bind:this={relinkInput}
     type="file"
     accept="image/jpeg,image/png,image/webp"
@@ -1113,6 +1213,8 @@
   />
   <input
     class="sr-only"
+    tabindex="-1"
+    aria-hidden="true"
     bind:this={openInput}
     type="file"
     accept=".collage,.collage.json,application/vnd.collage-builder+zip,application/json"
@@ -1120,6 +1222,8 @@
   />
   <input
     class="sr-only"
+    tabindex="-1"
+    aria-hidden="true"
     bind:this={linkedFolderInput}
     type="file"
     multiple
@@ -1145,7 +1249,7 @@
         size="icon"
         aria-label="Undo"
         title="Undo"
-        disabled={!project.canUndo}
+            disabled={!$canUndo}
         onclick={() => project.undo()}><Undo2 size={15}></Undo2></Button
       >
       <Button
@@ -1154,7 +1258,7 @@
         size="icon"
         aria-label="Redo"
         title="Redo"
-        disabled={!project.canRedo}
+            disabled={!$canRedo}
         onclick={() => project.redo()}><Redo2 size={15}></Redo2></Button
       >
     </div>
@@ -1361,9 +1465,9 @@
                     }`}
                     ondragstart={(event) => startAssetDrag(event, asset.id)}
                     onclick={(event) => selectAsset(asset.id, event.ctrlKey || event.metaKey)}
-                    >{#if assetRegistry.getObjectUrl(asset.id)}<img
+                    >{#if assetRegistry.getThumbnailUrl(asset.id)}<img
                         class="asset-thumb"
-                        src={assetRegistry.getObjectUrl(asset.id)}
+                        src={assetRegistry.getThumbnailUrl(asset.id)}
                         alt=""
                       />{:else}<span class="asset-thumb"><ImageIcon size={20}></ImageIcon></span>{/if}<span
                       ><strong
@@ -1450,6 +1554,7 @@
             {viewportZoom}
             fitToViewport={isViewportFit}
             darkMode={prefersDark}
+            {imageRevision}
             onfitzoomchange={(zoom) => (fittedViewportZoom = zoom)}
             getImage={(assetId) => assetRegistry.getImage(assetId)}
             onselect={selectCanvasFrame}
@@ -1497,8 +1602,8 @@
                     <i
                       class:populated={Boolean(content)}
                       style={`left:${(frame.x / page.width) * 100}%;top:${(frame.y / page.height) * 100}%;width:${(frame.width / page.width) * 100}%;height:${(frame.height / page.height) * 100}%;border-radius:${Math.min(page.style.cornerRadius / Math.max(page.width, page.height), 0.1) * 100}%`}
-                    >{#if content && assetRegistry.getObjectUrl(content.assetId)}<img
-                          src={assetRegistry.getObjectUrl(content.assetId)}
+                    >{#if content && assetRegistry.getThumbnailUrl(content.assetId)}<img
+                          src={assetRegistry.getThumbnailUrl(content.assetId)}
                           alt=""
                           style={`object-position:${content.placement.positionX * 100}% ${content.placement.positionY * 100}%;transform:scale(${content.placement.zoom});transform-origin:${content.placement.positionX * 100}% ${content.placement.positionY * 100}%`}
                         />{/if}</i
@@ -2206,9 +2311,9 @@
                     class="asset-row"
                     ondragstart={(event) => startAssetDrag(event, asset.id)}
                     onclick={(event) => selectAsset(asset.id, event.ctrlKey || event.metaKey)}
-                    >{#if assetRegistry.getObjectUrl(asset.id)}<img
+                    >{#if assetRegistry.getThumbnailUrl(asset.id)}<img
                         class="asset-thumb"
-                        src={assetRegistry.getObjectUrl(asset.id)}
+                        src={assetRegistry.getThumbnailUrl(asset.id)}
                         alt=""
                       />{:else}<span class="asset-thumb"><ImageIcon size={20}></ImageIcon></span>{/if}<span
                       ><strong class:asset-missing={missingAssetIds.has(asset.id)}>{asset.originalName}</strong><small
@@ -2436,6 +2541,10 @@
             /></label
           >
           <p>Height: {Math.round((exportWidth * activePage.height) / activePage.width)} px</p>
+          {#if exportUpscaleCount() > 0}<p class="export-warning" role="note">
+              {exportUpscaleCount()} placed image{exportUpscaleCount() === 1 ? '' : 's'} will be
+              enlarged beyond their original resolution and may look soft.
+            </p>{/if}
           {#if exportProgress}<p aria-live="polite">{exportProgress}</p>{/if}
         </div>
         <div class="dialog-footer">
@@ -2443,9 +2552,10 @@
             >{exportScope === 'all'
               ? `${document.pages.length} PNGs in a ZIP`
               : 'PNG download'}</span
-          ><button class="button button-primary" disabled={isExporting} onclick={exportPages}
-            >{isExporting ? 'Exporting…' : 'Export'}</button
-          >
+          >{#if isExporting}<button
+              class="button"
+              onclick={() => (cancelExportRequested = true)}>Cancel export</button
+            >{:else}<button class="button button-primary" onclick={exportPages}>Export</button>{/if}
         </div>
       </Dialog.Content>
   </Dialog.Root>

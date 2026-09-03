@@ -1,7 +1,7 @@
-import { strToU8, zipSync } from 'fflate'
 import { resolveCoverPlacement } from '../domain/crop'
 import { resolveLayout } from '../domain/geometry'
 import type { AssetRecordV1, PageV1 } from '../domain/types'
+import { zipBlobs } from '../persistence/zipStreams'
 
 export function resolveExportRange(
   scope: 'current' | 'all' | 'range',
@@ -31,6 +31,28 @@ export function exportDimensions(page: PageV1, width: number): { width: number; 
   )
     throw new Error('Export size exceeds the 8192 px / 64 megapixel limit')
   return { width, height }
+}
+
+export function countUpscaledPlacements(
+  page: PageV1,
+  assets: Record<string, AssetRecordV1>,
+  exportWidth: number,
+): number {
+  const scale = exportWidth / page.width
+  return resolveLayout(page).filter((frame) => {
+    const content = page.slots[frame.slotId]
+    if (!content) return false
+    const asset = assets[content.assetId]
+    if (!asset) return false
+    const placement = resolveCoverPlacement(
+      frame.width,
+      frame.height,
+      asset.width,
+      asset.height,
+      content.placement,
+    )
+    return placement.width * scale > asset.width || placement.height * scale > asset.height
+  }).length
 }
 
 function framePath(
@@ -134,9 +156,5 @@ export async function renderPagePng(
 }
 
 export async function zipPngs(pages: Array<{ name: string; blob: Blob }>): Promise<Blob> {
-  const files: Record<string, Uint8Array> = {}
-  for (const page of pages) files[page.name] = new Uint8Array(await page.blob.arrayBuffer())
-  return new Blob([zipSync(files)], { type: 'application/zip' })
+  return zipBlobs(pages, 'application/zip')
 }
-
-export const unused = strToU8

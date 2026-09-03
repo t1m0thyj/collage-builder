@@ -93,6 +93,36 @@ describe('project history', () => {
     expect(get(store.document).pages[0].slots[first]?.assetId).toBe('first')
   })
 
+  it('removes several assets as one undoable command', () => {
+    const document = createProject()
+    const page = document.pages[0]
+    const assetIds = [
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+    ]
+    assetIds.forEach((id, index) => {
+      document.assets[id] = {
+        id,
+        originalName: `${index}.png`,
+        mediaType: 'image/png',
+        byteLength: 1,
+        width: 1,
+        height: 1,
+        sha256: String(index).repeat(64),
+        storage: { kind: 'embedded', archivePath: `assets/${id}` },
+      }
+      page.slots[Object.keys(page.slots)[index]] = {
+        assetId: id,
+        placement: { zoom: 1, positionX: 0.5, positionY: 0.5 },
+      }
+    })
+    const store = new ProjectStore(document)
+    store.removeAssets(assetIds)
+    expect(Object.keys(store.snapshot().assets)).toHaveLength(0)
+    store.undo()
+    expect(Object.keys(store.snapshot().assets)).toHaveLength(2)
+  })
+
   it('commits crop once and Escape-style cancellation restores the original placement', () => {
     const project = createProject('Crop')
     const store = new ProjectStore(project)

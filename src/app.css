@@ -74,6 +74,36 @@ button:disabled {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+.canvas-frame-controls {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.canvas-frame-controls button {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.canvas-frame-controls button:focus-visible {
+  top: 12px;
+  left: 12px;
+  z-index: 20;
+  width: auto;
+  height: auto;
+  max-width: calc(100% - 24px);
+  overflow: visible;
+  clip: auto;
+  padding: 8px 12px;
+  border: 2px solid #77a9f1;
+  border-radius: 6px;
+  background: #14233a;
+  color: #fff;
+  font: inherit;
+  pointer-events: auto;
+}
 .app-shell {
   display: grid;
   grid-template-rows: 64px minmax(0, 1fr);
@@ -716,6 +746,7 @@ h2 {
   min-height: 0;
 }
 .canvas-host {
+  position: relative;
   width: 100%;
   height: 100%;
 }
@@ -1662,6 +1693,12 @@ h2 {
   padding: 20px;
   color: #716d64;
   font-size: 12px;
+}
+.export-warning {
+  padding: 8px 10px;
+  border: 1px solid #d89b37;
+  border-radius: 6px;
+  background: color-mix(in srgb, #d89b37 14%, transparent);
 }
 .export-form label {
   display: grid;

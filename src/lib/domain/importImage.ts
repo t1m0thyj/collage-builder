@@ -1,5 +1,6 @@
 import { createId } from '../utils/ids'
 import type { AssetRecordV1 } from './types'
+import { assertImageDimensions } from './imageLimits'
 
 const supportedMediaTypes = new Set(['image/jpeg', 'image/png', 'image/webp'])
 const extensionByMediaType: Record<string, string> = {
@@ -37,6 +38,7 @@ export async function validateImportedImage(
   const image = await decodedImage(file).catch(() => {
     throw new Error(`${file.name}: image data could not be decoded`)
   })
+  assertImageDimensions(image.naturalWidth, image.naturalHeight, file.name)
   const id = createId()
   const extension = extensionByMediaType[file.type]
   return {
