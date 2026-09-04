@@ -36,6 +36,8 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps ${{ matrix.browser }}
       - run: npx playwright test --project=${{ matrix.browser }} --workers=1
+      - run: npm run test:offline
+        if: matrix.browser == 'chromium'
       - name: Upload failure artifacts
         if: failure()
         uses: actions/upload-artifact@v4

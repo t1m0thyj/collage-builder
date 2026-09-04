@@ -1,5 +1,9 @@
 # Svelte + TS + Vite
 
+## Build, self-host, and use offline
+
+Run `npm ci` followed by `npm run build`, then serve the generated `dist` directory from an HTTPS static host. A first online visit caches the complete application for later offline use; installability is intentionally not included. See [Offline use and self-hosting](docs/OFFLINE.md) for deployment details, including subdirectory hosting.
+
 This template should help get you started developing with Svelte and TypeScript in Vite.
 
 ## Recommended IDE Setup

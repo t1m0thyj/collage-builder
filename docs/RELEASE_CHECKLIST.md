@@ -34,7 +34,7 @@ This checklist tracks every finding from the initial architecture and first-rele
 - [x] Make asset removal reliably undoable at the supported project size and make bulk removal one history entry. Retained bytes now cover the 256 MB project limit.
 - [x] Split the root component into dedicated project-I/O, persistence, recovery, export, asset, image-session, editor-session, page-workflow, preferences, lifecycle, toolbar, file-input, sidebar, dialog, properties-panel, layout-panel, and editor-shell modules. The canvas page and crop layers and the global stylesheet are also split along functional boundaries. `App.svelte` is 545 lines, down from 2,566, and now focuses on application composition and cross-feature coordination; executable component and stylesheet modules stay around the 500-line target. Large layout-definition files remain declarative-data exceptions.
 - [x] Load noncritical layout definitions and editor workflows on demand. Default two- and three-frame layouts and the canvas editor remain eager for first-paint usability; layout groups 4–11 share one deferred 4.94 kB gzip catalog warmed on layout-control hover or focus. Archive, linked-project, recovery, and export implementations also load on demand. Konva remains eager in a separately cacheable chunk. The larger HEIC decoder is isolated in its own optional chunk and loads only when a HEIC/HEIF asset needs decoding.
-- [ ] Add offline/PWA support. Project data is local, but the application has no service worker or installable offline shell.
+- [x] Add offline support without installability. A generated service worker precaches the complete production application bundle, including lazy chunks and public assets, and supports root or subdirectory deployments. Project data remains local; no web app manifest or install prompt is included.
 - [ ] Bring release engineering beyond prototype status.
   - [ ] Set a real package/release version instead of `0.0.0`.
   - [ ] Replace the template README with product, privacy, support, and release documentation and resolve its legal/attribution notes.
@@ -82,6 +82,7 @@ This checklist tracks every finding from the initial architecture and first-rele
 
 - Run `npm run verify` for type checking, linting, unit tests, and the production build.
 - Run `npm run test:e2e` for the normal cross-browser smoke suite.
+- Run `npm run test:offline` for the production-build offline reload and complete-precache check in Chromium.
 - Run `npm run test:benchmark` in Chromium for the synthetic 100-image/25-populated-page regression scenario. It exports a 1920 px ZIP and reports import, page creation, export and per-page render timing, renderer selection, long tasks, and available Chromium heap figures; treat it as a regression signal rather than a production-scale result.
 - Before release, use representative real photos to check every remaining manual item above.
 
