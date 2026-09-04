@@ -3,6 +3,7 @@
   import type { PageV1, SlotContentV1 } from './lib/domain/types'
   import EditorShell from './lib/components/app/EditorShell.svelte'
   import ImageManagerDialog from './lib/components/app/ImageManagerDialog.svelte'
+  import RecoveryManagerDialog from './lib/components/app/RecoveryManagerDialog.svelte'
   import ProjectDialogs from './lib/components/app/ProjectDialogs.svelte'
   import LeftSidebar from './lib/components/app/LeftSidebar.svelte'
   import ProjectFileInputs from './lib/components/app/ProjectFileInputs.svelte'
@@ -12,7 +13,7 @@
   import { ProjectStore } from './lib/state/projectStore'
   import { AssetRegistry } from './lib/render/assetRegistry'
   import { onMount } from 'svelte'
-  import { RecoveryController } from './lib/app/recovery'
+  import { RecoveryController, type RecoveryState } from './lib/app/recovery'
   import { ExportWorkflowController } from './lib/app/exportProject'
   import type { ExportFormat } from './lib/render/exportPng'
   import {
@@ -117,6 +118,11 @@
   let selectedContent: SlotContentV1 | null = null
   let activeTab: SidebarTab = 'layouts'
   let isImageManagerOpen = false
+  let isRecoveryManagerOpen = false
+  let recoveryState: RecoveryState = {
+    status: 'idle',
+    message: 'Local autosave starting…',
+  }
   let toast = ''
   let projectTitle = document.title
 
@@ -209,6 +215,7 @@
       activePageId = restored.pages[0].id
       projectTitle = restored.title
     },
+    onState: (state) => (recoveryState = state),
     announce,
   })
   const uiPreferences = new UiPreferencesController(
@@ -373,6 +380,7 @@
     bind:isViewportFit
     {isDirty}
     {recoveredOnly}
+    {recoveryState}
     onnew={projectWorkflow.requestNew}
     onopen={projectWorkflow.requestOpen}
     onsave={(event) => void projectWorkflow.save(saveAsModifierPressed(event))}
@@ -382,6 +390,7 @@
     onsetzoom={pageWorkflow.setViewportZoom}
     onrename={renameProject}
     onexport={exportWorkflow.choose}
+    onmanagerecovery={() => (isRecoveryManagerOpen = true)}
   ></TopToolbar>
 
   <section
@@ -546,6 +555,15 @@
     onexport={exportWorkflow.export}
     oncancelexport={() => (cancelExportRequested = true)}
   ></ProjectDialogs>
+
+  <RecoveryManagerDialog
+    bind:open={isRecoveryManagerOpen}
+    {recovery}
+    state={recoveryState}
+    activeProjectId={document.projectId}
+    {formatBytes}
+    {announce}
+  ></RecoveryManagerDialog>
 
   {#if toast}
     <div class="toast" role="status">{toast}</div>

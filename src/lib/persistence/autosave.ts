@@ -5,6 +5,27 @@ import type { AssetRegistry } from '../render/assetRegistry'
 
 const recoveryLimit = 5
 
+export interface RecoverySummary {
+  projectId: string
+  title: string
+  updatedAt?: string
+  bytes: number
+  assetCount: number
+  corrupt: boolean
+}
+
+export interface RecoveryStorageEstimate {
+  usage?: number
+  quota?: number
+  persisted?: boolean
+  persistenceSupported: boolean
+}
+
+export interface RecoveryManagementSnapshot {
+  recoveries: RecoverySummary[]
+  storage: RecoveryStorageEstimate
+}
+
 async function sha256(blob: Blob): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer())
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
@@ -95,4 +116,106 @@ export async function loadRecoveryAssets(document: CollageDocumentV1): Promise<M
       assets.set(asset.id, blob.slice(0, blob.size, asset.mediaType))
   }
   return assets
+}
+
+function projectBlobPrefix(projectId: string): string {
+  return `${projectId}:`
+}
+
+async function recoveryBytes(
+  projectId: string,
+  stored: unknown,
+  assetBlobs: {
+    getAllKeys: () => Promise<IDBValidKey[]>
+    get: (key: IDBValidKey) => Promise<unknown>
+  },
+): Promise<number> {
+  let bytes = 0
+  try {
+    bytes = new TextEncoder().encode(JSON.stringify(stored)).byteLength
+  } catch {
+    // A malformed record should remain visible and removable in the manager.
+  }
+  const prefix = projectBlobPrefix(projectId)
+  for (const key of await assetBlobs.getAllKeys()) {
+    if (typeof key !== 'string' || !key.startsWith(prefix)) continue
+    const blob = await assetBlobs.get(key)
+    if (blob instanceof Blob) bytes += blob.size
+  }
+  return bytes
+}
+
+export async function getRecoveryStorageEstimate(): Promise<RecoveryStorageEstimate> {
+  const storage = navigator.storage
+  if (!storage) return { persistenceSupported: false }
+  const estimate: StorageEstimate = await storage.estimate().catch(() => ({}))
+  const persistenceSupported =
+    typeof storage.persist === 'function' && typeof storage.persisted === 'function'
+  const persisted = persistenceSupported
+    ? await storage.persisted().catch(() => undefined)
+    : undefined
+  return {
+    usage: estimate.usage,
+    quota: estimate.quota,
+    persisted,
+    persistenceSupported,
+  }
+}
+
+export async function requestPersistentStorage(): Promise<boolean | undefined> {
+  const storage = navigator.storage
+  if (!storage || typeof storage.persist !== 'function') return undefined
+  return storage.persist()
+}
+
+export async function getRecoveryManagementSnapshot(): Promise<RecoveryManagementSnapshot> {
+  const db = await database()
+  const tx = db.transaction(['projects', 'assetBlobs'], 'readonly')
+  const projects = tx.objectStore('projects')
+  const assetBlobs = tx.objectStore('assetBlobs')
+  const recoveries: RecoverySummary[] = []
+  for (const key of await projects.getAllKeys()) {
+    if (typeof key !== 'string') continue
+    const stored = await projects.get(key)
+    try {
+      const document = migrateDocument(stored)
+      recoveries.push({
+        projectId: document.projectId,
+        title: document.title,
+        updatedAt: document.updatedAt,
+        bytes: await recoveryBytes(key, stored, assetBlobs),
+        assetCount: Object.keys(document.assets).length,
+        corrupt: false,
+      })
+    } catch {
+      recoveries.push({
+        projectId: key,
+        title: 'Unreadable recovery',
+        bytes: await recoveryBytes(key, stored, assetBlobs),
+        assetCount: 0,
+        corrupt: true,
+      })
+    }
+  }
+  await tx.done
+  recoveries.sort((left, right) => (right.updatedAt ?? '').localeCompare(left.updatedAt ?? ''))
+  return { recoveries, storage: await getRecoveryStorageEstimate() }
+}
+
+export async function deleteRecovery(projectId: string): Promise<void> {
+  const db = await database()
+  const tx = db.transaction(['projects', 'assetBlobs'], 'readwrite')
+  await tx.objectStore('projects').delete(projectId)
+  const assetBlobs = tx.objectStore('assetBlobs')
+  const prefix = projectBlobPrefix(projectId)
+  for (const key of await assetBlobs.getAllKeys())
+    if (typeof key === 'string' && key.startsWith(prefix)) await assetBlobs.delete(key)
+  await tx.done
+}
+
+export async function clearRecoveries(): Promise<void> {
+  const db = await database()
+  const tx = db.transaction(['projects', 'assetBlobs'], 'readwrite')
+  await Promise.all([tx.objectStore('projects').clear(), tx.objectStore('assetBlobs').clear()])
+  await tx.done
 }

@@ -90,6 +90,14 @@
   .save-status {
     color: #d4e4f8;
   }
+  .recovery-status-button:hover,
+  .recovery-status-button:focus-visible {
+    background: rgba(108, 153, 213, 0.18);
+  }
+  .recovery-status-button.recovery-error,
+  .recovery-status-button.recovery-conflict {
+    color: #ffc59e;
+  }
   .status-dot.dirty {
     background: #f1b85b;
   }
@@ -317,6 +325,38 @@
   }
   .dialog-backdrop {
     background: rgba(0, 0, 0, 0.72);
+  }
+  .recovery-state,
+  .storage-summary,
+  .recovery-list li,
+  .recovery-empty {
+    border-color: #414141;
+    background: #222222;
+    color: #c0c0c0;
+  }
+  .recovery-state {
+    color: #a9cdfc;
+  }
+  .recovery-alert {
+    border-color: #75463f;
+    background: #342321;
+    color: #ffaaa0;
+  }
+  .recovery-alert.recovery-conflict {
+    border-color: #735735;
+    background: #33291d;
+    color: #f4c77e;
+  }
+  .recovery-content h3,
+  .recovery-copy-details strong {
+    color: #ededed;
+  }
+  .recovery-state p,
+  .recovery-alert p {
+    color: #b5b5b5;
+  }
+  .storage-persistence {
+    border-color: #414141;
   }
   .upload-well {
     color: #e0e0e0;

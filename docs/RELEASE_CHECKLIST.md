@@ -22,17 +22,17 @@ This checklist tracks every finding from the initial architecture and first-rele
 
 ### High-priority architectural gaps
 
-- [ ] **Partially complete:** Add autosave lifecycle and storage management.
+- [x] Add autosave lifecycle and storage management.
   - [x] Retain only the five newest recovery projects.
   - [x] Use hash-qualified asset-blob keys and prune superseded, deleted, orphaned, and corrupt records.
   - [x] Validate recovery documents and verify recovered asset size and SHA-256 before restoration.
-  - [ ] Report storage usage/quota and failed persistence clearly to the user.
-  - [ ] Request persistent browser storage where supported.
-  - [ ] Add recovery-management controls.
-  - [ ] Add multi-tab locking or conflict detection.
+  - [x] Report storage usage/quota and failed persistence clearly to the user.
+  - [x] Request persistent browser storage where supported.
+  - [x] Add recovery-management controls.
+  - [x] Add multi-tab locking or conflict detection.
 - [x] Eliminate linked-project stale-reference risk. Cached linked-file matches are invalidated after replacement/relinking and are rechecked against current byte length and SHA-256 before save.
 - [x] Make asset removal reliably undoable at the supported project size and make bulk removal one history entry. Retained bytes now cover the 256 MB project limit.
-- [x] Split the root component into dedicated project-I/O, persistence, recovery, export, asset, image-session, editor-session, page-workflow, preferences, lifecycle, toolbar, file-input, sidebar, dialog, properties-panel, layout-panel, and editor-shell modules. The canvas page and crop layers and the global stylesheet are also split along functional boundaries. `App.svelte` is 545 lines, down from 2,566, and now focuses on application composition and cross-feature coordination; executable component and stylesheet modules stay around the 500-line target. Large layout-definition files remain declarative-data exceptions.
+- [x] Split the root component into dedicated project-I/O, persistence, recovery, export, asset, image-session, editor-session, page-workflow, preferences, lifecycle, toolbar, file-input, sidebar, dialog, properties-panel, layout-panel, and editor-shell modules. The canvas page and crop layers and the global stylesheet are also split along functional boundaries. `App.svelte` is 571 lines, down from 2,566, and now focuses on application composition and cross-feature coordination; executable component and stylesheet modules stay around the 500-line target. Large layout-definition files remain declarative-data exceptions.
 - [x] Load noncritical layout definitions and editor workflows on demand. Default two- and three-frame layouts and the canvas editor remain eager for first-paint usability; layout groups 4–11 share one deferred 4.94 kB gzip catalog warmed on layout-control hover or focus. Archive, linked-project, recovery, and export implementations also load on demand. Konva remains eager in a separately cacheable chunk. The larger HEIC decoder is isolated in its own optional chunk and loads only when a HEIC/HEIF asset needs decoding.
 - [x] Add offline support without installability. A generated service worker precaches the complete production application bundle, including lazy chunks and public assets, and supports root or subdirectory deployments. Project data remains local; no web app manifest or install prompt is included.
 - [ ] Bring release engineering beyond prototype status.

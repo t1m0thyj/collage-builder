@@ -172,6 +172,25 @@
   color: #777269;
   white-space: nowrap;
 }
+.recovery-status-button {
+  padding: 6px 7px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+.recovery-status-button:hover,
+.recovery-status-button:focus-visible {
+  background: rgba(255, 255, 255, 0.55);
+}
+.recovery-status-button:focus-visible {
+  outline: 2px solid rgba(49, 92, 156, 0.42);
+  outline-offset: 1px;
+}
+.recovery-status-button.recovery-error,
+.recovery-status-button.recovery-conflict {
+  color: #8f351e;
+}
 .status-dot {
   display: block;
   width: 7px;
@@ -181,6 +200,21 @@
 }
 .status-dot.dirty {
   background: #d99328;
+}
+.status-dot.saving {
+  background: #4d82c3;
+  animation: recovery-pulse 0.9s ease-in-out infinite alternate;
+}
+.status-dot.error {
+  background: #c33f35;
+}
+.status-dot.conflict {
+  background: #b85f25;
+}
+@keyframes recovery-pulse {
+  to {
+    opacity: 0.35;
+  }
 }
 .workspace {
   display: grid;

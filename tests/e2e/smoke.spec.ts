@@ -647,6 +647,93 @@ test('automatic recovery restores an unsaved project', async ({ page }) => {
   await expect(page.getByRole('status')).toContainText('Local recovery restored')
 })
 
+test('local recovery manager reports storage and removes recovery copies', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'storage', {
+      configurable: true,
+      value: {
+        estimate: async () => ({ usage: 2 * 1024 * 1024, quota: 100 * 1024 * 1024 }),
+        persisted: async () => false,
+        persist: async () => {
+          sessionStorage.setItem('persistent-storage-requested', 'yes')
+          return false
+        },
+      },
+    })
+  })
+  await page.goto('/')
+  const title = page.getByRole('textbox', { name: 'Project title' })
+  await title.fill('Managed recovery')
+  await title.press('Tab')
+  const recoveryStatus = page.getByRole('button', {
+    name: /Saved locally.*Manage local copies/i,
+  })
+  await expect(recoveryStatus).toBeVisible()
+  await expect
+    .poll(() => page.evaluate(() => sessionStorage.getItem('persistent-storage-requested')))
+    .toBe('yes')
+  await recoveryStatus.click()
+
+  const dialog = page.getByRole('dialog', { name: 'Local recovery' })
+  await expect(dialog).toContainText('2.0 MB of 100 MB used by this site')
+  await expect(dialog).toContainText('Managed recovery')
+  await dialog.getByRole('button', { name: 'Remove', exact: true }).click()
+  await dialog.getByRole('button', { name: 'Confirm remove' }).click()
+  await expect(dialog).toContainText('No local recovery copies are stored')
+})
+
+test('autosave failures remain visible with quota guidance', async ({ page }) => {
+  await page.addInitScript(() => {
+    const originalPut = IDBObjectStore.prototype.put
+    IDBObjectStore.prototype.put = function (value: unknown, key?: IDBValidKey) {
+      if (this.name === 'projects') throw new DOMException('Storage full', 'QuotaExceededError')
+      return originalPut.call(this, value, key)
+    }
+    Object.defineProperty(navigator, 'storage', {
+      configurable: true,
+      value: {
+        estimate: async () => ({ usage: 95 * 1024 * 1024, quota: 100 * 1024 * 1024 }),
+        persisted: async () => false,
+        persist: async () => false,
+      },
+    })
+  })
+  await page.goto('/')
+  const failedStatus = page.getByRole('button', {
+    name: /Autosave failed.*Manage local copies/i,
+  })
+  await expect(failedStatus).toBeVisible()
+  await failedStatus.click()
+  await expect(page.getByRole('dialog', { name: 'Local recovery' })).toContainText(
+    'Browser storage is full (95.0 MB used of 100.0 MB)',
+  )
+})
+
+test('same-project tabs pause autosave until the user takes over', async ({ page, context }) => {
+  await page.goto('/')
+  const title = page.getByRole('textbox', { name: 'Project title' })
+  await title.fill('Shared tab recovery')
+  await title.press('Tab')
+  await expect(
+    page.getByRole('button', { name: /Saved locally.*Manage local copies/i }),
+  ).toBeVisible()
+
+  const secondPage = await context.newPage()
+  await secondPage.goto('/')
+  await expect(secondPage.getByRole('textbox', { name: 'Project title' })).toHaveValue(
+    'Shared tab recovery',
+  )
+  const paused = secondPage.getByRole('button', {
+    name: /Autosave paused.*Manage local copies/i,
+  })
+  await expect(paused).toBeVisible()
+  await paused.click()
+  await secondPage.getByRole('button', { name: 'Use this tab instead' }).click()
+  await expect(
+    page.getByRole('button', { name: /Autosave paused.*Manage local copies/i }),
+  ).toBeVisible()
+})
+
 test('keyboard focus is visible and returns to the image-manager trigger', async ({ page }) => {
   await page.goto('/')
   const newProject = page.getByRole('button', { name: 'New', exact: true })

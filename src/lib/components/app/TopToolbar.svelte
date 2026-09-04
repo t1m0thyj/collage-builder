@@ -3,6 +3,7 @@
   import Button from '../ui/button/button.svelte'
   import Input from '../ui/input/input.svelte'
   import * as DropdownMenu from '../ui/dropdown-menu'
+  import type { RecoveryState } from '../../app/recovery'
 
   export let projectTitle: string
   export let canUndo: boolean
@@ -13,6 +14,7 @@
   export let isViewportFit: boolean
   export let isDirty: boolean
   export let recoveredOnly: boolean
+  export let recoveryState: RecoveryState
   export let onnew: () => void
   export let onopen: () => void
   export let onsave: (event: MouseEvent) => void
@@ -22,6 +24,17 @@
   export let onsetzoom: (zoom: number) => void
   export let onrename: () => void
   export let onexport: (scope: 'current' | 'all' | 'range') => void
+  export let onmanagerecovery: () => void
+
+  $: saveLabel =
+    recoveryState.status === 'idle'
+      ? isDirty
+        ? 'Unsaved changes'
+        : recoveredOnly
+          ? 'Recovered locally'
+          : 'Saved'
+      : recoveryState.message
+  $: accessibleSaveLabel = saveLabel.replace('Recovered', 'Restored')
 </script>
 
 <header class="topbar" aria-label="Project controls">
@@ -93,12 +106,20 @@
     <Input bind:value={projectTitle} aria-label="Project title" onblur={onrename} />
   </label>
   <div class="toolbar-group topbar-end">
-    <span class="save-status"
-      ><span class:dirty={isDirty || recoveredOnly} class="status-dot"></span>{isDirty
-        ? 'Unsaved changes'
-        : recoveredOnly
-          ? 'Recovered locally'
-          : 'Saved'}</span
+    <button
+      class="save-status recovery-status-button"
+      class:recovery-error={recoveryState.status === 'failed'}
+      class:recovery-conflict={recoveryState.status === 'conflict'}
+      title={recoveryState.detail ?? 'Manage local recovery and browser storage'}
+      aria-label={`${accessibleSaveLabel}. Manage local copies and browser storage`}
+      onclick={onmanagerecovery}
+      ><span
+        class:dirty={isDirty || recoveredOnly || recoveryState.status === 'pending'}
+        class:error={recoveryState.status === 'failed'}
+        class:conflict={recoveryState.status === 'conflict'}
+        class:saving={recoveryState.status === 'saving'}
+        class="status-dot"
+      ></span>{saveLabel}</button
     >
     <DropdownMenu.Root>
       <div class="export-menu">
