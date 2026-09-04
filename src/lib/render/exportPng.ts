@@ -5,6 +5,14 @@ import { zipBlobs } from '../persistence/zipStreams'
 
 export { resolveExportRange } from './exportQuality'
 
+export type ExportFormat = 'png' | 'jpeg'
+
+export function jpegQuality(quality: number): number {
+  if (!Number.isFinite(quality) || quality < 1 || quality > 100)
+    throw new Error('JPEG quality must be between 1 and 100')
+  return quality / 100
+}
+
 export function exportDimensions(page: PageV1, width: number): { width: number; height: number } {
   const height = Math.round((width * page.height) / page.width)
   if (
@@ -53,11 +61,13 @@ function shadowColor(color: string, opacity: number): string {
   return `rgb(${red} ${green} ${blue} / ${opacity})`
 }
 
-export async function renderPagePng(
+export async function renderPageImage(
   page: PageV1,
   assets: Record<string, AssetRecordV1>,
   getImage: (assetId: string) => HTMLImageElement | undefined,
   width: number,
+  format: ExportFormat,
+  quality = 90,
 ): Promise<Blob> {
   const dimensions = exportDimensions(page, width)
   const height = dimensions.height
@@ -68,8 +78,8 @@ export async function renderPagePng(
   if (!context) throw new Error('Canvas rendering is unavailable')
   const scale = width / page.width
   context.scale(scale, scale)
-  if (!page.style.transparentBackground) {
-    context.fillStyle = page.style.backgroundColor
+  if (!page.style.transparentBackground || format === 'jpeg') {
+    context.fillStyle = page.style.transparentBackground ? '#FFFFFF' : page.style.backgroundColor
     context.fillRect(0, 0, page.width, page.height)
   }
   if (page.style.shadow.enabled)
@@ -110,14 +120,33 @@ export async function renderPagePng(
     )
     context.restore()
   }
+  const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png'
+  const outputQuality = format === 'jpeg' ? jpegQuality(quality) : undefined
   return new Promise((resolve, reject) =>
     canvas.toBlob(
-      (blob) => (blob ? resolve(blob) : reject(new Error('PNG rendering failed'))),
-      'image/png',
+      (blob) =>
+        blob
+          ? resolve(blob)
+          : reject(new Error(`${format === 'jpeg' ? 'JPEG' : 'PNG'} rendering failed`)),
+      mimeType,
+      outputQuality,
     ),
   )
 }
 
-export async function zipPngs(pages: Array<{ name: string; blob: Blob }>): Promise<Blob> {
+export async function renderPagePng(
+  page: PageV1,
+  assets: Record<string, AssetRecordV1>,
+  getImage: (assetId: string) => HTMLImageElement | undefined,
+  width: number,
+): Promise<Blob> {
+  return renderPageImage(page, assets, getImage, width, 'png')
+}
+
+export async function zipImages(pages: Array<{ name: string; blob: Blob }>): Promise<Blob> {
   return zipBlobs(pages, 'application/zip')
+}
+
+export async function zipPngs(pages: Array<{ name: string; blob: Blob }>): Promise<Blob> {
+  return zipImages(pages)
 }

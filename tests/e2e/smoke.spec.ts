@@ -67,7 +67,9 @@ async function importImage(
   mimeType = 'image/png',
 ) {
   await page
-    .locator('input[type="file"][accept="image/jpeg,image/png,image/webp"]')
+    .locator(
+      'input[type="file"][accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"]',
+    )
     .first()
     .setInputFiles({
       name,
@@ -107,6 +109,20 @@ async function downloadBytes(download: import('@playwright/test').Download) {
   const chunks: Buffer[] = []
   for await (const chunk of stream) chunks.push(Buffer.from(chunk))
   return Buffer.concat(chunks)
+}
+
+async function rasterDimensions(page: BrowserPage, bytes: Buffer) {
+  return page.evaluate(
+    async (encoded) => {
+      const bitmap = await createImageBitmap(new Blob([new Uint8Array(encoded)]))
+      try {
+        return { width: bitmap.width, height: bitmap.height }
+      } finally {
+        bitmap.close()
+      }
+    },
+    [...bytes],
+  )
 }
 
 async function sampleDownloadedPng(
@@ -326,7 +342,9 @@ test('New protects unsaved work and Escape cancels navigation', async ({ page })
 test('imports and removes an image from the project collection', async ({ page }) => {
   await page.goto('/')
   await page
-    .locator('input[type="file"][accept="image/jpeg,image/png,image/webp"]')
+    .locator(
+      'input[type="file"][accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"]',
+    )
     .first()
     .setInputFiles({
       name: 'remove-me.png',
@@ -359,6 +377,12 @@ test('imports JPEG, PNG, and WebP images', async ({ page }) => {
   await expect(page.getByText('photo.jpg', { exact: true })).toBeVisible()
   await expect(page.getByText('graphic.png', { exact: true })).toBeVisible()
   await expect(page.getByText('modern.webp', { exact: true })).toBeVisible()
+})
+
+test('gives conversion guidance when a HEIC image cannot be decoded', async ({ page }) => {
+  await page.goto('/')
+  await importImage(page, 'damaged.heic', Buffer.from('not a valid HEIC image'), 'image/heic')
+  await expect(page.getByRole('status')).toContainText('Convert it to JPEG or PNG and try again.')
 })
 
 test('large originals use bounded thumbnails in the image library', async ({ page }) => {
@@ -507,7 +531,9 @@ test('dragging a layout splitter re-renders the page', async ({ page }) => {
 test('dragging crop edges changes zoom', async ({ page }) => {
   await page.goto('/')
   await page
-    .locator('input[type="file"][accept="image/jpeg,image/png,image/webp"]')
+    .locator(
+      'input[type="file"][accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"]',
+    )
     .first()
     .setInputFiles({
       name: 'crop.png',
@@ -709,6 +735,32 @@ test('exports current-page PNGs at normal and default 4K resolutions', async ({ 
   await expect(await pngDimensions(await largeDownload)).toEqual({ width: 3840, height: 2880 })
 })
 
+test('exports JPEG with configurable quality', async ({ page }) => {
+  await page.goto('/')
+  await importImage(page, 'export.png', redPng)
+  const host = page.getByRole('region', { name: 'Collage canvas' })
+  const hostBox = await host.boundingBox()
+  expect(hostBox).not.toBeNull()
+  await page.getByRole('tab', { name: 'Images' }).click()
+  await page.mouse.click(hostBox!.x + hostBox!.width * 0.5, hostBox!.y + hostBox!.height * 0.5)
+  await page.getByText('export.png', { exact: true }).click()
+
+  await page.getByRole('button', { name: 'Export PNG' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Export pages' })
+  await dialog.getByRole('button', { name: 'Export format' }).click()
+  await page.getByRole('option', { name: 'JPEG', exact: true }).click()
+  await dialog.getByRole('spinbutton', { name: 'Width (px)' }).fill('800')
+  await dialog.getByRole('spinbutton', { name: 'JPEG quality (%)' }).fill('72')
+  const downloadPromise = page.waitForEvent('download')
+  await dialog.getByRole('button', { name: 'Export', exact: true }).click()
+  const download = await downloadPromise
+  expect(download.suggestedFilename()).toBe('Untitled collage-01.jpg')
+  const bytes = await downloadBytes(download)
+  expect(bytes.subarray(0, 3)).toEqual(Buffer.from([0xff, 0xd8, 0xff]))
+  expect(await rasterDimensions(page, bytes)).toEqual({ width: 800, height: 600 })
+  await expect(page.getByRole('button', { name: 'Export JPEG' })).toBeVisible()
+})
+
 test('export pixels preserve image colors and the configured page gap', async ({ page }) => {
   await page.goto('/')
   await chooseTwoColumnLayout(page)
@@ -724,25 +776,25 @@ test('export pixels preserve image colors and the configured page gap', async ({
   await dialog.getByRole('spinbutton', { name: 'Width (px)' }).fill('400')
   const downloadPromise = page.waitForEvent('download')
   await dialog.getByRole('button', { name: 'Export', exact: true }).click()
-  const [leftPixel, gapPixel, rightPixel] = await sampleDownloadedPng(
-    page,
-    await downloadPromise,
-    [
-      { x: 100, y: 150 },
-      { x: 200, y: 150 },
-      { x: 300, y: 150 },
-    ],
-  )
+  const [leftPixel, gapPixel, rightPixel] = await sampleDownloadedPng(page, await downloadPromise, [
+    { x: 100, y: 150 },
+    { x: 200, y: 150 },
+    { x: 300, y: 150 },
+  ])
   expect(leftPixel.slice(0, 3)).toEqual([238, 45, 54])
   expect(gapPixel.slice(0, 3)).toEqual([128, 128, 128])
   expect(rightPixel.slice(0, 3)).toEqual([30, 110, 230])
 })
 
-test('real photo import, crop, thumbnail, and export stay visually consistent', async ({ page }) => {
+test('real photo import, crop, thumbnail, and export stay visually consistent', async ({
+  page,
+}) => {
   await page.goto('/')
   await chooseTwoColumnLayout(page)
   await page
-    .locator('input[type="file"][accept="image/jpeg,image/png,image/webp"]')
+    .locator(
+      'input[type="file"][accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"]',
+    )
     .first()
     .setInputFiles(realPhotoPath)
   await page.getByRole('tab', { name: 'Images' }).click()

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { exportDimensions, resolveExportRange } from '../../src/lib/render/exportPng'
+import { exportDimensions, jpegQuality, resolveExportRange } from '../../src/lib/render/exportPng'
 import { countUpscaledPlacements } from '../../src/lib/render/exportQuality'
 import { createProject } from '../../src/lib/domain/factories'
 import { createPage } from '../../src/lib/domain/factories'
@@ -16,6 +16,14 @@ describe('export dimensions', () => {
   it('preserves page aspect ratio and rejects unsafe canvases', () => {
     expect(exportDimensions(createPage(), 3840)).toEqual({ width: 3840, height: 2880 })
     expect(() => exportDimensions(createPage(), 9000)).toThrow('limit')
+  })
+
+  it('normalizes user-facing JPEG quality and rejects invalid values', () => {
+    expect(jpegQuality(1)).toBe(0.01)
+    expect(jpegQuality(85)).toBe(0.85)
+    expect(jpegQuality(100)).toBe(1)
+    expect(() => jpegQuality(0)).toThrow('between 1 and 100')
+    expect(() => jpegQuality(Number.NaN)).toThrow('between 1 and 100')
   })
 
   it('warns when a placed original must be enlarged', () => {

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { X } from '@lucide/svelte'
+  import type { ExportSettings } from '../../app/exportProject'
   import type { CollageDocumentV1, PageV1 } from '../../domain/types'
   import * as Dialog from '../ui/dialog'
   import * as Select from '../ui/select'
@@ -16,6 +17,8 @@
   export let exportScope: 'current' | 'all' | 'range'
   export let exportRange: string
   export let exportWidth: number
+  export let exportFormat: 'png' | 'jpeg'
+  export let exportQuality: number
   export let isExporting: boolean
   export let exportProgress: string
   export let assetUsage: (assetId: string) => number
@@ -26,7 +29,7 @@
   export let oncontinuenavigation: () => void
   export let onsavethencontinue: () => void
   export let onrequestlinkedfolder: () => void
-  export let onexport: () => void
+  export let onexport: (settings: ExportSettings) => void | Promise<void>
   export let oncancelexport: () => void
 </script>
 
@@ -179,7 +182,7 @@
   <Dialog.Content class="dialog" aria-labelledby="export-title">
     <div class="dialog-header">
       <div>
-        <p class="eyebrow">PNG export</p>
+        <p class="eyebrow">{exportFormat === 'jpeg' ? 'JPEG' : 'PNG'} export</p>
         <h2 id="export-title">Export pages</h2>
       </div>
       <button
@@ -190,6 +193,20 @@
       >
     </div>
     <div class="export-form">
+      <label
+        >Format <Select.Root
+          type="single"
+          value={exportFormat}
+          disabled={isExporting}
+          onValueChange={(value) => value && (exportFormat = value as typeof exportFormat)}
+          ><Select.Trigger class="export-scope" aria-label="Export format"
+            ><span>{exportFormat === 'jpeg' ? 'JPEG' : 'PNG'}</span></Select.Trigger
+          ><Select.Content
+            ><Select.Item value="png">PNG</Select.Item><Select.Item value="jpeg">JPEG</Select.Item
+            ></Select.Content
+          ></Select.Root
+        ></label
+      >
       <label
         >Scope <Select.Root
           type="single"
@@ -221,6 +238,20 @@
           disabled={isExporting}
         /></label
       >
+      {#if exportFormat === 'jpeg'}
+        <label
+          >JPEG quality (%) <input
+            type="number"
+            min="1"
+            max="100"
+            bind:value={exportQuality}
+            disabled={isExporting}
+          /></label
+        >
+        {#if activePage.style.transparentBackground}<p class="export-warning" role="note">
+            JPEG does not support transparency. Transparent areas will be exported as white.
+          </p>{/if}
+      {/if}
       <p>Height: {Math.round((exportWidth * activePage.height) / activePage.width)} px</p>
       {#if exportUpscaleCount() > 0}<p class="export-warning" role="note">
           {exportUpscaleCount()} placed image{exportUpscaleCount() === 1 ? '' : 's'} will be enlarged
@@ -230,9 +261,21 @@
     </div>
     <div class="dialog-footer">
       <span
-        >{exportScope === 'all' ? `${document.pages.length} PNGs in a ZIP` : 'PNG download'}</span
+        >{exportScope === 'all'
+          ? `${document.pages.length} ${exportFormat === 'jpeg' ? 'JPEGs' : 'PNGs'} in a ZIP`
+          : `${exportFormat === 'jpeg' ? 'JPEG' : 'PNG'} download`}</span
       >{#if isExporting}<button class="button" onclick={oncancelexport}>Cancel export</button
-        >{:else}<button class="button button-primary" onclick={onexport}>Export</button>{/if}
+        >{:else}<button
+          class="button button-primary"
+          onclick={() =>
+            onexport({
+              scope: exportScope,
+              range: exportRange,
+              width: exportWidth,
+              format: exportFormat,
+              quality: exportQuality,
+            })}>Export</button
+        >{/if}
     </div>
   </Dialog.Content>
 </Dialog.Root>

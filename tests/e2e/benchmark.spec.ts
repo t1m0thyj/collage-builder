@@ -53,7 +53,9 @@ test('100 images and 25 pages @benchmark', async ({ page, browserName }) => {
   }))
   const startedAt = performance.now()
   await page
-    .locator('input[type="file"][accept="image/jpeg,image/png,image/webp"]')
+    .locator(
+      'input[type="file"][accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"]',
+    )
     .first()
     .setInputFiles(images)
   await page.getByRole('tab', { name: 'Images' }).click()

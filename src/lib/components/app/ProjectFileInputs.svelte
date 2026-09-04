@@ -82,7 +82,7 @@
   aria-hidden="true"
   bind:this={uploadInput}
   type="file"
-  accept="image/jpeg,image/png,image/webp"
+  accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
   multiple
   onchange={importFiles}
 />
@@ -92,7 +92,7 @@
   aria-hidden="true"
   bind:this={replaceInput}
   type="file"
-  accept="image/jpeg,image/png,image/webp"
+  accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
   onchange={replaceFile}
 />
 <input
@@ -101,7 +101,7 @@
   aria-hidden="true"
   bind:this={relinkInput}
   type="file"
-  accept="image/jpeg,image/png,image/webp"
+  accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
   onchange={relinkFile}
 />
 <input

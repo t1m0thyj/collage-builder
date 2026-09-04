@@ -69,7 +69,7 @@ export interface SlotContentV1 {
 export interface AssetRecordV1 {
   id: AssetId
   originalName: string
-  mediaType: 'image/jpeg' | 'image/png' | 'image/webp'
+  mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/heic' | 'image/heif'
   byteLength: number
   width: number
   height: number

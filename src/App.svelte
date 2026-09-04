@@ -14,6 +14,7 @@
   import { onMount } from 'svelte'
   import { RecoveryController } from './lib/app/recovery'
   import { ExportWorkflowController } from './lib/app/exportProject'
+  import type { ExportFormat } from './lib/render/exportPng'
   import {
     AssetWorkflowController,
     filterAssets,
@@ -104,6 +105,8 @@
   let exportScope: 'current' | 'all' | 'range' = 'current'
   let exportRange = '1-1'
   let exportWidth = 3840
+  let exportFormat: ExportFormat = 'png'
+  let exportQuality = 90
   let isExporting = false
   let cancelExportRequested = false
   let exportProgress = ''
@@ -186,6 +189,8 @@
     scope: () => exportScope,
     range: () => exportRange,
     width: () => exportWidth,
+    format: () => exportFormat,
+    quality: () => exportQuality,
     projectTitle: () => projectTitle,
     isCancelled: () => cancelExportRequested,
     setScope: (value) => (exportScope = value),
@@ -363,6 +368,7 @@
     canUndo={$canUndo}
     canRedo={$canRedo}
     bind:viewportZoom
+    {exportFormat}
     {fittedViewportZoom}
     bind:isViewportFit
     {isDirty}
@@ -525,6 +531,8 @@
     bind:exportScope
     bind:exportRange
     bind:exportWidth
+    bind:exportFormat
+    bind:exportQuality
     {isExporting}
     {exportProgress}
     assetUsage={assetWorkflow.usage}

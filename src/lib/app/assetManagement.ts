@@ -73,8 +73,8 @@ export async function importProjectAssets(
   let added = 0
   for (const file of files) {
     try {
-      const { asset } = await validateImportedImage(file)
-      await registry.register(asset.id, file, asset.sha256, asset)
+      const { asset, file: normalizedFile, displayBlob } = await validateImportedImage(file)
+      await registry.register(asset.id, normalizedFile, asset.sha256, asset, displayBlob)
       try {
         project.addAsset(asset)
       } catch (error) {
@@ -96,9 +96,9 @@ export async function replaceProjectAsset(
   registry: AssetRegistry,
   project: ProjectStore,
 ): Promise<void> {
-  const { asset } = await validateImportedImage(file)
+  const { asset, file: normalizedFile, displayBlob } = await validateImportedImage(file)
   registry.retain(target, document.assets[target].sha256)
-  await registry.register(target, file, asset.sha256, asset)
+  await registry.register(target, normalizedFile, asset.sha256, asset, displayBlob)
   project.replaceAsset(target, {
     ...asset,
     id: target,
@@ -120,10 +120,10 @@ export async function relinkProjectAsset(
   project: ProjectStore,
   confirmMismatch: () => boolean,
 ): Promise<boolean> {
-  const { asset } = await validateImportedImage(file)
+  const { asset, file: normalizedFile, displayBlob } = await validateImportedImage(file)
   const original = document.assets[target]
   if (original.sha256 !== asset.sha256 && !confirmMismatch()) return false
-  await registry.register(target, file, asset.sha256, asset)
+  await registry.register(target, normalizedFile, asset.sha256, asset, displayBlob)
   project.replaceAsset(target, {
     ...asset,
     id: target,

@@ -8,6 +8,7 @@
   export let canUndo: boolean
   export let canRedo: boolean
   export let viewportZoom: number
+  export let exportFormat: 'png' | 'jpeg'
   export let fittedViewportZoom: number
   export let isViewportFit: boolean
   export let isDirty: boolean
@@ -101,7 +102,8 @@
     >
     <DropdownMenu.Root>
       <div class="export-menu">
-        <Button class="button button-primary" onclick={() => onexport('current')}>Export PNG</Button
+        <Button class="button button-primary" onclick={() => onexport('current')}
+          >Export {exportFormat === 'jpeg' ? 'JPEG' : 'PNG'}</Button
         ><DropdownMenu.Trigger
           class="button button-primary export-caret"
           aria-label="Choose export scope"

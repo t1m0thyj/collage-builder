@@ -4,6 +4,11 @@ import { createArchive, openArchive } from '../../src/lib/persistence/archive'
 import { createLinkedProject, openLinkedProject } from '../../src/lib/persistence/linkedAssets'
 import { zipSync, strToU8 } from 'fflate'
 
+async function sha256(blob: Blob): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer())
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
+}
+
 describe('collage archive', () => {
   it('round trips a document', async () => {
     const document = createProject('Archive test')
@@ -11,6 +16,35 @@ describe('collage archive', () => {
     const opened = await openArchive(archive)
     expect(opened.document.title).toBe('Archive test')
     expect(opened.document.projectId).toBe(document.projectId)
+  })
+
+  it('keeps original HEIC bytes and media type in an embedded project', async () => {
+    const document = createProject('HEIC archive test')
+    const assetId = '11111111-1111-4111-8111-111111111111'
+    const original = new Blob(
+      [new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112, 104, 101, 105, 99])],
+      {
+        type: 'image/heic',
+      },
+    )
+    document.assets[assetId] = {
+      id: assetId,
+      originalName: 'IMG_1234.HEIC',
+      mediaType: 'image/heic',
+      byteLength: original.size,
+      width: 12,
+      height: 8,
+      sha256: await sha256(original),
+      storage: { kind: 'embedded', archivePath: `assets/${assetId}.heic` },
+    }
+    const archive = await createArchive(document, { get: () => original })
+    const opened = await openArchive(archive)
+    const restored = opened.assets.get(assetId)
+    expect(opened.document.assets[assetId].mediaType).toBe('image/heic')
+    expect(restored?.type).toBe('image/heic')
+    expect(new Uint8Array(await restored!.arrayBuffer())).toEqual(
+      new Uint8Array(await original.arrayBuffer()),
+    )
   })
 
   it('rejects unsafe archive paths', async () => {

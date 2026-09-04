@@ -1,4 +1,5 @@
 import type { AssetId } from '../domain/types'
+import { convertHeicForDisplay, isHeicBlob } from '../domain/heic'
 
 export class AssetRegistry {
   private readonly blobs = new Map<AssetId, Blob>()
@@ -17,11 +18,16 @@ export class AssetRegistry {
     blob: Blob,
     sha256?: string,
     dimensions?: { width: number; height: number },
+    displayBlob?: Blob,
   ): Promise<void> {
     this.release(assetId)
-    const objectUrl = URL.createObjectURL(blob)
+    const { renderableBlob, thumbnail } = await this.createRenderableThumbnail(
+      blob,
+      dimensions,
+      displayBlob,
+    )
+    const objectUrl = URL.createObjectURL(renderableBlob)
     try {
-      const thumbnail = await this.createThumbnail(blob, dimensions)
       this.blobs.set(assetId, blob)
       if (sha256) this.activeHashes.set(assetId, sha256)
       this.objectUrls.set(assetId, objectUrl)
@@ -29,6 +35,27 @@ export class AssetRegistry {
     } catch (error) {
       URL.revokeObjectURL(objectUrl)
       throw error
+    }
+  }
+
+  private async createRenderableThumbnail(
+    blob: Blob,
+    dimensions?: { width: number; height: number },
+    displayBlob?: Blob,
+  ): Promise<{ renderableBlob: Blob; thumbnail: Blob }> {
+    const renderableBlob = displayBlob ?? blob
+    try {
+      return {
+        renderableBlob,
+        thumbnail: await this.createThumbnail(renderableBlob, dimensions),
+      }
+    } catch (error) {
+      if (displayBlob || !isHeicBlob(blob)) throw error
+      const fallbackBlob = await convertHeicForDisplay(blob, 'Stored HEIC/HEIF image')
+      return {
+        renderableBlob: fallbackBlob,
+        thumbnail: await this.createThumbnail(fallbackBlob, dimensions),
+      }
     }
   }
 
@@ -51,7 +78,9 @@ export class AssetRegistry {
         canvas.toBlob(resolve, 'image/webp', 0.82),
       )
       if (thumbnail) return thumbnail
-      const fallback = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
+      const fallback = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, 'image/png'),
+      )
       if (!fallback) throw new Error('Thumbnail rendering failed')
       return fallback
     } finally {
@@ -76,19 +105,36 @@ export class AssetRegistry {
     if (pending) return pending
     const objectUrl = this.objectUrls.get(assetId)
     if (!objectUrl) throw new Error(`Missing original bytes for asset ${assetId}`)
-    const load = (async () => {
-      const image = new Image()
-      image.src = objectUrl
-      await image.decode()
-      this.images.set(assetId, image)
-      return image
-    })()
+    const load = this.decodeImage(objectUrl).catch(async (error) => {
+      const originalBlob = this.blobs.get(assetId)
+      if (!originalBlob || !isHeicBlob(originalBlob)) throw error
+      const fallbackBlob = await convertHeicForDisplay(originalBlob, 'Stored HEIC/HEIF image')
+      const fallbackUrl = URL.createObjectURL(fallbackBlob)
+      try {
+        const image = await this.decodeImage(fallbackUrl)
+        const staleUrl = this.objectUrls.get(assetId)
+        this.objectUrls.set(assetId, fallbackUrl)
+        if (staleUrl) URL.revokeObjectURL(staleUrl)
+        this.images.set(assetId, image)
+        return image
+      } catch (fallbackError) {
+        URL.revokeObjectURL(fallbackUrl)
+        throw fallbackError
+      }
+    })
     this.imageLoads.set(assetId, load)
     try {
       return await load
     } finally {
       this.imageLoads.delete(assetId)
     }
+  }
+
+  private async decodeImage(url: string): Promise<HTMLImageElement> {
+    const image = new Image()
+    image.src = url
+    await image.decode()
+    return image
   }
 
   async ensureImages(assetIds: Iterable<AssetId>): Promise<boolean> {
@@ -100,7 +146,8 @@ export class AssetRegistry {
 
   releaseDecodedExcept(assetIds: Iterable<AssetId>): void {
     const retained = new Set(assetIds)
-    for (const assetId of this.images.keys()) if (!retained.has(assetId)) this.images.delete(assetId)
+    for (const assetId of this.images.keys())
+      if (!retained.has(assetId)) this.images.delete(assetId)
   }
 
   getImage(assetId: AssetId): HTMLImageElement | undefined {

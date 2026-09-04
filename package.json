@@ -46,6 +46,7 @@
   "dependencies": {
     "bits-ui": "^2.18.1",
     "fflate": "^0.8.3",
+    "heic-to": "^1.5.2",
     "idb": "^8.0.3",
     "konva": "^10.3.0",
     "svelte-konva": "^1.0.1",

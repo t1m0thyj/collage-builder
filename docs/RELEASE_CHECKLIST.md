@@ -33,7 +33,7 @@ This checklist tracks every finding from the initial architecture and first-rele
 - [x] Eliminate linked-project stale-reference risk. Cached linked-file matches are invalidated after replacement/relinking and are rechecked against current byte length and SHA-256 before save.
 - [x] Make asset removal reliably undoable at the supported project size and make bulk removal one history entry. Retained bytes now cover the 256 MB project limit.
 - [x] Split the root component into dedicated project-I/O, persistence, recovery, export, asset, image-session, editor-session, page-workflow, preferences, lifecycle, toolbar, file-input, sidebar, dialog, properties-panel, layout-panel, and editor-shell modules. The canvas page and crop layers and the global stylesheet are also split along functional boundaries. `App.svelte` is 545 lines, down from 2,566, and now focuses on application composition and cross-feature coordination; executable component and stylesheet modules stay around the 500-line target. Large layout-definition files remain declarative-data exceptions.
-- [x] Load noncritical layout definitions and editor workflows on demand. Default two- and three-frame layouts and the canvas editor remain eager for first-paint usability; layout groups 4–11 share one deferred 4.94 kB gzip catalog warmed on layout-control hover or focus. Archive, linked-project, recovery, and export implementations also load on demand. Konva remains eager in a separately cacheable chunk, and no production JavaScript chunk exceeds Vite's 500 kB warning threshold.
+- [x] Load noncritical layout definitions and editor workflows on demand. Default two- and three-frame layouts and the canvas editor remain eager for first-paint usability; layout groups 4–11 share one deferred 4.94 kB gzip catalog warmed on layout-control hover or focus. Archive, linked-project, recovery, and export implementations also load on demand. Konva remains eager in a separately cacheable chunk. The larger HEIC decoder is isolated in its own optional chunk and loads only when a HEIC/HEIF asset needs decoding.
 - [ ] Add offline/PWA support. Project data is local, but the application has no service worker or installable offline shell.
 - [ ] Bring release engineering beyond prototype status.
   - [ ] Set a real package/release version instead of `0.0.0`.
@@ -59,8 +59,8 @@ This checklist tracks every finding from the initial architecture and first-rele
   - [x] Verify a real photographic image through import, thumbnailing, crop adjustment, canvas rendering, and exported-pixel comparison.
   - [x] Exercise the photographic and pixel-parity cases in Chromium, Firefox, and WebKit.
   - [ ] Add pixel assertions for polygon clipping, corner radius, transparency, and shadows.
-- [ ] Add HEIC/HEIF photo import, or provide a specific conversion-oriented error message when those formats are selected.
-- [ ] Add JPEG and/or WebP export with a user-controlled quality setting; PNG remains the only output format.
+- [x] Add HEIC/HEIF photo import. Originals remain untouched in saved projects while an on-demand, browser-readable derivative powers thumbnails, editing, and export; unsupported variants receive a conversion-oriented error.
+- [x] Add JPEG export with a user-controlled 1–100 quality setting. PNG remains available, and JPEG exports flatten transparent areas to white with an explicit warning.
 - [ ] Add fast population tools such as fill-empty-frames, shuffle, or optional automatic assignment after multi-image import.
 - [ ] Add practical page presets for square, portrait, landscape, print, and common social-media formats, with DPI guidance where relevant.
 - [ ] Add usage navigation from an image to the pages and frames where it appears; the image manager currently reports only a usage count.
@@ -72,7 +72,7 @@ This checklist tracks every finding from the initial architecture and first-rele
 - [x] Run the production dependency audit with zero known production vulnerabilities.
 - [x] Run the Playwright smoke scenarios in Chromium, Firefox, and WebKit.
 - [x] Complete a live desktop visual/focus pass with no console errors.
-- [ ] Manually import representative JPEG, PNG, WebP, and large real-photo files and confirm crop bounds, corner clipping, transparency, and shadows.
+- [ ] Manually import representative JPEG, PNG, WebP, HEIC/HEIF, and large real-photo files and confirm crop bounds, corner clipping, transparency, and shadows.
 - [ ] Verify save/open and automatic recovery manually with a large multi-page project.
 - [ ] Test current-page, all-pages, and range export manually at normal and large resolutions.
 - [ ] Profile a production-scale 100-image/25-page project using real photo-sized inputs and document timing and memory limits. The existing benchmark uses tiny synthetic images.
@@ -87,6 +87,6 @@ This checklist tracks every finding from the initial architecture and first-rele
 
 ## Current browser notes
 
-The core editor targets current Chrome, Edge, Firefox, and Safari. Save uses the native File System Access picker when available so `.collage` and `.collage.json` appear as separate file types. Other browsers use an in-app format dialog and download fallback. PNG export remains download-based.
+The core editor targets current Chrome, Edge, Firefox, and Safari. Save uses the native File System Access picker when available so `.collage` and `.collage.json` appear as separate file types. Other browsers use an in-app format dialog and download fallback. PNG and JPEG exports remain download-based.
 
 On the current Windows test host, Firefox content processes require the one-run `MOZ_DISABLE_CONTENT_SANDBOX=1` diagnostic override because the host blocks Firefox's child-process sandbox. The project configuration does not disable browser sandboxing.

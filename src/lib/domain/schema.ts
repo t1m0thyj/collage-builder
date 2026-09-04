@@ -100,22 +100,22 @@ export const collageDocumentSchema = z.object({
     z.string().uuid(),
     z
       .object({
-      id: z.string().uuid(),
-      originalName: z.string().min(1),
-      mediaType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
-      byteLength: z.number().int().nonnegative(),
-      width: imageDimension,
-      height: imageDimension,
-      sha256: z.string().regex(/^[a-f0-9]{64}$/),
-      storage: z.discriminatedUnion('kind', [
-        z.object({ kind: z.literal('embedded'), archivePath: z.string().startsWith('assets/') }),
-        z.object({
-          kind: z.literal('linked'),
-          displayHint: z.string().min(1),
-          relativePath: z.string().min(1).optional(),
-          lastModified: z.number().int().optional(),
-        }),
-      ]),
+        id: z.string().uuid(),
+        originalName: z.string().min(1),
+        mediaType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']),
+        byteLength: z.number().int().nonnegative(),
+        width: imageDimension,
+        height: imageDimension,
+        sha256: z.string().regex(/^[a-f0-9]{64}$/),
+        storage: z.discriminatedUnion('kind', [
+          z.object({ kind: z.literal('embedded'), archivePath: z.string().startsWith('assets/') }),
+          z.object({
+            kind: z.literal('linked'),
+            displayHint: z.string().min(1),
+            relativePath: z.string().min(1).optional(),
+            lastModified: z.number().int().optional(),
+          }),
+        ]),
       })
       .refine((asset) => asset.width * asset.height <= maxImagePixels, {
         message: 'Image dimensions exceed the 100 megapixel limit',
