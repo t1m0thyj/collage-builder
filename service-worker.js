@@ -1,6 +1,6 @@
 const CACHE_PREFIX = `collage-builder-shell:${self.registration.scope}:`
-const CACHE_NAME = CACHE_PREFIX + "4b815a593458bf02"
-const PRECACHE_FILES = ["","assets/archive-BvkXtfaG.js","assets/autosave-Nic-Dxt6.js","assets/canvas-vendor-Bl7Cu_oJ.js","assets/export.worker-D9TimHIy.js","assets/exportPng-D4gyRDxX.js","assets/heic-to-CuP2Qlsw.js","assets/index-D3xs7ShD.css","assets/index-D5e0JZ2C.js","assets/linkedAssets-BDE3fuBW.js","assets/migrations-LlGbHd0v.js","assets/optional-COeV9fyn.js","assets/zipStreams-BkNyu-8U.js","favicon.svg","icons.svg","index.html"]
+const CACHE_NAME = CACHE_PREFIX + "23a3ceb11f31bfd3"
+const PRECACHE_FILES = ["","assets/archive-CSFkGJcs.js","assets/autosave-C8lJSycA.js","assets/canvas-vendor-Bl7Cu_oJ.js","assets/export.worker-D9TimHIy.js","assets/exportPng-btvl6gOy.js","assets/heic-to-CuP2Qlsw.js","assets/index-BJcrXDLh.js","assets/index-D3xs7ShD.css","assets/linkedAssets-DPmSj48H.js","assets/migrations-Q9F_yydW.js","assets/optional-COeV9fyn.js","assets/zipStreams-BvnqxO7c.js","favicon.svg","icons.svg","index.html"]
 
 const scopedUrl = (file) => new URL(file, self.registration.scope).href
 
