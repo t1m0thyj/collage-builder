@@ -1,7 +1,8 @@
 import type { AssetRecordV1, CollageDocumentV1 } from '../domain/types'
 import { migrateDocument } from '../domain/migrations'
+import { linkedProjectMimeType } from './formats'
 
-export const linkedProjectMimeType = 'application/json'
+export { linkedProjectMimeType } from './formats'
 export const maxLinkedProjectBytes = 32 * 1024 * 1024
 
 type DirectoryFile = File & { webkitRelativePath?: string }
@@ -47,7 +48,9 @@ export async function matchLinkedAssets(
     const possible = candidates.filter(
       (candidate) =>
         candidate.file.size === asset.byteLength &&
-        (!wanted || candidate.relativePath === wanted || candidate.file.name === wanted.split('/').at(-1)),
+        (!wanted ||
+          candidate.relativePath === wanted ||
+          candidate.file.name === wanted.split('/').at(-1)),
     )
     for (const candidate of possible) {
       const sha256 = await digest(candidate.file)

@@ -1,0 +1,103 @@
+:root {
+  --radius: 0.65rem;
+  --background: #f2f5fb;
+  --foreground: #27251f;
+  --card: #ffffff;
+  --card-foreground: #27251f;
+  --popover: #ffffff;
+  --popover-foreground: #27251f;
+  --primary: #315c9c;
+  --primary-foreground: #ffffff;
+  --secondary: #e8eef8;
+  --secondary-foreground: #264670;
+  --muted: #edf1f7;
+  --muted-foreground: #6b7280;
+  --accent: #dce8f7;
+  --accent-foreground: #264670;
+  --destructive: #b42318;
+  --border: #d6dfed;
+  --input: #cfd9e8;
+  --ring: #315c9c;
+  --app-canvas: #dce5f2;
+  --app-canvas-highlight: #f4f7fc;
+  --app-surface: #ffffff;
+  --app-surface-subtle: #f3f7fc;
+  --app-surface-muted: #e7effb;
+  --app-border-subtle: #dbe4f1;
+  --app-text: #403d37;
+  --app-text-muted: #716d64;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  color: var(--foreground);
+  background: var(--app-canvas);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-width: 960px;
+  min-height: 100vh;
+}
+button,
+input {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+}
+button:focus-visible,
+input:focus-visible {
+  outline: 3px solid #315c9c;
+  outline-offset: 2px;
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.canvas-frame-controls {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.canvas-frame-controls button {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.canvas-frame-controls button:focus-visible {
+  top: 12px;
+  left: 12px;
+  z-index: 20;
+  width: auto;
+  height: auto;
+  max-width: calc(100% - 24px);
+  overflow: visible;
+  clip: auto;
+  padding: 8px 12px;
+  border: 2px solid #77a9f1;
+  border-radius: 6px;
+  background: #14233a;
+  color: #fff;
+  font: inherit;
+  pointer-events: auto;
+}

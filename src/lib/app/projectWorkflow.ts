@@ -1,0 +1,161 @@
+import { createProject } from '../domain/factories'
+import type { CollageDocumentV1, PageV1 } from '../domain/types'
+import type { AssetRegistry } from '../render/assetRegistry'
+import type { ProjectStore } from '../state/projectStore'
+import { matchProjectAssets, openProjectFile, type ProjectSaveFormat } from './projectIO'
+import type { ProjectPersistenceController } from './projectPersistence'
+
+type PendingNavigation = 'new' | 'open' | null
+
+interface ProjectWorkflowHost {
+  project: ProjectStore
+  persistence: ProjectPersistenceController
+  document: () => CollageDocumentV1
+  projectTitle: () => string
+  registry: () => AssetRegistry
+  activePage: () => PageV1
+  isDirty: () => boolean
+  recoveredOnly: () => boolean
+  pendingNavigation: () => PendingNavigation
+  pendingLinkedDocument: () => CollageDocumentV1 | null
+  missingAssetIds: () => Set<string>
+  chooseProject: () => void
+  chooseLinkedFolder: () => Promise<FileList | null>
+  chooseFallbackFormat: () => Promise<ProjectSaveFormat | null>
+  installDocument: (document: CollageDocumentV1, assets: Map<string, Blob>) => Promise<void>
+  preparePageImages: (page: PageV1, registry: AssetRegistry) => Promise<void>
+  setPendingNavigation: (pending: PendingNavigation) => void
+  setPendingLinkedDocument: (document: CollageDocumentV1 | null) => void
+  setMissingAssetIds: (assetIds: Set<string>) => void
+  setRecoveredOnly: (recovered: boolean) => void
+  setActivePageId: (pageId: string) => void
+  setSelectedSlotId: (slotId: string | null) => void
+  setSelectedAssetId: (assetId: string | null) => void
+  setCropModeSlotId: (slotId: string | null) => void
+  setProjectTitle: (title: string) => void
+  incrementImageRevision: () => void
+  announce: (message: string) => void
+}
+
+export class ProjectWorkflowController {
+  constructor(private readonly host: ProjectWorkflowHost) {}
+
+  newProject = () => {
+    const next = createProject('Untitled collage')
+    this.host.registry().clear()
+    this.host.setMissingAssetIds(new Set())
+    this.host.persistence.reset()
+    this.host.setRecoveredOnly(false)
+    this.host.project.replaceDocument(next)
+    this.host.setProjectTitle(next.title)
+    this.host.setActivePageId(next.pages[0].id)
+    this.host.setSelectedSlotId(null)
+    this.host.setSelectedAssetId(null)
+    this.host.setCropModeSlotId(null)
+    this.host.announce('New blank project created.')
+  }
+
+  requestNew = () => {
+    if (this.host.isDirty() || this.host.recoveredOnly()) this.host.setPendingNavigation('new')
+    else this.newProject()
+  }
+
+  requestOpen = () => {
+    if (this.host.isDirty() || this.host.recoveredOnly()) this.host.setPendingNavigation('open')
+    else this.host.chooseProject()
+  }
+
+  continueNavigation = () => {
+    const action = this.host.pendingNavigation()
+    this.host.setPendingNavigation(null)
+    if (action === 'new') this.newProject()
+    else if (action === 'open') this.host.chooseProject()
+  }
+
+  save = async (saveAs = false): Promise<boolean> => {
+    try {
+      const format = await this.host.persistence.save({
+        document: this.host.document(),
+        registry: this.host.registry(),
+        projectTitle: this.host.projectTitle(),
+        saveAs,
+        chooseFallback: this.host.chooseFallbackFormat,
+        chooseLinkedFolder: this.host.chooseLinkedFolder,
+      })
+      if (!format) return false
+      this.host.project.markClean()
+      this.host.setRecoveredOnly(false)
+      this.host.announce(
+        format === 'embedded'
+          ? 'Embedded project saved.'
+          : 'Linked project saved. Images remain in the chosen folder.',
+      )
+      return true
+    } catch (error) {
+      this.host.announce(error instanceof Error ? error.message : 'Unable to save project')
+      return false
+    }
+  }
+
+  saveThenContinue = async () => {
+    if (await this.save()) this.continueNavigation()
+  }
+
+  requestLinkedFolder = async () => {
+    const target = this.host.pendingLinkedDocument()
+    if (!target) return
+    const files = await this.host.chooseLinkedFolder()
+    if (!files) return
+    try {
+      const matches = await matchProjectAssets(target.assets, files)
+      this.host.persistence.setLinkedMatches(matches)
+      for (const [assetId, match] of matches) {
+        const asset = target.assets[assetId]
+        await this.host.registry().register(assetId, match.file, asset?.sha256, asset)
+      }
+      this.host.setMissingAssetIds(
+        new Set([...this.host.missingAssetIds()].filter((assetId) => !matches.has(assetId))),
+      )
+      this.host.incrementImageRevision()
+      await this.host.preparePageImages(this.host.activePage(), this.host.registry())
+      this.host.setPendingLinkedDocument(null)
+      this.host.announce(
+        matches.size === Object.keys(target.assets).length
+          ? 'Linked images loaded.'
+          : `${matches.size} linked image(s) found; the rest still need relinking.`,
+      )
+    } catch (error) {
+      this.host.announce(
+        error instanceof Error ? error.message : 'Unable to use the selected asset folder',
+      )
+    }
+  }
+
+  open = async (file: File | undefined) => {
+    if (!file) return
+    try {
+      const { format, opened } = await openProjectFile(file)
+      await this.host.installDocument(opened.document, opened.assets)
+      const linkedIds = format === 'linked' ? Object.keys(opened.document.assets) : []
+      this.host.persistence.reset(format)
+      this.host.setMissingAssetIds(new Set([...opened.missingAssetIds, ...linkedIds]))
+      this.host.setPendingLinkedDocument(linkedIds.length ? opened.document : null)
+      this.host.setRecoveredOnly(false)
+      this.host.setActivePageId(opened.document.pages[0].id)
+      this.host.setSelectedSlotId(null)
+      this.host.setProjectTitle(opened.document.title)
+      this.host.announce(
+        opened.missingAssetIds.length || linkedIds.length
+          ? `Project opened with ${opened.missingAssetIds.length + linkedIds.length} image(s) to locate.`
+          : 'Project opened.',
+      )
+    } catch (error) {
+      this.host.announce(error instanceof Error ? error.message : 'Unable to open project')
+    }
+  }
+}
+
+export function saveAsModifierPressed(event: MouseEvent): boolean {
+  const isApplePlatform = /Mac|iPhone|iPad|iPod/.test(globalThis.navigator.platform)
+  return isApplePlatform ? event.altKey : event.shiftKey
+}

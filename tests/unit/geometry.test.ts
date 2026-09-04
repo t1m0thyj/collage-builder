@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { createPage } from '../../src/lib/domain/factories'
+import { layout4Presets } from '../../src/lib/layouts/definitions/4'
 import { resolveLayout } from '../../src/lib/domain/geometry'
 import { panPlacement, resolveCoverPlacement, zoomPlacement } from '../../src/lib/domain/crop'
 
 describe('split-tree layout resolution', () => {
   it('tiles the padded area with uniform gaps', () => {
-    const page = createPage('Page', 'layout-4-001')
+    const page = createPage('Page', layout4Presets[0])
     const frames = resolveLayout(page)
     expect(frames).toHaveLength(4)
     expect(frames.map(({ x, y, width, height }) => [x, y, width, height])).toEqual([

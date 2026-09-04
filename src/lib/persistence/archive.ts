@@ -1,9 +1,11 @@
 import { migrateDocument } from '../domain/migrations'
 import type { CollageDocumentV1 } from '../domain/types'
 import { unzipBlobBounded, zipBlobs, type ZipBlobEntry } from './zipStreams'
+import { maxProjectBytes } from './limits'
+import { collageMimeType } from './formats'
 
-export const collageMimeType = 'application/vnd.collage-builder+zip'
-export const maxProjectBytes = 256 * 1024 * 1024
+export { collageMimeType } from './formats'
+export { maxProjectBytes } from './limits'
 
 export interface ArchiveAssets {
   get(assetId: string): Blob | undefined

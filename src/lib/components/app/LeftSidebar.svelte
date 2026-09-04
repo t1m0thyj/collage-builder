@@ -1,0 +1,76 @@
+<script lang="ts">
+  import type { AssetRecordV1, LayoutPresetDefinition, PageV1 } from '../../domain/types'
+  import type { AssetFilter, AssetSort } from '../../app/assetManagement'
+  import type { AssetRegistry } from '../../render/assetRegistry'
+  import AssetPanel from './AssetPanel.svelte'
+  import LayoutPanel from './LayoutPanel.svelte'
+
+  export let activeTab: 'layouts' | 'images'
+  export let page: PageV1
+  export let libraryTargetSlotId: string | null
+  export let assets: AssetRecordV1[]
+  export let filteredAssets: AssetRecordV1[]
+  export let selectedAssetIds: string[]
+  export let missingAssetIds: Set<string>
+  export let assetRegistry: AssetRegistry
+  export let assetQuery: string
+  export let assetSort: AssetSort
+  export let assetFilter: AssetFilter
+  export let onselectlayout: (preset: LayoutPresetDefinition) => void
+  export let onerror: (message: string) => void
+  export let ondrop: (event: DragEvent) => void
+  export let onselectasset: (assetId: string, multi?: boolean) => void
+  export let onstartdrag: (event: DragEvent, assetId: string) => void
+  export let onaddtopage: (assetId: string) => void
+  export let onreplace: (assetId: string) => void
+  export let onrelink: (assetId: string) => void
+  export let onremove: (assetIds: string[]) => void
+  export let onchooseimages: () => void
+  export let onmanageimages: () => void
+  export let assetUsage: (assetId: string) => number
+  export let formatBytes: (bytes: number) => string
+</script>
+
+<aside class="sidebar left-panel" aria-label="Layouts and images">
+  <div class="panel-tabs" role="tablist" aria-label="Editor panel">
+    <button
+      class:active={activeTab === 'layouts'}
+      role="tab"
+      aria-selected={activeTab === 'layouts'}
+      onclick={() => (activeTab = 'layouts')}>Layouts</button
+    >
+    <button
+      class:active={activeTab === 'images'}
+      role="tab"
+      aria-selected={activeTab === 'images'}
+      onclick={() => (activeTab = 'images')}>Images</button
+    >
+  </div>
+
+  {#if activeTab === 'layouts'}
+    <LayoutPanel {page} onselect={onselectlayout} {onerror}></LayoutPanel>
+  {:else}
+    <AssetPanel
+      {libraryTargetSlotId}
+      {assets}
+      {filteredAssets}
+      bind:selectedAssetIds
+      {missingAssetIds}
+      {assetRegistry}
+      bind:assetQuery
+      bind:assetSort
+      bind:assetFilter
+      {ondrop}
+      {onselectasset}
+      {onstartdrag}
+      {onaddtopage}
+      {onreplace}
+      {onrelink}
+      {onremove}
+      {onchooseimages}
+      {onmanageimages}
+      {assetUsage}
+      {formatBytes}
+    ></AssetPanel>
+  {/if}
+</aside>

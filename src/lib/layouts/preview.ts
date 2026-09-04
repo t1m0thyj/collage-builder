@@ -1,5 +1,5 @@
 import type { LayoutPresetDefinition, PageV1, ResolvedFrame } from '../domain/types'
-import { defaultPageStyle, instantiateLayout } from '../domain/factories'
+import { defaultPageStyle, instantiatePreset } from '../domain/factories'
 import { resolveLayout } from '../domain/geometry'
 
 export function previewFrames(
@@ -7,7 +7,7 @@ export function previewFrames(
   width = 120,
   height = 90,
 ): ResolvedFrame[] {
-  const instance = instantiateLayout(preset.id)
+  const instance = instantiatePreset(preset)
   const page: PageV1 = {
     id: 'preview',
     name: 'Preview',

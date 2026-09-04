@@ -1,11 +1,12 @@
 import { derived, get, readonly, writable, type Readable, type Writable } from 'svelte/store'
 import { assertDocumentInvariants } from '../domain/invariants'
-import { createPage, defaultPlacement, instantiateLayout } from '../domain/factories'
+import { createPage, defaultPlacement, instantiatePreset } from '../domain/factories'
 import { resolveLayout } from '../domain/geometry'
 import type {
   AssetRecordV1,
   CollageDocumentV1,
   NormalizedPoint,
+  LayoutPresetDefinition,
   PageV1,
   SlotContentV1,
   SlotId,
@@ -66,11 +67,11 @@ export class ProjectStore {
     })
   }
 
-  changeLayout(pageId: string, presetId: string): void {
+  changeLayout(pageId: string, preset: LayoutPresetDefinition): void {
     this.commit((draft) => {
       const page = this.findPage(draft, pageId)
       const orderedContent = resolveLayout(page).map((frame) => page.slots[frame.slotId])
-      const instance = instantiateLayout(presetId)
+      const instance = instantiatePreset(preset)
       const newSlotIds = Object.keys(instance.slots)
       newSlotIds.forEach((slotId, index) => {
         instance.slots[slotId] = orderedContent[index] ?? null

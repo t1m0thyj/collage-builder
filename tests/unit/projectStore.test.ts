@@ -2,6 +2,7 @@ import { get } from 'svelte/store'
 import { describe, expect, it } from 'vitest'
 import { createProject } from '../../src/lib/domain/factories'
 import { ProjectStore } from '../../src/lib/state/projectStore'
+import { layout4Presets } from '../../src/lib/layouts/definitions/4'
 
 describe('project history', () => {
   it('changes layouts transactionally and restores them through undo/redo', () => {
@@ -9,7 +10,7 @@ describe('project history', () => {
     const store = new ProjectStore(project)
     const pageId = project.pages[0].id
     store.renameProject('Updated')
-    store.changeLayout(pageId, 'layout-4-001')
+    store.changeLayout(pageId, layout4Presets[0])
     expect(get(store.document).pages[0].layout.presetId).toBe('layout-4-001')
     expect(get(store.canUndo)).toBe(true)
     store.undo()

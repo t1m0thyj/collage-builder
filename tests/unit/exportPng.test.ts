@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import {
-  countUpscaledPlacements,
-  exportDimensions,
-  resolveExportRange,
-} from '../../src/lib/render/exportPng'
+import { exportDimensions, resolveExportRange } from '../../src/lib/render/exportPng'
+import { countUpscaledPlacements } from '../../src/lib/render/exportQuality'
 import { createProject } from '../../src/lib/domain/factories'
 import { createPage } from '../../src/lib/domain/factories'
 describe('export ranges', () => {

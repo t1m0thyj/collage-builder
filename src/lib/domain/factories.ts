@@ -1,10 +1,12 @@
-import { getPreset } from '../layouts/catalog'
+import { layout2Presets } from '../layouts/definitions/2'
+import { layout3Presets } from '../layouts/definitions/3'
 import { createId } from '../utils/ids'
 import { defaultPlacement } from './crop'
 import type {
   CollageDocumentV1,
   LayoutNodeV1,
   LayoutPresetNode,
+  LayoutPresetDefinition,
   LayoutSnapshotV1,
   PageStyleV1,
   PageV1,
@@ -49,11 +51,10 @@ function instantiateNode(node: LayoutPresetNode, slotIds: string[]): LayoutNodeV
   }
 }
 
-export function instantiateLayout(presetId: string): {
+export function instantiatePreset(preset: LayoutPresetDefinition): {
   layout: LayoutSnapshotV1
   slots: PageV1['slots']
 } {
-  const preset = getPreset(presetId)
   const slotIds: string[] = []
   const root = instantiateNode(preset.root, slotIds)
   return {
@@ -62,8 +63,23 @@ export function instantiateLayout(presetId: string): {
   }
 }
 
-export function createPage(name = 'Page 1', presetId = 'layout-3-001'): PageV1 {
-  const instance = instantiateLayout(presetId)
+const defaultPresets = [...layout2Presets, ...layout3Presets]
+
+export function instantiateDefaultLayout(presetId: string): {
+  layout: LayoutSnapshotV1
+  slots: PageV1['slots']
+} {
+  const preset = defaultPresets.find((candidate) => candidate.id === presetId)
+  if (!preset) throw new Error(`Unknown default layout preset: ${presetId}`)
+  return instantiatePreset(preset)
+}
+
+export function createPage(
+  name = 'Page 1',
+  preset: string | LayoutPresetDefinition = 'layout-3-001',
+): PageV1 {
+  const instance =
+    typeof preset === 'string' ? instantiateDefaultLayout(preset) : instantiatePreset(preset)
   return { id: createId(), name, width: 3840, height: 2880, ...instance, style: defaultPageStyle() }
 }
 
