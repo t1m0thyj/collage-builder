@@ -7,6 +7,7 @@ export class AssetRegistry {
   private readonly images = new Map<AssetId, HTMLImageElement>()
   private readonly imageLoads = new Map<AssetId, Promise<HTMLImageElement>>()
   private readonly objectUrls = new Map<AssetId, string>()
+  private readonly renderableBlobs = new Map<AssetId, Blob>()
   private readonly thumbnailUrls = new Map<AssetId, string>()
   private readonly retained = new Map<string, Blob>()
   private retainedBytes = 0
@@ -29,6 +30,7 @@ export class AssetRegistry {
     const objectUrl = URL.createObjectURL(renderableBlob)
     try {
       this.blobs.set(assetId, blob)
+      this.renderableBlobs.set(assetId, renderableBlob)
       if (sha256) this.activeHashes.set(assetId, sha256)
       this.objectUrls.set(assetId, objectUrl)
       this.thumbnailUrls.set(assetId, URL.createObjectURL(thumbnail))
@@ -105,23 +107,28 @@ export class AssetRegistry {
     if (pending) return pending
     const objectUrl = this.objectUrls.get(assetId)
     if (!objectUrl) throw new Error(`Missing original bytes for asset ${assetId}`)
-    const load = this.decodeImage(objectUrl).catch(async (error) => {
-      const originalBlob = this.blobs.get(assetId)
-      if (!originalBlob || !isHeicBlob(originalBlob)) throw error
-      const fallbackBlob = await convertHeicForDisplay(originalBlob, 'Stored HEIC/HEIF image')
-      const fallbackUrl = URL.createObjectURL(fallbackBlob)
-      try {
-        const image = await this.decodeImage(fallbackUrl)
-        const staleUrl = this.objectUrls.get(assetId)
-        this.objectUrls.set(assetId, fallbackUrl)
-        if (staleUrl) URL.revokeObjectURL(staleUrl)
+    const load = this.decodeImage(objectUrl)
+      .then((image) => {
         this.images.set(assetId, image)
         return image
-      } catch (fallbackError) {
-        URL.revokeObjectURL(fallbackUrl)
-        throw fallbackError
-      }
-    })
+      })
+      .catch(async (error) => {
+        const originalBlob = this.blobs.get(assetId)
+        if (!originalBlob || !isHeicBlob(originalBlob)) throw error
+        const fallbackBlob = await convertHeicForDisplay(originalBlob, 'Stored HEIC/HEIF image')
+        const fallbackUrl = URL.createObjectURL(fallbackBlob)
+        try {
+          const image = await this.decodeImage(fallbackUrl)
+          const staleUrl = this.objectUrls.get(assetId)
+          this.objectUrls.set(assetId, fallbackUrl)
+          if (staleUrl) URL.revokeObjectURL(staleUrl)
+          this.images.set(assetId, image)
+          return image
+        } catch (fallbackError) {
+          URL.revokeObjectURL(fallbackUrl)
+          throw fallbackError
+        }
+      })
     this.imageLoads.set(assetId, load)
     try {
       return await load
@@ -155,6 +162,9 @@ export class AssetRegistry {
   }
   getBlob(assetId: AssetId): Blob | undefined {
     return this.blobs.get(assetId)
+  }
+  getRenderableBlob(assetId: AssetId): Blob | undefined {
+    return this.renderableBlobs.get(assetId)
   }
   getObjectUrl(assetId: AssetId): string | undefined {
     return this.objectUrls.get(assetId)
@@ -204,6 +214,7 @@ export class AssetRegistry {
     this.imageLoads.delete(assetId)
     this.images.delete(assetId)
     this.blobs.delete(assetId)
+    this.renderableBlobs.delete(assetId)
     this.activeHashes.delete(assetId)
   }
 

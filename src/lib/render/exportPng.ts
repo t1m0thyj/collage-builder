@@ -1,7 +1,7 @@
-import { resolveCoverPlacement } from '../domain/crop'
-import { resolveLayout } from '../domain/geometry'
 import type { AssetRecordV1, PageV1 } from '../domain/types'
 import { zipBlobs } from '../persistence/zipStreams'
+import { drawExportPage } from './exportCanvas'
+import { renderPageInWorker, supportsWorkerExport } from './exportWorkerClient'
 
 export { resolveExportRange } from './exportQuality'
 
@@ -26,39 +26,123 @@ export function exportDimensions(page: PageV1, width: number): { width: number; 
   return { width, height }
 }
 
-function framePath(
-  context: CanvasRenderingContext2D,
-  frame: ReturnType<typeof resolveLayout>[number],
-  cornerRadius: number,
-) {
-  context.beginPath()
-  if (frame.polygon) {
-    context.moveTo(
-      frame.x + frame.polygon[0].x * frame.width,
-      frame.y + frame.polygon[0].y * frame.height,
-    )
-    frame.polygon
-      .slice(1)
-      .forEach((point) =>
-        context.lineTo(frame.x + point.x * frame.width, frame.y + point.y * frame.height),
-      )
-    context.closePath()
-    return
-  }
-  context.roundRect(
-    frame.x,
-    frame.y,
-    frame.width,
-    frame.height,
-    Math.min(cornerRadius, frame.width / 2, frame.height / 2),
-  )
+export interface ExportRenderMeasurement {
+  durationMs: number
+  pixelCount: number
+  renderer: 'worker' | 'main-thread'
 }
 
-function shadowColor(color: string, opacity: number): string {
-  const red = Number.parseInt(color.slice(1, 3), 16)
-  const green = Number.parseInt(color.slice(3, 5), 16)
-  const blue = Number.parseInt(color.slice(5, 7), 16)
-  return `rgb(${red} ${green} ${blue} / ${opacity})`
+export interface RenderedPageImage extends ExportRenderMeasurement {
+  blob: Blob
+}
+
+function recordMeasurement(measurement: ExportRenderMeasurement, startedAt: number): void {
+  try {
+    performance.measure('collage-export-render', {
+      start: startedAt,
+      end: performance.now(),
+      detail: measurement,
+    })
+  } catch {
+    // Export still succeeds in browsers without User Timing Level 3 detail support.
+  }
+}
+
+function pageAssetIds(page: PageV1): string[] {
+  return [
+    ...new Set(Object.values(page.slots).flatMap((content) => (content ? [content.assetId] : []))),
+  ]
+}
+
+async function renderPageImageOnMainThread(
+  page: PageV1,
+  assets: Record<string, AssetRecordV1>,
+  getImage: (assetId: string) => HTMLImageElement | undefined,
+  width: number,
+  height: number,
+  format: ExportFormat,
+  quality: number,
+): Promise<Blob> {
+  const canvas = globalThis.document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  try {
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error('Canvas rendering is unavailable')
+    drawExportPage(context, page, assets, getImage, width, format)
+    const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png'
+    const outputQuality = format === 'jpeg' ? jpegQuality(quality) : undefined
+    return await new Promise((resolve, reject) =>
+      canvas.toBlob(
+        (blob) =>
+          blob
+            ? resolve(blob)
+            : reject(new Error(`${format === 'jpeg' ? 'JPEG' : 'PNG'} rendering failed`)),
+        mimeType,
+        outputQuality,
+      ),
+    )
+  } finally {
+    canvas.width = 1
+    canvas.height = 1
+  }
+}
+
+export async function renderPageImageMeasured(
+  page: PageV1,
+  assets: Record<string, AssetRecordV1>,
+  getImage: (assetId: string) => HTMLImageElement | undefined,
+  getRenderableBlob: ((assetId: string) => Blob | undefined) | undefined,
+  width: number,
+  format: ExportFormat,
+  quality = 90,
+  ensureImages?: (assetIds: Iterable<string>) => Promise<unknown>,
+): Promise<RenderedPageImage> {
+  const { height } = exportDimensions(page, width)
+  const outputQuality = format === 'jpeg' ? jpegQuality(quality) : quality
+  const startedAt = performance.now()
+  let renderer: ExportRenderMeasurement['renderer'] = 'main-thread'
+  let blob: Blob | undefined
+
+  if (getRenderableBlob && supportsWorkerExport()) {
+    const assetIds = pageAssetIds(page)
+    const images = assetIds.map((assetId) => ({
+      assetId,
+      blob: getRenderableBlob(assetId),
+    }))
+    if (images.every((image): image is { assetId: string; blob: Blob } => Boolean(image.blob))) {
+      try {
+        const pageAssets = Object.fromEntries(
+          assetIds.flatMap((assetId) => (assets[assetId] ? [[assetId, assets[assetId]]] : [])),
+        )
+        blob = await renderPageInWorker(
+          page,
+          pageAssets,
+          images,
+          width,
+          height,
+          format,
+          outputQuality,
+        )
+        renderer = 'worker'
+      } catch {
+        // A browser can expose OffscreenCanvas without supporting every required operation.
+        // Keep the established canvas path as a compatibility fallback.
+      }
+    }
+  }
+
+  if (!blob) {
+    await ensureImages?.(pageAssetIds(page))
+    blob = await renderPageImageOnMainThread(page, assets, getImage, width, height, format, quality)
+  }
+  const measurement: ExportRenderMeasurement = {
+    durationMs: performance.now() - startedAt,
+    pixelCount: width * height,
+    renderer,
+  }
+  recordMeasurement(measurement, startedAt)
+  return { blob, ...measurement }
 }
 
 export async function renderPageImage(
@@ -68,70 +152,21 @@ export async function renderPageImage(
   width: number,
   format: ExportFormat,
   quality = 90,
+  getRenderableBlob?: (assetId: string) => Blob | undefined,
+  ensureImages?: (assetIds: Iterable<string>) => Promise<unknown>,
 ): Promise<Blob> {
-  const dimensions = exportDimensions(page, width)
-  const height = dimensions.height
-  const canvas = globalThis.document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
-  const context = canvas.getContext('2d')
-  if (!context) throw new Error('Canvas rendering is unavailable')
-  const scale = width / page.width
-  context.scale(scale, scale)
-  if (!page.style.transparentBackground || format === 'jpeg') {
-    context.fillStyle = page.style.transparentBackground ? '#FFFFFF' : page.style.backgroundColor
-    context.fillRect(0, 0, page.width, page.height)
-  }
-  if (page.style.shadow.enabled)
-    for (const frame of resolveLayout(page)) {
-      if (!page.slots[frame.slotId]) continue
-      context.save()
-      context.shadowColor = shadowColor(page.style.shadow.color, page.style.shadow.opacity)
-      context.shadowBlur = page.style.shadow.blur
-      context.shadowOffsetX = page.style.shadow.offsetX
-      context.shadowOffsetY = page.style.shadow.offsetY
-      context.fillStyle = '#FFFFFF'
-      framePath(context, frame, page.style.cornerRadius)
-      context.fill()
-      context.restore()
-    }
-  for (const frame of resolveLayout(page)) {
-    const content = page.slots[frame.slotId]
-    if (!content) continue
-    const asset = assets[content.assetId]
-    const image = getImage(content.assetId)
-    if (!asset || !image) throw new Error('An image is not available for export')
-    const placement = resolveCoverPlacement(
-      frame.width,
-      frame.height,
-      asset.width,
-      asset.height,
-      content.placement,
+  return (
+    await renderPageImageMeasured(
+      page,
+      assets,
+      getImage,
+      getRenderableBlob,
+      width,
+      format,
+      quality,
+      ensureImages,
     )
-    context.save()
-    framePath(context, frame, page.style.cornerRadius)
-    context.clip()
-    context.drawImage(
-      image,
-      frame.x + placement.x,
-      frame.y + placement.y,
-      placement.width,
-      placement.height,
-    )
-    context.restore()
-  }
-  const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png'
-  const outputQuality = format === 'jpeg' ? jpegQuality(quality) : undefined
-  return new Promise((resolve, reject) =>
-    canvas.toBlob(
-      (blob) =>
-        blob
-          ? resolve(blob)
-          : reject(new Error(`${format === 'jpeg' ? 'JPEG' : 'PNG'} rendering failed`)),
-      mimeType,
-      outputQuality,
-    ),
-  )
+  ).blob
 }
 
 export async function renderPagePng(
@@ -143,10 +178,14 @@ export async function renderPagePng(
   return renderPageImage(page, assets, getImage, width, 'png')
 }
 
-export async function zipImages(pages: Array<{ name: string; blob: Blob }>): Promise<Blob> {
+export async function zipImages(
+  pages: Iterable<{ name: string; blob: Blob }> | AsyncIterable<{ name: string; blob: Blob }>,
+): Promise<Blob> {
   return zipBlobs(pages, 'application/zip')
 }
 
-export async function zipPngs(pages: Array<{ name: string; blob: Blob }>): Promise<Blob> {
+export async function zipPngs(
+  pages: Iterable<{ name: string; blob: Blob }> | AsyncIterable<{ name: string; blob: Blob }>,
+): Promise<Blob> {
   return zipImages(pages)
 }

@@ -51,34 +51,57 @@ export async function renderProjectExport({
   const { renderPageImage, zipImages } = await import('../render/exportPng')
   const activePageIndex = document.pages.findIndex((page) => page.id === activePageId)
   const indices = resolveExportRange(scope, activePageIndex, document.pages.length, range)
-  const rendered: Array<{ name: string; blob: Blob }> = []
-
-  for (const [position, index] of indices.entries()) {
+  const activePageAssetIds = pageAssetIds(document.pages[activePageIndex])
+  const renderPage = async (position: number, index: number) => {
     if (isCancelled()) throw new Error('Export cancelled')
     onProgress(`Rendering page ${position + 1} of ${indices.length}…`)
     const page = document.pages[index]
-    await registry.ensureImages(pageAssetIds(page))
-    rendered.push({
-      name: `${baseName}-${String(index + 1).padStart(2, '0')}.${format === 'jpeg' ? 'jpg' : 'png'}`,
-      blob: await renderPageImage(
-        page,
-        document.assets,
-        (assetId) => registry.getImage(assetId),
-        width,
-        format,
-        quality,
-      ),
-    })
+    const blob = await renderPageImage(
+      page,
+      document.assets,
+      (assetId) => registry.getImage(assetId),
+      width,
+      format,
+      quality,
+      (assetId) => registry.getRenderableBlob(assetId),
+      (assetIds) => registry.ensureImages(assetIds),
+    )
     if (isCancelled()) throw new Error('Export cancelled')
-    registry.releaseDecodedExcept(pageAssetIds(document.pages[activePageIndex]))
-    await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 0))
+    return {
+      name: `${baseName}-${String(index + 1).padStart(2, '0')}.${format === 'jpeg' ? 'jpg' : 'png'}`,
+      blob,
+    }
   }
 
-  onProgress(rendered.length > 1 ? 'Packaging ZIP…' : 'Preparing download…')
+  if (indices.length === 1) {
+    try {
+      const rendered = await renderPage(0, indices[0])
+      onProgress('Preparing download…')
+      return { blob: rendered.blob, filename: rendered.name, pageCount: 1 }
+    } finally {
+      registry.releaseDecodedExcept(activePageAssetIds)
+    }
+  }
+
+  async function* renderPages() {
+    for (const [position, index] of indices.entries()) {
+      try {
+        // zipImages fully consumes this Blob before requesting the next page, so only
+        // one rendered page remains reachable outside the growing final ZIP.
+        yield await renderPage(position, index)
+      } finally {
+        registry.releaseDecodedExcept(activePageAssetIds)
+      }
+      await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 0))
+    }
+    onProgress('Finalizing ZIP…')
+  }
+
+  const blob = await zipImages(renderPages())
   return {
-    blob: rendered.length === 1 ? rendered[0].blob : await zipImages(rendered),
-    filename: rendered.length === 1 ? rendered[0].name : `${baseName}-pages.zip`,
-    pageCount: rendered.length,
+    blob,
+    filename: `${baseName}-pages.zip`,
+    pageCount: indices.length,
   }
 }
 

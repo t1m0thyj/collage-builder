@@ -27,7 +27,10 @@ async function pushBlob(file: ZipPassThrough, blob: Blob): Promise<void> {
 }
 
 /** Builds a store-only ZIP incrementally so already-compressed photos are not copied repeatedly. */
-export async function zipBlobs(entries: Iterable<ZipBlobEntry>, type: string): Promise<Blob> {
+export async function zipBlobs(
+  entries: Iterable<ZipBlobEntry> | AsyncIterable<ZipBlobEntry>,
+  type: string,
+): Promise<Blob> {
   const chunks: BlobPart[] = []
   let resolveComplete: (() => void) | undefined
   let rejectComplete: ((error: Error) => void) | undefined
@@ -46,7 +49,7 @@ export async function zipBlobs(entries: Iterable<ZipBlobEntry>, type: string): P
     if (final) resolveComplete?.()
   })
   try {
-    for (const entry of entries) {
+    for await (const entry of entries) {
       const file = new ZipPassThrough(entry.name)
       archive.add(file)
       await pushBlob(file, entry.blob)

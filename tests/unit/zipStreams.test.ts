@@ -25,6 +25,34 @@ describe('bounded ZIP streams', () => {
     expect(await entries['two.txt'].text()).toBe('two')
   })
 
+  it('consumes async entries one at a time', async () => {
+    let firstEntryConsumed = false
+    const first = new Blob(['first'])
+    const originalStream = first.stream.bind(first)
+    first.stream = () => {
+      const reader = originalStream().getReader()
+      return new ReadableStream({
+        async pull(controller) {
+          const chunk = await reader.read()
+          if (chunk.done) {
+            firstEntryConsumed = true
+            controller.close()
+          } else controller.enqueue(chunk.value)
+        },
+      })
+    }
+    async function* entries() {
+      yield { name: 'first.txt', blob: first }
+      expect(firstEntryConsumed).toBe(true)
+      yield { name: 'second.txt', blob: new Blob(['second']) }
+    }
+
+    const archive = await zipBlobs(entries(), 'application/zip')
+    const expanded = await unzipBlobBounded(archive, safeOptions)
+    expect(await expanded['first.txt'].text()).toBe('first')
+    expect(await expanded['second.txt'].text()).toBe('second')
+  })
+
   it('rejects oversized expanded content before returning it', async () => {
     const compressed = new Blob([zipSync({ 'large.txt': new Uint8Array(600) })])
     await expect(unzipBlobBounded(compressed, safeOptions)).rejects.toThrow(

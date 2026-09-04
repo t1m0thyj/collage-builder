@@ -710,7 +710,10 @@ test('page-range export validates input and downloads the requested pages', asyn
   await expect(exportDialog).toBeHidden()
 })
 
-test('exports current-page PNGs at normal and default 4K resolutions', async ({ page }) => {
+test('exports current-page PNGs at normal and default 4K resolutions', async ({
+  page,
+  browserName,
+}) => {
   await page.goto('/')
   await importImage(page, 'export.png', redPng)
   const host = page.getByRole('region', { name: 'Collage canvas' })
@@ -733,6 +736,21 @@ test('exports current-page PNGs at normal and default 4K resolutions', async ({ 
   const largeDownload = page.waitForEvent('download')
   await dialog.getByRole('button', { name: 'Export', exact: true }).click()
   await expect(await pngDimensions(await largeDownload)).toEqual({ width: 3840, height: 2880 })
+
+  const renderMeasurements = await page.evaluate(() =>
+    performance.getEntriesByName('collage-export-render').map((entry) => {
+      const detail = (entry as PerformanceMeasure).detail as {
+        pixelCount: number
+        renderer: string
+      }
+      return { durationMs: entry.duration, ...detail }
+    }),
+  )
+  expect(renderMeasurements).toHaveLength(2)
+  expect(renderMeasurements.map(({ pixelCount }) => pixelCount)).toEqual([800 * 600, 3840 * 2880])
+  expect(renderMeasurements.every(({ durationMs }) => durationMs > 0)).toBe(true)
+  if (browserName === 'chromium')
+    expect(renderMeasurements.every(({ renderer }) => renderer === 'worker')).toBe(true)
 })
 
 test('exports JPEG with configurable quality', async ({ page }) => {

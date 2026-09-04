@@ -12,12 +12,12 @@ This checklist tracks every finding from the initial architecture and first-rele
 
 - [x] Make project opening atomic. Incoming documents and assets are staged and validated in a separate registry, and the live project is replaced only after staging succeeds. A damaged project-open regression test verifies that the current document and decoded assets survive failure.
 - [x] Replace the full-resolution, all-images-in-memory strategy. The image library now uses bounded 256 px derived thumbnails, full originals remain untouched, active-page images decode lazily, and decoded images from inactive pages are released.
-- [ ] **Partially complete:** Remove synchronous, memory-multiplying archive and multi-page export work.
+- [x] Remove synchronous, memory-multiplying archive and multi-page export work.
   - [x] Stream project ZIP input and output rather than using whole-buffer `zipSync`/`unzipSync`.
   - [x] Use worker-backed asynchronous inflation for compressed ZIP entries.
   - [x] Stream the final multi-page ZIP instead of constructing another complete ZIP byte buffer.
-  - [ ] Avoid retaining every rendered page PNG until a multi-page export ZIP is complete.
-  - [ ] Measure and, if needed, move high-cost image rendering off the main thread.
+  - [x] Feed each rendered page directly into the ZIP writer before rendering the next page, retaining at most the current page image outside the growing final ZIP.
+  - [x] Decode, draw, and encode exports in an OffscreenCanvas worker where supported, with a measured main-thread compatibility fallback. Each page records a `collage-export-render` User Timing measure with duration, pixel count, and renderer.
 - [x] Enforce ZIP-bomb protections before and during expansion. Archive processing now applies compressed-size, entry-count, entry-size, total-expanded-size, path, and duplicate-entry limits while streaming.
 
 ### High-priority architectural gaps
@@ -82,8 +82,12 @@ This checklist tracks every finding from the initial architecture and first-rele
 
 - Run `npm run verify` for type checking, linting, unit tests, and the production build.
 - Run `npm run test:e2e` for the normal cross-browser smoke suite.
-- Run `npm run test:benchmark` in Chromium for the synthetic 100-image/25-page regression scenario. Record timing, device, browser version, and memory warnings; treat it as a regression signal rather than a production-scale result.
+- Run `npm run test:benchmark` in Chromium for the synthetic 100-image/25-populated-page regression scenario. It exports a 1920 px ZIP and reports import, page creation, export and per-page render timing, renderer selection, long tasks, and available Chromium heap figures; treat it as a regression signal rather than a production-scale result.
 - Before release, use representative real photos to check every remaining manual item above.
+
+### Latest synthetic export baseline
+
+On 2026-09-04, Chromium 151.0.7922.34 on Windows 10.0.26200 (Intel Core i5-13600K, 20 logical CPUs, 32 GB RAM) imported the 100 synthetic images in 964 ms, created 25 populated pages in 2,498 ms, and exported their 1920 px PNG ZIP in 631 ms. All 25 page renders used the worker (465 ms total; 30 ms slowest page). Chromium reported 64 MB of used JS heap and one 111 ms long task across the complete import/create/export workflow. This baseline uses tiny synthetic source images; the separate representative-real-photo profile remains a release-validation item.
 
 ## Current browser notes
 
