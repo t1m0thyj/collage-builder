@@ -1,4 +1,6 @@
 import type { AssetId } from '../domain/types'
+import type { CollageDocumentV1 } from '../domain/types'
+import { maxProjectBytes } from '../persistence/limits'
 import { convertHeicForDisplay, isHeicBlob } from '../domain/heic'
 
 export class AssetRegistry {
@@ -11,7 +13,7 @@ export class AssetRegistry {
   private readonly thumbnailUrls = new Map<AssetId, string>()
   private readonly retained = new Map<string, Blob>()
   private retainedBytes = 0
-  private readonly retainedLimit = 256 * 1024 * 1024
+  private readonly retainedLimit = maxProjectBytes
   private readonly thumbnailEdge = 256
 
   async register(
@@ -182,12 +184,23 @@ export class AssetRegistry {
     if (!blob || this.retained.has(key)) return
     this.retained.set(key, blob)
     this.retainedBytes += blob.size
-    while (this.retainedBytes > this.retainedLimit) {
-      const oldest = this.retained.entries().next().value as [string, Blob] | undefined
-      if (!oldest) break
-      this.retained.delete(oldest[0])
-      this.retainedBytes -= oldest[1].size
-    }
+  }
+
+  get isOverRetainedLimit(): boolean {
+    return this.retainedBytes > this.retainedLimit
+  }
+
+  /** Release retained versions no longer reachable through document history. */
+  reconcileRetainedHistory(documents: Iterable<CollageDocumentV1>): void {
+    const referenced = new Set<string>()
+    for (const document of documents)
+      for (const asset of Object.values(document.assets))
+        referenced.add(`${asset.id}:${asset.sha256}`)
+    for (const [key, blob] of this.retained)
+      if (!referenced.has(key)) {
+        this.retained.delete(key)
+        this.retainedBytes -= blob.size
+      }
   }
 
   async restoreRetained(

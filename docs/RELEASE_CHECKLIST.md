@@ -31,7 +31,7 @@ This checklist tracks every finding from the initial architecture and first-rele
   - [x] Add recovery-management controls.
   - [x] Add multi-tab locking or conflict detection.
 - [x] Eliminate linked-project stale-reference risk. Cached linked-file matches are invalidated after replacement/relinking and are rechecked against current byte length and SHA-256 before save.
-- [x] Make asset removal reliably undoable at the supported project size and make bulk removal one history entry. Retained bytes now cover the 256 MB project limit.
+- [x] Make asset removal reliably undoable at the supported project size and make bulk removal one history entry. Retained bytes and history eviction share the 1 GB project limit.
 - [x] Split the root component into dedicated project-I/O, persistence, recovery, export, asset, image-session, editor-session, page-workflow, preferences, lifecycle, toolbar, file-input, sidebar, dialog, properties-panel, layout-panel, and editor-shell modules. The canvas page and crop layers and the global stylesheet are also split along functional boundaries. `App.svelte` is 571 lines, down from 2,566, and now focuses on application composition and cross-feature coordination; executable component and stylesheet modules stay around the 500-line target. Large layout-definition files remain declarative-data exceptions.
 - [x] Load noncritical layout definitions and editor workflows on demand. Default two- and three-frame layouts and the canvas editor remain eager for first-paint usability; layout groups 4–11 share one deferred 4.94 kB gzip catalog warmed on layout-control hover or focus. Archive, linked-project, recovery, and export implementations also load on demand. Konva remains eager in a separately cacheable chunk. The larger HEIC decoder is isolated in its own optional chunk and loads only when a HEIC/HEIF asset needs decoding.
 - [x] Add offline support without installability. A generated service worker precaches the complete production application bundle, including lazy chunks and public assets, and supports root or subdirectory deployments. Project data remains local; no web app manifest or install prompt is included.
@@ -75,7 +75,7 @@ This checklist tracks every finding from the initial architecture and first-rele
 - [ ] Manually import representative JPEG, PNG, WebP, HEIC/HEIF, and large real-photo files and confirm crop bounds, corner clipping, transparency, and shadows.
 - [ ] Verify save/open and automatic recovery manually with a large multi-page project.
 - [ ] Test current-page, all-pages, and range export manually at normal and large resolutions.
-- [ ] Profile a production-scale 100-image/25-page project using real photo-sized inputs and document timing and memory limits. The existing benchmark uses tiny synthetic images.
+- [ ] Profile a production-scale 100-image/25-page project using the representative photo fixture and document timing and memory limits.
 - [ ] Complete keyboard-only, screen-reader, contrast, zoom, and reduced-motion release audits.
 
 ## Repeatable checks
@@ -83,12 +83,12 @@ This checklist tracks every finding from the initial architecture and first-rele
 - Run `npm run verify` for type checking, linting, unit tests, and the production build.
 - Run `npm run test:e2e` for the normal cross-browser smoke suite.
 - Run `npm run test:offline` for the production-build offline reload and complete-precache check in Chromium.
-- Run `npm run test:benchmark` in Chromium for the synthetic 100-image/25-populated-page regression scenario. It exports a 1920 px ZIP and reports import, page creation, export and per-page render timing, renderer selection, long tasks, and available Chromium heap figures; treat it as a regression signal rather than a production-scale result.
+- Run `npm run test:benchmark` in Chromium for the representative-image 100-image/25-populated-page regression scenario. It exports a 1920 px ZIP and reports import, page creation, export and per-page render timing, renderer selection, long tasks, and available Chromium heap figures.
 - Before release, use representative real photos to check every remaining manual item above.
 
-### Latest synthetic export baseline
+### Superseded synthetic export baseline
 
-On 2026-09-04, Chromium 151.0.7922.34 on Windows 10.0.26200 (Intel Core i5-13600K, 20 logical CPUs, 32 GB RAM) imported the 100 synthetic images in 964 ms, created 25 populated pages in 2,498 ms, and exported their 1920 px PNG ZIP in 631 ms. All 25 page renders used the worker (465 ms total; 30 ms slowest page). Chromium reported 64 MB of used JS heap and one 111 ms long task across the complete import/create/export workflow. This baseline uses tiny synthetic source images; the separate representative-real-photo profile remains a release-validation item.
+On 2026-09-04, Chromium 151.0.7922.34 on Windows 10.0.26200 (Intel Core i5-13600K, 20 logical CPUs, 32 GB RAM) imported the 100 synthetic images in 964 ms, created 25 populated pages in 2,498 ms, and exported their 1920 px PNG ZIP in 631 ms. All 25 page renders used the worker (465 ms total; 30 ms slowest page). Chromium reported 64 MB of used JS heap and one 111 ms long task across the complete import/create/export workflow. These timing results are retained only as a historical synthetic baseline; re-run the representative-fixture benchmark before release.
 
 ## Current browser notes
 

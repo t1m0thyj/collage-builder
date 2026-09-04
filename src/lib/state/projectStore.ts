@@ -19,6 +19,7 @@ const clone = <T>(value: T): T => structuredClone(value)
 export class ProjectStore {
   private readonly state: Writable<CollageDocumentV1>
   private readonly history = new History<CollageDocumentV1>()
+  private readonly historyRevision = writable(0)
   private readonly dirty = writable(false)
   readonly document: Readable<CollageDocumentV1>
   readonly canUndo: Readable<boolean>
@@ -29,8 +30,8 @@ export class ProjectStore {
     assertDocumentInvariants(document)
     this.state = writable(clone(document))
     this.document = readonly(this.state)
-    this.canUndo = derived(this.state, () => this.history.canUndo)
-    this.canRedo = derived(this.state, () => this.history.canRedo)
+    this.canUndo = derived([this.state, this.historyRevision], () => this.history.canUndo)
+    this.canRedo = derived([this.state, this.historyRevision], () => this.history.canRedo)
     this.isDirty = readonly(this.dirty)
   }
 
@@ -41,6 +42,7 @@ export class ProjectStore {
   replaceDocument(document: CollageDocumentV1): void {
     assertDocumentInvariants(document)
     this.history.clear()
+    this.historyRevision.update((value) => value + 1)
     this.state.set(clone(document))
     this.dirty.set(false)
   }
@@ -55,6 +57,7 @@ export class ProjectStore {
     draft.updatedAt = new Date().toISOString()
     assertDocumentInvariants(draft)
     this.history.push(before)
+    this.historyRevision.update((value) => value + 1)
     this.state.set(draft)
     this.dirty.set(true)
   }
@@ -319,6 +322,16 @@ export class ProjectStore {
       this.state.set(next)
       this.dirty.set(true)
     }
+  }
+
+  historySnapshots(): readonly CollageDocumentV1[] {
+    return this.history.snapshots()
+  }
+
+  discardOldestUndo(): boolean {
+    const discarded = this.history.discardOldestUndo()
+    if (discarded) this.historyRevision.update((value) => value + 1)
+    return discarded
   }
 
   private findPage(document: CollageDocumentV1, pageId: string): PageV1 {

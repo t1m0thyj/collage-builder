@@ -17,6 +17,22 @@ export class History<T> {
     this.redoStack = []
   }
 
+  /** Snapshots that can still be reached through Undo or Redo. */
+  snapshots(): readonly T[] {
+    return [...this.undoStack, ...this.redoStack]
+  }
+
+  /**
+   * Drops the least-recently reachable undo state. Resource caches use this
+   * when their byte budget is exhausted, so an available Undo never refers to
+   * bytes that have already been discarded.
+   */
+  discardOldestUndo(): boolean {
+    if (!this.undoStack.length) return false
+    this.undoStack.shift()
+    return true
+  }
+
   undo(current: T): T | undefined {
     const previous = this.undoStack.pop()
     if (previous === undefined) return undefined

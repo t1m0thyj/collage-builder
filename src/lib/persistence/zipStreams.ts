@@ -1,4 +1,4 @@
-import { AsyncUnzipInflate, Unzip, UnzipPassThrough, Zip, ZipPassThrough } from 'fflate'
+import { AsyncInflate, Unzip, UnzipPassThrough, Zip, ZipPassThrough } from 'fflate'
 
 export interface ZipBlobEntry {
   name: string
@@ -10,6 +10,32 @@ export interface BoundedUnzipOptions {
   maxEntryBytes: number
   maxExpandedBytes: number
   validateName: (name: string) => void
+}
+
+// A DEFLATE stream can expand by a little over 1,000x in a single input byte.
+// Keep every decoder push small enough that an adversarial entry cannot make
+// fflate materialize a large output chunk before our ondata limit check runs.
+const maxDeflateExpansionPerInputByte = 1_100
+
+/** Unlike fflate's AsyncUnzipInflate, this always uses a worker. */
+class WorkerUnzipInflate {
+  static compression = 8
+  ondata!: (error: Error | null, chunk: Uint8Array, final: boolean) => void
+  private readonly inflater: AsyncInflate
+
+  constructor() {
+    this.inflater = new AsyncInflate((error, chunk, final) => this.ondata(error, chunk, final))
+  }
+
+  push(chunk: Uint8Array, final: boolean): void {
+    // AsyncInflate transfers its input buffer, so do not transfer Blob stream
+    // views that may be shared with the stream implementation.
+    this.inflater.push(chunk.slice(), final)
+  }
+
+  terminate(): void {
+    this.inflater.terminate()
+  }
 }
 
 async function pushBlob(file: ZipPassThrough, blob: Blob): Promise<void> {
@@ -77,6 +103,12 @@ export async function unzipBlobBounded(
     let inputFinished = false
     let failed = false
     const seenNames = new Set<string>()
+    const maxInputChunkBytes = Math.max(
+      1,
+      Math.floor(
+        Math.min(options.maxEntryBytes, options.maxExpandedBytes) / maxDeflateExpansionPerInputByte,
+      ),
+    )
 
     const fail = (error: unknown) => {
       if (failed) return
@@ -142,7 +174,7 @@ export async function unzipBlobBounded(
       file.start()
     })
     archive.register(UnzipPassThrough)
-    archive.register(AsyncUnzipInflate)
+    archive.register(WorkerUnzipInflate)
 
     void (async () => {
       const reader = blob.stream().getReader()
@@ -153,7 +185,20 @@ export async function unzipBlobBounded(
         } else {
           while (!current.done && !failed) {
             const next = await reader.read()
-            archive.push(current.value, next.done)
+            // fflate instantiates the decoder as soon as it receives an entry's
+            // data. Splitting the archive input bounds that decoder's output
+            // allocation even if a ZIP header understates the expanded size.
+            for (
+              let offset = 0;
+              offset < current.value.byteLength && !failed;
+              offset += maxInputChunkBytes
+            ) {
+              const end = Math.min(current.value.byteLength, offset + maxInputChunkBytes)
+              archive.push(
+                current.value.subarray(offset, end),
+                next.done && end === current.value.byteLength,
+              )
+            }
             current = next
           }
         }

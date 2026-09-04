@@ -7,9 +7,16 @@ export function pageAssetIds(page: PageV1): string[] {
   return Object.values(page.slots).flatMap((content) => (content ? [content.assetId] : []))
 }
 
-export async function preparePageImages(page: PageV1, registry: AssetRegistry): Promise<boolean> {
+export async function preparePageImages(
+  page: PageV1,
+  registry: AssetRegistry,
+  isCurrent: () => boolean = () => true,
+): Promise<boolean> {
   const assetIds = pageAssetIds(page).filter((assetId) => registry.getBlob(assetId))
   const changed = await registry.ensureImages(assetIds)
+  // A newer page request may have completed while this page was decoding.
+  // Only the request that is still current owns decoded-image cleanup.
+  if (!isCurrent()) return false
   registry.releaseDecodedExcept(assetIds)
   return changed
 }

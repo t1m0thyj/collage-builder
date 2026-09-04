@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { cpus, platform, release, totalmem } from 'node:os'
-import { deflateSync } from 'node:zlib'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 function crc32(buffer: Buffer) {
   let crc = 0xffffffff
@@ -11,42 +12,20 @@ function crc32(buffer: Buffer) {
   return (crc ^ 0xffffffff) >>> 0
 }
 
-function pngChunk(type: string, data: Buffer) {
-  const name = Buffer.from(type)
+/** Give each fixture copy a distinct, ignored ancillary PNG chunk for import deduplication. */
+function fixtureVariant(fixture: Buffer, index: number): Buffer {
+  const data = Buffer.from(`benchmark-${index}`)
+  const type = Buffer.from('cbEn')
   const length = Buffer.alloc(4)
   length.writeUInt32BE(data.length)
   const checksum = Buffer.alloc(4)
-  checksum.writeUInt32BE(crc32(Buffer.concat([name, data])))
-  return Buffer.concat([length, name, data, checksum])
+  checksum.writeUInt32BE(crc32(Buffer.concat([type, data])))
+  const chunk = Buffer.concat([length, type, data, checksum])
+  return Buffer.concat([fixture.subarray(0, -12), chunk, fixture.subarray(-12)])
 }
 
-function solidPng(red: number, green: number, blue: number) {
-  const header = Buffer.alloc(13)
-  header.writeUInt32BE(96, 0)
-  header.writeUInt32BE(64, 4)
-  header[8] = 8
-  header[9] = 6
-  const scanlines = Buffer.alloc((96 * 4 + 1) * 64)
-  for (let y = 0; y < 64; y += 1) {
-    const row = y * (96 * 4 + 1)
-    for (let x = 0; x < 96; x += 1) {
-      const offset = row + 1 + x * 4
-      scanlines[offset] = red
-      scanlines[offset + 1] = green
-      scanlines[offset + 2] = blue
-      scanlines[offset + 3] = 255
-    }
-  }
-  return Buffer.concat([
-    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
-    pngChunk('IHDR', header),
-    pngChunk('IDAT', deflateSync(scanlines)),
-    pngChunk('IEND', Buffer.alloc(0)),
-  ])
-}
-
-test('100 images and 25 pages @benchmark', async ({ page, browser, browserName }) => {
-  test.setTimeout(120_000)
+test('100 images and 25 pages @benchmark', async ({ page, browser, browserName }, testInfo) => {
+  test.setTimeout(300_000)
   await page.addInitScript(() => {
     const target = globalThis as typeof globalThis & { __collageLongTasks: number[] }
     target.__collageLongTasks = []
@@ -60,11 +39,15 @@ test('100 images and 25 pages @benchmark', async ({ page, browser, browserName }
     }
   })
   await page.goto('/')
-  const images = Array.from({ length: 100 }, (_, index) => ({
-    name: `benchmark-${String(index + 1).padStart(3, '0')}.png`,
-    mimeType: 'image/png',
-    buffer: solidPng(index, 255 - index, (index * 37) % 256),
-  }))
+  const fixture = readFileSync(resolve('tests/fixtures/real-photo-still-life.png'))
+  const inputDirectory = testInfo.outputPath('benchmark-inputs')
+  mkdirSync(inputDirectory, { recursive: true })
+  const images = Array.from({ length: 100 }, (_, index) => {
+    const name = `benchmark-${String(index + 1).padStart(3, '0')}.png`
+    const path = resolve(inputDirectory, name)
+    writeFileSync(path, fixtureVariant(fixture, index))
+    return path
+  })
   const startedAt = performance.now()
   await page
     .locator(
@@ -73,7 +56,9 @@ test('100 images and 25 pages @benchmark', async ({ page, browser, browserName }
     .first()
     .setInputFiles(images)
   await page.getByRole('tab', { name: 'Images' }).click()
-  await expect(page.getByText('benchmark-100.png', { exact: true })).toBeVisible()
+  await expect(page.getByText('benchmark-100.png', { exact: true })).toBeVisible({
+    timeout: 120_000,
+  })
   const importedAt = performance.now()
   await page.getByRole('button', { name: 'Frame 1, empty' }).focus()
   await page.keyboard.press('Enter')
@@ -121,7 +106,7 @@ test('100 images and 25 pages @benchmark', async ({ page, browser, browserName }
 
   console.info(
     JSON.stringify({
-      benchmark: '100 images / 25 pages',
+      benchmark: '100 representative images / 25 pages',
       browser: browserName,
       browserVersion: browser.version(),
       device: {

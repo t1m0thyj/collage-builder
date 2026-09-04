@@ -19,7 +19,10 @@
   <DialogPrimitive.Content
     bind:ref
     data-slot="dialog-content"
-    class={cn('dialog fixed top-1/2 left-1/2 z-200 max-h-[calc(100vh-48px)] -translate-x-1/2 -translate-y-1/2 overflow-auto outline-none', className)}
+    class={cn(
+      'dialog fixed top-1/2 left-1/2 z-200 max-h-[calc(100vh-48px)] -translate-x-1/2 -translate-y-1/2 overflow-auto outline-none',
+      className,
+    )}
     {...restProps}
   />
 </DialogPortal>

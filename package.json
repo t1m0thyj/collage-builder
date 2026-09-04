@@ -13,7 +13,7 @@
     "test:e2e": "playwright test",
     "test:offline": "vite build --base=/offline-test/ && playwright test tests/e2e/offline.spec.ts --config=playwright.offline.config.ts --project=chromium --workers=1",
     "test:benchmark": "playwright test tests/e2e/benchmark.spec.ts --project=chromium --workers=1",
-    "verify": "npm run check && npm run lint && npm test && npm run build",
+    "verify": "npm run format && npm run check && npm run lint && npm test && npm run build",
     "lint": "eslint .",
     "format": "prettier --plugin=prettier-plugin-svelte --check .",
     "format:write": "prettier --plugin=prettier-plugin-svelte --write ."

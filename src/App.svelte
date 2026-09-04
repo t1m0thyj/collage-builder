@@ -252,7 +252,8 @@
 
   async function preparePageImages(page: PageV1, registry = assetRegistry): Promise<void> {
     try {
-      const changed = await loadPageImages(page, registry)
+      const isCurrent = () => registry === assetRegistry && page.id === activePageId
+      const changed = await loadPageImages(page, registry, isCurrent)
       if (registry !== assetRegistry || page.id !== activePageId) return
       if (changed) imageRevision += 1
     } catch (error) {
@@ -273,6 +274,11 @@
 
   project.document.subscribe((value) => {
     document = value
+    // Retained blobs and Undo snapshots have one shared budget. Evict the
+    // corresponding oldest history state before dropping any required bytes.
+    assetRegistry.reconcileRetainedHistory(project.historySnapshots())
+    while (assetRegistry.isOverRetainedLimit && project.discardOldestUndo())
+      assetRegistry.reconcileRetainedHistory(project.historySnapshots())
     for (const asset of Object.values(value.assets)) {
       if (assetRegistry.hasRetained(asset.id, asset.sha256))
         void assetRegistry

@@ -2,225 +2,213 @@ import type { LayoutPresetDefinition } from '../../domain/types'
 
 export const layout3Presets: LayoutPresetDefinition[] = [
   {
-    "id": "layout-3-001",
-    "revision": 1,
-    "name": "Layout 1",
-    "frameCount": 3,
-    "tags": [
-      "asymmetric"
-    ],
-    "root": {
-      "kind": "grid",
-      "columns": 2,
-      "rows": 2,
-      "cells": [
+    id: 'layout-3-001',
+    revision: 1,
+    name: 'Layout 1',
+    frameCount: 3,
+    tags: ['asymmetric'],
+    root: {
+      kind: 'grid',
+      columns: 2,
+      rows: 2,
+      cells: [
         {
-          "key": "cell-1",
-          "x": 0,
-          "y": 0,
-          "width": 1,
-          "height": 2
+          key: 'cell-1',
+          x: 0,
+          y: 0,
+          width: 1,
+          height: 2,
         },
         {
-          "key": "cell-2",
-          "x": 1,
-          "y": 0,
-          "width": 1,
-          "height": 1
+          key: 'cell-2',
+          x: 1,
+          y: 0,
+          width: 1,
+          height: 1,
         },
         {
-          "key": "cell-3",
-          "x": 1,
-          "y": 1,
-          "width": 1,
-          "height": 1
-        }
-      ]
-    }
+          key: 'cell-3',
+          x: 1,
+          y: 1,
+          width: 1,
+          height: 1,
+        },
+      ],
+    },
   },
   {
-    "id": "layout-3-002",
-    "revision": 1,
-    "name": "Layout 2",
-    "frameCount": 3,
-    "tags": [
-      "asymmetric"
-    ],
-    "root": {
-      "kind": "grid",
-      "columns": 2,
-      "rows": 2,
-      "cells": [
+    id: 'layout-3-002',
+    revision: 1,
+    name: 'Layout 2',
+    frameCount: 3,
+    tags: ['asymmetric'],
+    root: {
+      kind: 'grid',
+      columns: 2,
+      rows: 2,
+      cells: [
         {
-          "key": "cell-1",
-          "x": 0,
-          "y": 0,
-          "width": 2,
-          "height": 1
+          key: 'cell-1',
+          x: 0,
+          y: 0,
+          width: 2,
+          height: 1,
         },
         {
-          "key": "cell-2",
-          "x": 0,
-          "y": 1,
-          "width": 1,
-          "height": 1
+          key: 'cell-2',
+          x: 0,
+          y: 1,
+          width: 1,
+          height: 1,
         },
         {
-          "key": "cell-3",
-          "x": 1,
-          "y": 1,
-          "width": 1,
-          "height": 1
-        }
-      ]
-    }
+          key: 'cell-3',
+          x: 1,
+          y: 1,
+          width: 1,
+          height: 1,
+        },
+      ],
+    },
   },
   {
-    "id": "layout-3-003",
-    "revision": 1,
-    "name": "Layout 3",
-    "frameCount": 3,
-    "tags": [
-      "uniform"
-    ],
-    "root": {
-      "kind": "grid",
-      "columns": 3,
-      "rows": 1,
-      "cells": [
+    id: 'layout-3-003',
+    revision: 1,
+    name: 'Layout 3',
+    frameCount: 3,
+    tags: ['uniform'],
+    root: {
+      kind: 'grid',
+      columns: 3,
+      rows: 1,
+      cells: [
         {
-          "key": "cell-1",
-          "x": 0,
-          "y": 0,
-          "width": 1,
-          "height": 1
+          key: 'cell-1',
+          x: 0,
+          y: 0,
+          width: 1,
+          height: 1,
         },
         {
-          "key": "cell-2",
-          "x": 1,
-          "y": 0,
-          "width": 1,
-          "height": 1
+          key: 'cell-2',
+          x: 1,
+          y: 0,
+          width: 1,
+          height: 1,
         },
         {
-          "key": "cell-3",
-          "x": 2,
-          "y": 0,
-          "width": 1,
-          "height": 1
-        }
-      ]
-    }
+          key: 'cell-3',
+          x: 2,
+          y: 0,
+          width: 1,
+          height: 1,
+        },
+      ],
+    },
   },
   {
-    "id": "layout-3-004",
-    "revision": 1,
-    "name": "Layout 4",
-    "frameCount": 3,
-    "tags": [
-      "uniform"
-    ],
-    "root": {
-      "kind": "grid",
-      "columns": 1,
-      "rows": 3,
-      "cells": [
+    id: 'layout-3-004',
+    revision: 1,
+    name: 'Layout 4',
+    frameCount: 3,
+    tags: ['uniform'],
+    root: {
+      kind: 'grid',
+      columns: 1,
+      rows: 3,
+      cells: [
         {
-          "key": "cell-1",
-          "x": 0,
-          "y": 0,
-          "width": 1,
-          "height": 1
+          key: 'cell-1',
+          x: 0,
+          y: 0,
+          width: 1,
+          height: 1,
         },
         {
-          "key": "cell-2",
-          "x": 0,
-          "y": 1,
-          "width": 1,
-          "height": 1
+          key: 'cell-2',
+          x: 0,
+          y: 1,
+          width: 1,
+          height: 1,
         },
         {
-          "key": "cell-3",
-          "x": 0,
-          "y": 2,
-          "width": 1,
-          "height": 1
-        }
-      ]
-    }
+          key: 'cell-3',
+          x: 0,
+          y: 2,
+          width: 1,
+          height: 1,
+        },
+      ],
+    },
   },
   {
-    "id": "layout-3-005",
-    "revision": 1,
-    "name": "Layout 5",
-    "frameCount": 3,
-    "tags": [
-      "asymmetric"
-    ],
-    "root": {
-      "kind": "grid",
-      "columns": 2,
-      "rows": 2,
-      "cells": [
+    id: 'layout-3-005',
+    revision: 1,
+    name: 'Layout 5',
+    frameCount: 3,
+    tags: ['asymmetric'],
+    root: {
+      kind: 'grid',
+      columns: 2,
+      rows: 2,
+      cells: [
         {
-          "key": "cell-1",
-          "x": 0,
-          "y": 0,
-          "width": 1,
-          "height": 1
+          key: 'cell-1',
+          x: 0,
+          y: 0,
+          width: 1,
+          height: 1,
         },
         {
-          "key": "cell-2",
-          "x": 1,
-          "y": 0,
-          "width": 1,
-          "height": 1
+          key: 'cell-2',
+          x: 1,
+          y: 0,
+          width: 1,
+          height: 1,
         },
         {
-          "key": "cell-3",
-          "x": 0,
-          "y": 1,
-          "width": 2,
-          "height": 1
-        }
-      ]
-    }
+          key: 'cell-3',
+          x: 0,
+          y: 1,
+          width: 2,
+          height: 1,
+        },
+      ],
+    },
   },
   {
-    "id": "layout-3-006",
-    "revision": 1,
-    "name": "Layout 6",
-    "frameCount": 3,
-    "tags": [
-      "asymmetric"
-    ],
-    "root": {
-      "kind": "grid",
-      "columns": 2,
-      "rows": 2,
-      "cells": [
+    id: 'layout-3-006',
+    revision: 1,
+    name: 'Layout 6',
+    frameCount: 3,
+    tags: ['asymmetric'],
+    root: {
+      kind: 'grid',
+      columns: 2,
+      rows: 2,
+      cells: [
         {
-          "key": "cell-1",
-          "x": 0,
-          "y": 0,
-          "width": 1,
-          "height": 1
+          key: 'cell-1',
+          x: 0,
+          y: 0,
+          width: 1,
+          height: 1,
         },
         {
-          "key": "cell-2",
-          "x": 1,
-          "y": 0,
-          "width": 1,
-          "height": 2
+          key: 'cell-2',
+          x: 1,
+          y: 0,
+          width: 1,
+          height: 2,
         },
         {
-          "key": "cell-3",
-          "x": 0,
-          "y": 1,
-          "width": 1,
-          "height": 1
-        }
-      ]
-    }
-  }
+          key: 'cell-3',
+          x: 0,
+          y: 1,
+          width: 1,
+          height: 1,
+        },
+      ],
+    },
+  },
 ]

@@ -124,6 +124,32 @@ describe('project history', () => {
     expect(Object.keys(store.snapshot().assets)).toHaveLength(2)
   })
 
+  it('can evict the oldest undo snapshot when its retained resources exceed their budget', () => {
+    const document = createProject('Retention')
+    const assetId = '11111111-1111-4111-8111-111111111111'
+    document.assets[assetId] = {
+      id: assetId,
+      originalName: 'original.png',
+      mediaType: 'image/png',
+      byteLength: 50 * 1024 * 1024,
+      width: 1,
+      height: 1,
+      sha256: '0'.repeat(64),
+      storage: { kind: 'embedded', archivePath: `assets/${assetId}` },
+    }
+    const store = new ProjectStore(document)
+    for (let index = 1; index <= 6; index += 1)
+      store.replaceAsset(assetId, {
+        ...document.assets[assetId],
+        sha256: String(index).repeat(64),
+      })
+
+    expect(store.historySnapshots()).toHaveLength(6)
+    expect(store.discardOldestUndo()).toBe(true)
+    expect(store.historySnapshots()[0].assets[assetId].sha256).toBe('1'.repeat(64))
+    expect(get(store.canUndo)).toBe(true)
+  })
+
   it('commits crop once and Escape-style cancellation restores the original placement', () => {
     const project = createProject('Crop')
     const store = new ProjectStore(project)

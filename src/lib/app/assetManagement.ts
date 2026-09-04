@@ -68,7 +68,7 @@ export async function importProjectAssets(
     0,
   )
   if (existingBytes + [...files].reduce((total, file) => total + file.size, 0) > maxProjectBytes)
-    throw new Error('This import would exceed the 256 MB project asset limit.')
+    throw new Error('This import would exceed the 1 GB project asset limit.')
 
   let added = 0
   for (const file of files) {

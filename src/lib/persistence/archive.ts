@@ -39,7 +39,7 @@ export async function createArchive(
     Object.values(document.assets).reduce((total, asset) => total + asset.byteLength, 0) >
     maxProjectBytes
   )
-    throw new Error('Project assets exceed the 256 MB safety limit')
+    throw new Error('Project assets exceed the 1 GB safety limit')
   const savedDocument = structuredClone(document)
   for (const asset of Object.values(savedDocument.assets)) {
     asset.storage = { kind: 'embedded', archivePath: `assets/${asset.id}` }
@@ -58,7 +58,7 @@ export async function createArchive(
 
 export async function openArchive(file: Blob): Promise<OpenedArchive> {
   if (file.size > maxArchiveFileBytes)
-    throw new Error('Project archive exceeds the 273 MB safety limit')
+    throw new Error('Project archive exceeds the 1 GB safety limit')
   const entries = await unzipBlobBounded(file, {
     maxEntries,
     maxEntryBytes,
@@ -83,7 +83,7 @@ export async function openArchive(file: Blob): Promise<OpenedArchive> {
     Object.values(document.assets).reduce((total, asset) => total + asset.byteLength, 0) >
     maxProjectBytes
   )
-    throw new Error('Project assets exceed the 256 MB safety limit')
+    throw new Error('Project assets exceed the 1 GB safety limit')
   const assets = new Map<string, Blob>()
   const missingAssetIds: string[] = []
   for (const asset of Object.values(document.assets)) {

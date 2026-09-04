@@ -60,6 +60,22 @@ describe('bounded ZIP streams', () => {
     )
   })
 
+  it('bounds a compressed entry whose local ZIP header understates its expanded size', async () => {
+    const archive = zipSync({ 'understated.txt': new Uint8Array(8 * 1024 * 1024).fill(65) })
+    // The local header is what the streaming reader sees before it creates a
+    // decoder. Leave the central-directory value intact to model a malformed
+    // archive with conflicting size declarations.
+    new DataView(archive.buffer, archive.byteOffset, archive.byteLength).setUint32(22, 1_024, true)
+
+    await expect(
+      unzipBlobBounded(new Blob([archive]), {
+        ...safeOptions,
+        maxEntryBytes: 1_024,
+        maxExpandedBytes: 1_024,
+      }),
+    ).rejects.toThrow(/too large|safety limit/)
+  })
+
   it('rejects unsafe paths during streaming discovery', async () => {
     const compressed = new Blob([zipSync({ '../outside.txt': new Uint8Array([1]) })])
     await expect(unzipBlobBounded(compressed, safeOptions)).rejects.toThrow('unsafe path')
