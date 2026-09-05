@@ -528,6 +528,21 @@ test('dragging a layout splitter re-renders the page', async ({ page }) => {
   await expect.poll(() => canvas.evaluate((element) => element.toDataURL())).not.toBe(before)
 })
 
+test('layout dividers have keyboard slider controls', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('tab', { name: '4', exact: true }).click()
+  await page.getByRole('button', { name: 'Layout 2', exact: true }).click()
+
+  const divider = page.getByRole('slider', { name: 'Vertical divider 1' })
+  const before = Number(await divider.getAttribute('aria-valuenow'))
+  await divider.focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(divider).toHaveAttribute('aria-valuenow', String(before + 1))
+  await expect(page.locator('.toast')).toHaveText(
+    `Vertical divider 1 set to ${before + 1} percent.`,
+  )
+})
+
 test('dragging crop edges changes zoom', async ({ page }) => {
   await page.goto('/')
   await page
@@ -601,6 +616,33 @@ test('dragging crop edges changes zoom', async ({ page }) => {
   )
   await page.mouse.up()
   await expect(cropZoom).not.toHaveValue('1.00')
+})
+
+test('crop handles have keyboard-equivalent controls', async ({ page }) => {
+  await page.goto('/')
+  await importImage(page, 'keyboard-crop.png', redPng)
+  await page.getByRole('tab', { name: 'Images' }).click()
+  await page.getByText('keyboard-crop.png', { exact: true }).click()
+  const frame = page.getByRole('button', { name: 'Frame 1, empty' })
+  await frame.focus()
+  await page.getByRole('button', { name: 'Crop image' }).click()
+
+  const zoomIn = page.getByRole('button', { name: 'Zoom crop image in' })
+  await zoomIn.focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('spinbutton', { name: 'Crop zoom value' })).toHaveValue('1.05')
+
+  const moveLeft = page.getByRole('button', { name: 'Move crop image left' })
+  await moveLeft.focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('spinbutton', { name: 'Crop horizontal position' })).toHaveValue('55')
+})
+
+test('frame selection announces its current state', async ({ page }) => {
+  await page.goto('/')
+  const frame = page.getByRole('button', { name: 'Frame 1, empty' })
+  await frame.focus()
+  await expect(page.getByRole('status')).toHaveText('Frame 1 selected, empty.')
 })
 
 test('crop changes cancel with Escape and commit as one undo entry', async ({ page }) => {

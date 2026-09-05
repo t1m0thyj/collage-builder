@@ -464,4 +464,9 @@
   color: #fff;
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.2);
   font-size: 13px;
+  opacity: 0;
+  pointer-events: none;
+}
+.toast-visible {
+  opacity: 1;
 }

@@ -137,6 +137,7 @@
     setSelectedSlotId: (slotId) => (selectedSlotId = slotId),
     setCropModeSlotId: (slotId) => (cropModeSlotId = slotId),
     setSelectedAssetId: (assetId) => (selectedAssetId = assetId),
+    announce,
   })
   const assetWorkflow = new AssetWorkflowController({
     project,
@@ -452,6 +453,7 @@
       onactivepagechange={(pageId) => (activePageId = pageId)}
       onselectedslotchange={(slotId) => (selectedSlotId = slotId)}
       onfitzoomchange={(zoom) => (fittedViewportZoom = zoom)}
+      onannounce={announce}
       onselect={(slotId) => editorSession.selectFrame(slotId)}
       onrequestcrop={(slotId) => editorSession.beginCrop(slotId)}
       onexitcrop={() => {
@@ -576,7 +578,7 @@
     {announce}
   ></RecoveryManagerDialog>
 
-  {#if toast}
-    <div class="toast" role="status">{toast}</div>
-  {/if}
+  <div class:toast-visible={Boolean(toast)} class="toast" role="status" aria-atomic="true">
+    {toast}
+  </div>
 </main>

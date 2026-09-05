@@ -26,6 +26,7 @@
   export let onactivepagechange: (pageId: string) => void
   export let onselectedslotchange: (slotId: string | null) => void
   export let onfitzoomchange: (zoom: number) => void
+  export let onannounce: (message: string) => void
   export let onselect: (slotId: SlotId) => void
   export let onrequestcrop: (slotId: SlotId) => void
   export let onexitcrop: () => void
@@ -76,6 +77,7 @@
         {darkMode}
         {imageRevision}
         {onfitzoomchange}
+        {onannounce}
         getImage={(assetId) => assetRegistry.getImage(assetId)}
         {onselect}
         {onrequestcrop}

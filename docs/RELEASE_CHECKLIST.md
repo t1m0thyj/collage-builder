@@ -48,8 +48,8 @@ This checklist tracks every finding from the initial architecture and first-rele
   - [x] Remove hidden file inputs from the tab and accessibility order.
   - [x] Expose named, focusable canvas-frame controls with content and selection state.
   - [x] Provide visible keyboard focus and a sensible initial focus target.
-  - [ ] Add keyboard equivalents for layout-divider manipulation and graphical crop handles.
-  - [ ] Verify selection/status announcements with screen readers.
+  - [x] Add keyboard equivalents for layout-divider manipulation and graphical crop handles.
+  - [ ] Verify selection/status announcements with screen readers. Persistent live-region wiring and automated interaction coverage are in place; an NVDA/VoiceOver pass remains.
   - [ ] Complete manual contrast and assistive-technology testing.
 - [x] Correct the initial Undo/Redo state. Both controls now use subscribed store values and are disabled on a blank project.
 - [x] Coalesce continuous padding, gap, radius, and shadow adjustments into one undo entry per interaction rather than one snapshot per input event.

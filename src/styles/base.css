@@ -76,7 +76,8 @@ button:disabled {
   inset: 0;
   pointer-events: none;
 }
-.canvas-frame-controls button {
+.canvas-frame-controls button,
+.canvas-keyboard-controls button {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -84,7 +85,8 @@ button:disabled {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
-.canvas-frame-controls button:focus-visible {
+.canvas-frame-controls button:focus-visible,
+.canvas-keyboard-controls button:focus-visible {
   top: 12px;
   left: 12px;
   z-index: 20;
@@ -100,4 +102,15 @@ button:disabled {
   color: #fff;
   font: inherit;
   pointer-events: auto;
+}
+.canvas-keyboard-controls {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.canvas-divider-controls button:focus-visible {
+  top: 54px;
+}
+.canvas-crop-controls button:focus-visible {
+  top: 96px;
 }

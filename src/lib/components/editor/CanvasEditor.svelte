@@ -26,6 +26,7 @@
   export let darkMode = false
   export let imageRevision = 0
   export let onfitzoomchange: (zoom: number) => void = () => undefined
+  export let onannounce: (message: string) => void
   export let onrequestcrop: (slotId: SlotId) => void
   export let onviewportzoom: (factor: number) => void
   export let onexitcrop: () => void
@@ -246,6 +247,77 @@
   function dividerKey(divider: (typeof dividers)[number]) {
     return `${divider.path.join('.')}-${divider.index}`
   }
+
+  function dividerPercent(divider: (typeof dividers)[number]) {
+    const center =
+      divider.axis === 'x' ? divider.x + divider.width / 2 : divider.y + divider.height / 2
+    const start = divider.axis === 'x' ? divider.parentX : divider.parentY
+    const length = divider.axis === 'x' ? divider.parentWidth : divider.parentHeight
+    return Math.round(((center - start) / length) * 100)
+  }
+
+  function dividerName(divider: (typeof dividers)[number]) {
+    const orientation = divider.axis === 'x' ? 'Vertical' : 'Horizontal'
+    return `${orientation} divider ${keyboardDividers.indexOf(divider) + 1}`
+  }
+
+  function setDividerPercent(divider: (typeof dividers)[number], percent: number) {
+    const position = Math.min(95, Math.max(5, percent))
+    ondividerchange(
+      linkedDividers(divider).map((candidate) => ({
+        path: candidate.path,
+        index: candidate.index,
+        position: position / 100,
+      })),
+    )
+    onannounce(`${dividerName(divider)} set to ${position} percent.`)
+  }
+
+  function adjustDividerWithKeyboard(event: KeyboardEvent, divider: (typeof dividers)[number]) {
+    const increaseKey = divider.axis === 'x' ? 'ArrowRight' : 'ArrowDown'
+    const decreaseKey = divider.axis === 'x' ? 'ArrowLeft' : 'ArrowUp'
+    const current = dividerPercent(divider)
+    const increment = event.shiftKey ? 5 : 1
+    let next: number | undefined
+    if (event.key === increaseKey) next = current + increment
+    else if (event.key === decreaseKey) next = current - increment
+    else if (event.key === 'PageUp') next = current + 10
+    else if (event.key === 'PageDown') next = current - 10
+    else if (event.key === 'Home') next = 5
+    else if (event.key === 'End') next = 95
+    if (next === undefined) return
+    event.preventDefault()
+    event.stopPropagation()
+    setDividerPercent(divider, next)
+  }
+
+  function nudgeCrop(axis: 'positionX' | 'positionY', delta: number, label: string) {
+    if (!cropSlotId || !cropContent) return
+    onplacementchange(cropSlotId, {
+      ...cropContent.placement,
+      [axis]: Math.min(1, Math.max(0, cropContent.placement[axis] + delta)),
+    })
+    onannounce(`Crop moved ${label}.`)
+  }
+
+  function adjustCropZoom(factor: number) {
+    if (!cropSlotId || !cropContent) return
+    const zoom = Math.min(8, Math.max(1, cropContent.placement.zoom * factor))
+    onplacementchange(cropSlotId, { ...cropContent.placement, zoom })
+    onannounce(`Crop zoom ${Math.round(zoom * 100)} percent.`)
+  }
+
+  function selectFrameControl(slotId: SlotId, index: number) {
+    onselect(slotId)
+    const content = page.slots[slotId]
+    const asset = content ? assets[content.assetId] : undefined
+    onannounce(`Frame ${index + 1} selected${asset ? `, ${asset.originalName}` : ', empty'}.`)
+  }
+
+  function stopCanvasShortcut(event: KeyboardEvent) {
+    event.stopPropagation()
+  }
+
   function linkedDividers(divider: (typeof dividers)[number]) {
     const center = (candidate: typeof divider) =>
       candidate.axis === 'x'
@@ -347,6 +419,14 @@
   $: dividers = resolveDividers(page)
   $: displayDividers = [...dividers].sort((left, right) =>
     left.axis === right.axis ? 0 : left.axis === 'x' ? 1 : -1,
+  )
+  $: keyboardDividers = dividers.filter(
+    (divider, index) =>
+      !dividers
+        .slice(0, index)
+        .some((candidate) =>
+          linkedDividers(divider).some((linked) => dividerKey(linked) === dividerKey(candidate)),
+        ),
   )
   $: cropFrame = cropSlotId ? model.frames.find((frame) => frame.slotId === cropSlotId) : undefined
   $: cropContent = cropFrame ? page.slots[cropFrame.slotId] : null
@@ -484,11 +564,82 @@
         aria-pressed={selectedSlotId === frame.slotId}
         aria-label={`Frame ${index + 1}, ${asset ? asset.originalName : 'empty'}`}
         aria-keyshortcuts={content ? 'Enter Delete' : undefined}
-        onfocus={() => onselect(frame.slotId)}
+        onfocus={() => selectFrameControl(frame.slotId, index)}
         onclick={() => (content ? onselect(frame.slotId) : onrequestimage(frame.slotId))}
       >
         Frame {index + 1}: {asset ? asset.originalName : 'Empty — add an image'}
       </button>
     {/each}
   </div>
+  {#if keyboardDividers.length}
+    <div
+      class="canvas-keyboard-controls canvas-divider-controls"
+      role="group"
+      aria-label="Layout dividers"
+    >
+      {#each keyboardDividers as divider (dividerKey(divider))}
+        {@const name = dividerName(divider)}
+        <button
+          type="button"
+          role="slider"
+          aria-label={name}
+          aria-orientation={divider.axis === 'x' ? 'horizontal' : 'vertical'}
+          aria-valuemin="5"
+          aria-valuemax="95"
+          aria-valuenow={dividerPercent(divider)}
+          aria-valuetext={`${dividerPercent(divider)} percent`}
+          aria-keyshortcuts={divider.axis === 'x'
+            ? 'ArrowLeft ArrowRight PageUp PageDown Home End'
+            : 'ArrowUp ArrowDown PageUp PageDown Home End'}
+          onkeydown={(event) => adjustDividerWithKeyboard(event, divider)}
+        >
+          {name}: {dividerPercent(divider)}%. Use arrow keys to adjust.
+        </button>
+      {/each}
+    </div>
+  {/if}
+  {#if cropSlotId && cropContent}
+    <div
+      class="canvas-keyboard-controls canvas-crop-controls"
+      role="group"
+      aria-label="Crop controls"
+    >
+      <button
+        type="button"
+        aria-label="Move crop image left"
+        onkeydown={stopCanvasShortcut}
+        onclick={() => nudgeCrop('positionX', 0.05, 'left')}>Move crop image left</button
+      >
+      <button
+        type="button"
+        aria-label="Move crop image right"
+        onkeydown={stopCanvasShortcut}
+        onclick={() => nudgeCrop('positionX', -0.05, 'right')}>Move crop image right</button
+      >
+      <button
+        type="button"
+        aria-label="Move crop image up"
+        onkeydown={stopCanvasShortcut}
+        onclick={() => nudgeCrop('positionY', 0.05, 'up')}>Move crop image up</button
+      >
+      <button
+        type="button"
+        aria-label="Move crop image down"
+        onkeydown={stopCanvasShortcut}
+        onclick={() => nudgeCrop('positionY', -0.05, 'down')}>Move crop image down</button
+      >
+      <button
+        type="button"
+        aria-label="Zoom crop image in"
+        onkeydown={stopCanvasShortcut}
+        onclick={() => adjustCropZoom(1.05)}>Zoom crop image in</button
+      >
+      <button
+        type="button"
+        aria-label="Zoom crop image out"
+        onkeydown={stopCanvasShortcut}
+        onclick={() => adjustCropZoom(1 / 1.05)}>Zoom crop image out</button
+      >
+    </div>
+  {/if}
 </div>

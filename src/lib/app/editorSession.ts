@@ -12,6 +12,7 @@ interface EditorSessionHost {
   setSelectedSlotId: (slotId: string | null) => void
   setCropModeSlotId: (slotId: string | null) => void
   setSelectedAssetId: (assetId: string | null) => void
+  announce: (message: string) => void
 }
 
 export class EditorSessionController {
@@ -134,5 +135,6 @@ export class EditorSessionController {
     const offset = key === 'ArrowLeft' || key === 'ArrowUp' ? -1 : 1
     const next = frames[index < 0 ? 0 : (index + offset + frames.length) % frames.length]
     this.host.setSelectedSlotId(next.slotId)
+    this.host.announce(`Frame ${frames.indexOf(next) + 1} selected.`)
   }
 }
