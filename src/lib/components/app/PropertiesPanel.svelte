@@ -1,5 +1,6 @@
 <script lang="ts">
   import { ChevronDown, Link2, Link2Off, Palette, Sparkles } from '@lucide/svelte'
+  import type { PageStyleControl } from '../../app/pageWorkflow'
   import type { PageV1, SlotContentV1 } from '../../domain/types'
   import * as Collapsible from '../ui/collapsible'
   import * as Popover from '../ui/popover'
@@ -16,11 +17,18 @@
   export let cropZoom: number
   export let onresizepage: (axis: 'width' | 'height', value: number) => void
   export let onupdatestyle: (patch: Partial<PageV1['style']>) => void
+  export let onpreviewstyle: (control: PageStyleControl, patch: Partial<PageV1['style']>) => void
+  export let oncommitstyle: (control: PageStyleControl) => void
   export let onsetbackground: (color: string, rememberCustom?: boolean) => void
   export let onsetshadow: (color: string, rememberCustom?: boolean) => void
   export let shadowDistance: () => number
   export let shadowAngle: () => number
   export let onupdateshadowpolar: (distance?: number, angle?: number) => void
+  export let onpreviewshadowpolar: (
+    control: 'shadow.distance' | 'shadow.angle',
+    distance?: number,
+    angle?: number,
+  ) => void
   export let onrequestimage: (slotId: string) => void
   export let onbegincrop: (slotId: string) => void
   export let onupdatecropzoom: (zoom: number) => void
@@ -153,7 +161,8 @@
                 max={120}
                 step={1}
                 value={activePage.style.padding}
-                onValueChange={(padding) => onupdatestyle({ padding })}
+                onValueChange={(padding) => onpreviewstyle('padding', { padding })}
+                onValueCommit={() => oncommitstyle('padding')}
               /><input
                 class="slider-value"
                 aria-label="Outer margin value"
@@ -179,7 +188,8 @@
                 max={120}
                 step={1}
                 value={activePage.style.gap}
-                onValueChange={(gap) => onupdatestyle({ gap })}
+                onValueChange={(gap) => onpreviewstyle('gap', { gap })}
+                onValueCommit={() => oncommitstyle('gap')}
               /><input
                 class="slider-value"
                 aria-label="Inner spacing value"
@@ -205,7 +215,8 @@
                 max={120}
                 step={1}
                 value={activePage.style.cornerRadius}
-                onValueChange={(cornerRadius) => onupdatestyle({ cornerRadius })}
+                onValueChange={(cornerRadius) => onpreviewstyle('cornerRadius', { cornerRadius })}
+                onValueCommit={() => oncommitstyle('cornerRadius')}
               /><input
                 class="slider-value"
                 aria-label="Corner radius value"
@@ -295,9 +306,10 @@
                   step={1}
                   value={Math.round(activePage.style.shadow.opacity * 100)}
                   onValueChange={(value) =>
-                    onupdatestyle({
+                    onpreviewstyle('shadow.opacity', {
                       shadow: { ...activePage.style.shadow, opacity: value / 100 },
                     })}
+                  onValueCommit={() => oncommitstyle('shadow.opacity')}
                 /><input
                   class="slider-value"
                   aria-label="Frame shadow transparency value"
@@ -328,7 +340,10 @@
                   step={1}
                   value={activePage.style.shadow.blur}
                   onValueChange={(blur) =>
-                    onupdatestyle({ shadow: { ...activePage.style.shadow, blur } })}
+                    onpreviewstyle('shadow.blur', {
+                      shadow: { ...activePage.style.shadow, blur },
+                    })}
+                  onValueCommit={() => oncommitstyle('shadow.blur')}
                 /><input
                   class="slider-value"
                   aria-label="Frame shadow blur value"
@@ -357,7 +372,8 @@
                   max={50}
                   step={1}
                   value={shadowDistance()}
-                  onValueChange={(distance) => onupdateshadowpolar(distance)}
+                  onValueChange={(distance) => onpreviewshadowpolar('shadow.distance', distance)}
+                  onValueCommit={() => oncommitstyle('shadow.distance')}
                 /><input
                   class="slider-value"
                   aria-label="Frame shadow distance value"
@@ -383,7 +399,8 @@
                   max={360}
                   step={1}
                   value={shadowAngle()}
-                  onValueChange={(angle) => onupdateshadowpolar(undefined, angle)}
+                  onValueChange={(angle) => onpreviewshadowpolar('shadow.angle', undefined, angle)}
+                  onValueCommit={() => oncommitstyle('shadow.angle')}
                 /><input
                   class="slider-value"
                   aria-label="Frame shadow angle value"

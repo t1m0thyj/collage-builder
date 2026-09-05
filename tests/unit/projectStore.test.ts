@@ -19,6 +19,39 @@ describe('project history', () => {
     expect(get(store.document).title).toBe('Updated')
   })
 
+  it('coalesces each continuous page-style interaction without merging controls', () => {
+    const project = createProject('Style history')
+    const store = new ProjectStore(project)
+    const pageId = project.pages[0].id
+    const originalPadding = project.pages[0].style.padding
+    const originalGap = project.pages[0].style.gap
+
+    for (let padding = originalPadding + 1; padding <= originalPadding + 10; padding += 1)
+      store.previewPageStyle(pageId, 'padding', { padding })
+    store.commitPageStyle(pageId, 'padding')
+
+    for (let gap = originalGap + 1; gap <= originalGap + 10; gap += 1)
+      store.previewPageStyle(pageId, 'gap', { gap })
+    store.commitPageStyle(pageId, 'gap')
+
+    expect(store.historySnapshots()).toHaveLength(2)
+    expect(store.snapshot().pages[0].style).toMatchObject({
+      padding: originalPadding + 10,
+      gap: originalGap + 10,
+    })
+
+    store.undo()
+    expect(store.snapshot().pages[0].style).toMatchObject({
+      padding: originalPadding + 10,
+      gap: originalGap,
+    })
+    store.undo()
+    expect(store.snapshot().pages[0].style).toMatchObject({
+      padding: originalPadding,
+      gap: originalGap,
+    })
+  })
+
   it('duplicates an embedded layout even when its catalog id is retired', () => {
     const project = createProject('Legacy layout')
     project.pages[0].layout.presetId = 'retired-layout-id'

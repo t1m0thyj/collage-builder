@@ -52,7 +52,7 @@ This checklist tracks every finding from the initial architecture and first-rele
   - [ ] Verify selection/status announcements with screen readers.
   - [ ] Complete manual contrast and assistive-technology testing.
 - [x] Correct the initial Undo/Redo state. Both controls now use subscribed store values and are disabled on a blank project.
-- [ ] Coalesce continuous padding, gap, radius, and shadow adjustments into one undo entry per interaction rather than one snapshot per input event.
+- [x] Coalesce continuous padding, gap, radius, and shadow adjustments into one undo entry per interaction rather than one snapshot per input event.
 - [x] Add export cancellation and resolution-quality warnings. Multi-page rendering can be cancelled between pages, and exports warn when placed images will be enlarged beyond their source resolution.
 - [ ] **Partially complete:** Establish editor/export visual parity testing.
   - [x] Verify exact exported frame colors and configured gap pixels.

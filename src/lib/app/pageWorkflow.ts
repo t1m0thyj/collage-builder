@@ -3,6 +3,14 @@ import type { CollageDocumentV1, LayoutPresetDefinition, PageV1 } from '../domai
 import type { ProjectStore } from '../state/projectStore'
 
 export type SidebarTab = 'layouts' | 'images'
+export type PageStyleControl =
+  | 'padding'
+  | 'gap'
+  | 'cornerRadius'
+  | 'shadow.opacity'
+  | 'shadow.blur'
+  | 'shadow.distance'
+  | 'shadow.angle'
 
 interface PageWorkflowHost {
   project: ProjectStore
@@ -59,6 +67,14 @@ export class PageWorkflowController {
 
   updateStyle = (patch: Partial<PageV1['style']>) => {
     this.host.project.setPageStyle(this.host.page().id, patch)
+  }
+
+  previewStyle = (control: PageStyleControl, patch: Partial<PageV1['style']>) => {
+    this.host.project.previewPageStyle(this.host.page().id, control, patch)
+  }
+
+  commitStyle = (control: PageStyleControl) => {
+    this.host.project.commitPageStyle(this.host.page().id, control)
   }
 
   resize = (axis: 'width' | 'height', value: number) => {

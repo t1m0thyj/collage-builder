@@ -32,6 +32,7 @@
   import {
     shadowAngle as getShadowAngle,
     shadowDistance as getShadowDistance,
+    shadowPolarPatch,
     updateShadowPolar as setShadowPolar,
   } from './lib/app/pageAppearance'
   import { EditorSessionController } from './lib/app/editorSession'
@@ -494,12 +495,16 @@
       {cropZoom}
       onresizepage={pageWorkflow.resize}
       onupdatestyle={pageWorkflow.updateStyle}
+      onpreviewstyle={pageWorkflow.previewStyle}
+      oncommitstyle={pageWorkflow.commitStyle}
       onsetbackground={uiPreferences.setBackground}
       onsetshadow={uiPreferences.setShadow}
       shadowDistance={() => getShadowDistance(activePage)}
       shadowAngle={() => getShadowAngle(activePage)}
       onupdateshadowpolar={(distance, angle) =>
         setShadowPolar(project, activePage, distance, angle)}
+      onpreviewshadowpolar={(control, distance, angle) =>
+        pageWorkflow.previewStyle(control, shadowPolarPatch(activePage, distance, angle))}
       onrequestimage={pageWorkflow.requestImage}
       onbegincrop={(slotId) => editorSession.beginCrop(slotId)}
       onupdatecropzoom={(zoom) => editorSession.updateZoom(zoom)}

@@ -20,14 +20,22 @@ export function updateShadowPolar(
   distance = shadowDistance(page),
   angle = shadowAngle(page),
 ): void {
+  project.setPageStyle(page.id, shadowPolarPatch(page, distance, angle))
+}
+
+export function shadowPolarPatch(
+  page: PageV1,
+  distance = shadowDistance(page),
+  angle = shadowAngle(page),
+): Partial<PageV1['style']> {
   const radians = ((angle + 135) * Math.PI) / 180
-  project.setPageStyle(page.id, {
+  return {
     shadow: {
       ...page.style.shadow,
       offsetX: Math.round(Math.cos(radians) * distance * 100) / 100,
       offsetY: Math.round(Math.sin(radians) * distance * 100) / 100,
     },
-  })
+  }
 }
 
 export function resizePage(

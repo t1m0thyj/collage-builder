@@ -21,6 +21,8 @@ export class ProjectStore {
   private readonly history = new History<CollageDocumentV1>()
   private readonly historyRevision = writable(0)
   private readonly dirty = writable(false)
+  private pageStyleInteraction:
+    { pageId: string; control: string; before: CollageDocumentV1; wasDirty: boolean } | undefined
   readonly document: Readable<CollageDocumentV1>
   readonly canUndo: Readable<boolean>
   readonly canRedo: Readable<boolean>
@@ -41,6 +43,7 @@ export class ProjectStore {
 
   replaceDocument(document: CollageDocumentV1): void {
     assertDocumentInvariants(document)
+    this.pageStyleInteraction = undefined
     this.history.clear()
     this.historyRevision.update((value) => value + 1)
     this.state.set(clone(document))
@@ -51,6 +54,7 @@ export class ProjectStore {
   }
 
   private commit(mutator: (draft: CollageDocumentV1) => void): void {
+    this.finishPageStyleInteraction()
     const before = this.snapshot()
     const draft = clone(before)
     mutator(draft)
@@ -88,6 +92,49 @@ export class ProjectStore {
     this.commit((draft) => {
       Object.assign(this.findPage(draft, pageId).style, patch)
     })
+  }
+
+  previewPageStyle(pageId: string, control: string, patch: Partial<PageV1['style']>): void {
+    const interaction = this.pageStyleInteraction
+    if (interaction && (interaction.pageId !== pageId || interaction.control !== control))
+      this.finishPageStyleInteraction()
+    if (!this.pageStyleInteraction)
+      this.pageStyleInteraction = {
+        pageId,
+        control,
+        before: this.snapshot(),
+        wasDirty: get(this.dirty),
+      }
+
+    const draft = this.snapshot()
+    Object.assign(this.findPage(draft, pageId).style, patch)
+    assertDocumentInvariants(draft)
+    this.state.set(draft)
+    this.dirty.set(true)
+  }
+
+  commitPageStyle(pageId: string, control: string): void {
+    const interaction = this.pageStyleInteraction
+    if (!interaction || interaction.pageId !== pageId || interaction.control !== control) return
+    this.finishPageStyleInteraction()
+  }
+
+  private finishPageStyleInteraction(): void {
+    const interaction = this.pageStyleInteraction
+    if (!interaction) return
+    this.pageStyleInteraction = undefined
+
+    const after = this.snapshot()
+    if (JSON.stringify(after) === JSON.stringify(interaction.before)) {
+      this.dirty.set(interaction.wasDirty)
+      return
+    }
+    after.updatedAt = new Date().toISOString()
+    assertDocumentInvariants(after)
+    this.history.push(interaction.before)
+    this.historyRevision.update((value) => value + 1)
+    this.state.set(after)
+    this.dirty.set(true)
   }
 
   resizePage(pageId: string, width: number, height: number): void {
@@ -310,6 +357,7 @@ export class ProjectStore {
   }
 
   undo(): void {
+    this.finishPageStyleInteraction()
     const previous = this.history.undo(this.snapshot())
     if (previous) {
       this.state.set(previous)
@@ -317,6 +365,7 @@ export class ProjectStore {
     }
   }
   redo(): void {
+    this.finishPageStyleInteraction()
     const next = this.history.redo(this.snapshot())
     if (next) {
       this.state.set(next)

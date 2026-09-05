@@ -636,6 +636,33 @@ test('crop changes cancel with Escape and commit as one undo entry', async ({ pa
   await expect(page.getByRole('spinbutton', { name: 'Crop vertical position' })).toHaveValue('65')
 })
 
+test('page appearance slider drags create one undo entry per control', async ({ page }) => {
+  await page.goto('/')
+
+  const dragSlider = async (name: string, from: number, to: number) => {
+    const slider = page.locator(`[data-slot="slider"][aria-label="${name}"]`)
+    const box = await slider.boundingBox()
+    expect(box).not.toBeNull()
+    await page.mouse.move(box!.x + box!.width * from, box!.y + box!.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(box!.x + box!.width * to, box!.y + box!.height / 2, { steps: 10 })
+    await page.mouse.up()
+  }
+
+  await dragSlider('Outer margin', 0.25, 1 / 3)
+  await expect(page.getByRole('spinbutton', { name: 'Outer margin value' })).toHaveValue('40')
+
+  await dragSlider('Inner spacing', 0.25, 5 / 12)
+  await expect(page.getByRole('spinbutton', { name: 'Inner spacing value' })).toHaveValue('50')
+
+  await page.getByRole('button', { name: 'Undo' }).click()
+  await expect(page.getByRole('spinbutton', { name: 'Inner spacing value' })).toHaveValue('30')
+  await expect(page.getByRole('spinbutton', { name: 'Outer margin value' })).toHaveValue('40')
+
+  await page.getByRole('button', { name: 'Undo' }).click()
+  await expect(page.getByRole('spinbutton', { name: 'Outer margin value' })).toHaveValue('30')
+})
+
 test('automatic recovery restores an unsaved project', async ({ page }) => {
   await page.goto('/')
   const title = page.getByRole('textbox', { name: 'Project title' })
