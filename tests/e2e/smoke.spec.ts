@@ -60,6 +60,88 @@ const redPng = solidPng(238, 45, 54)
 const bluePng = solidPng(30, 110, 230)
 const realPhotoPath = join(process.cwd(), 'tests', 'fixtures', 'real-photo-still-life.png')
 
+function visualParityArchive() {
+  const document = createProject('Visual parity')
+  const assetId = '11111111-1111-4111-8111-111111111111'
+  document.assets[assetId] = {
+    id: assetId,
+    originalName: 'red.png',
+    mediaType: 'image/png',
+    byteLength: redPng.byteLength,
+    width: 96,
+    height: 64,
+    sha256: createHash('sha256').update(redPng).digest('hex'),
+    storage: { kind: 'embedded', archivePath: `assets/${assetId}` },
+  }
+
+  const page = (
+    name: string,
+    options: {
+      padding: number
+      cornerRadius: number
+      transparentBackground: boolean
+      shadow: {
+        enabled: boolean
+        color: string
+        opacity: number
+        blur: number
+        offsetX: number
+        offsetY: number
+      }
+    },
+  ) => {
+    const result = createProject().pages[0]
+    const slotId = Object.keys(result.slots)[0]
+    result.name = name
+    result.width = 100
+    result.height = 100
+    result.layout = {
+      presetId: `visual-${name.toLowerCase().replaceAll(' ', '-')}`,
+      presetRevision: 1,
+      root: { kind: 'leaf', slotId },
+    }
+    result.slots = {
+      [slotId]: { assetId, placement: { zoom: 1, positionX: 0.5, positionY: 0.5 } },
+    }
+    result.style = {
+      backgroundColor: '#00FF00',
+      padding: options.padding,
+      gap: 0,
+      cornerRadius: options.cornerRadius,
+      transparentBackground: options.transparentBackground,
+      shadow: options.shadow,
+    }
+    return result
+  }
+
+  document.pages = [
+    page('Rounded', {
+      padding: 0,
+      cornerRadius: 20,
+      transparentBackground: true,
+      shadow: { enabled: false, color: '#000000', opacity: 0, blur: 0, offsetX: 0, offsetY: 0 },
+    }),
+    page('Transparent', {
+      padding: 10,
+      cornerRadius: 0,
+      transparentBackground: true,
+      shadow: { enabled: false, color: '#000000', opacity: 0, blur: 0, offsetX: 0, offsetY: 0 },
+    }),
+    page('Shadow', {
+      padding: 20,
+      cornerRadius: 0,
+      transparentBackground: true,
+      shadow: { enabled: true, color: '#000000', opacity: 0.5, blur: 0, offsetX: 8, offsetY: 0 },
+    }),
+  ]
+
+  return zipSync({
+    mimetype: strToU8(collageMimeType),
+    'document.json': strToU8(JSON.stringify(document)),
+    [`assets/${assetId}`]: redPng,
+  })
+}
+
 async function importImage(
   page: BrowserPage,
   name: string,
@@ -149,6 +231,15 @@ async function sampleDownloadedPng(
     },
     { encoded: [...bytes], points },
   )
+}
+
+async function exportCurrentPng(page: BrowserPage, width: number) {
+  await page.getByRole('button', { name: 'Export PNG' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Export pages' })
+  await dialog.getByRole('spinbutton', { name: 'Width (px)' }).fill(String(width))
+  const downloadPromise = page.waitForEvent('download')
+  await dialog.getByRole('button', { name: 'Export', exact: true }).click()
+  return downloadPromise
 }
 
 async function chooseTwoColumnLayout(page: BrowserPage) {
@@ -958,6 +1049,48 @@ test('export pixels preserve image colors and the configured page gap', async ({
   expect(leftPixel.slice(0, 3)).toEqual([238, 45, 54])
   expect(gapPixel.slice(0, 3)).toEqual([128, 128, 128])
   expect(rightPixel.slice(0, 3)).toEqual([30, 110, 230])
+})
+
+test('exports rounded corners, transparent areas, and shadows accurately', async ({ page }) => {
+  await page.goto('/')
+  await page.locator('input[type="file"][accept*=".collage.json"]').setInputFiles({
+    name: 'visual-parity.collage',
+    mimeType: collageMimeType,
+    buffer: Buffer.from(visualParityArchive()),
+  })
+  await expect(page.locator('.toast')).toHaveText('Project opened.')
+  await expect(page.getByRole('textbox', { name: 'Project title' })).toHaveValue('Visual parity')
+  await page.getByRole('tab', { name: 'Images' }).click()
+  await expect(page.locator('.asset-row img').first()).toBeVisible()
+
+  const roundedPixels = await sampleDownloadedPng(page, await exportCurrentPng(page, 100), [
+    { x: 50, y: 50 },
+    { x: 0, y: 0 },
+  ])
+  expect(roundedPixels[0]).toEqual([238, 45, 54, 255])
+  expect(roundedPixels[1]).toEqual([0, 0, 0, 0])
+
+  await page.getByRole('button', { name: 'Transparent' }).click()
+  const transparentPixels = await sampleDownloadedPng(page, await exportCurrentPng(page, 100), [
+    { x: 50, y: 50 },
+    { x: 0, y: 0 },
+  ])
+  expect(transparentPixels[0]).toEqual([238, 45, 54, 255])
+  expect(transparentPixels[1]).toEqual([0, 0, 0, 0])
+
+  await page.getByRole('button', { name: 'Shadow' }).click()
+  const [shadowPixel, transparentPixel] = await sampleDownloadedPng(
+    page,
+    await exportCurrentPng(page, 100),
+    [
+      { x: 84, y: 50 },
+      { x: 5, y: 5 },
+    ],
+  )
+  expect(shadowPixel.slice(0, 3)).toEqual([0, 0, 0])
+  expect(shadowPixel[3]).toBeGreaterThanOrEqual(120)
+  expect(shadowPixel[3]).toBeLessThanOrEqual(135)
+  expect(transparentPixel).toEqual([0, 0, 0, 0])
 })
 
 test('real photo import, crop, thumbnail, and export stay visually consistent', async ({

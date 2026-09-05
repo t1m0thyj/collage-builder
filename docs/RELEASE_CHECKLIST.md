@@ -58,7 +58,7 @@ This checklist tracks every finding from the initial architecture and first-rele
   - [x] Verify exact exported frame colors and configured gap pixels.
   - [x] Verify a real photographic image through import, thumbnailing, crop adjustment, canvas rendering, and exported-pixel comparison.
   - [x] Exercise the photographic and pixel-parity cases in Chromium, Firefox, and WebKit.
-  - [ ] Add pixel assertions for polygon clipping, corner radius, transparency, and shadows.
+  - [x] Add pixel assertions for corner radius, transparency, and shadows. Polygon clipping is deferred because the shipped editor exposes rectangular frames only.
 - [x] Add HEIC/HEIF photo import. Originals remain untouched in saved projects while an on-demand, browser-readable derivative powers thumbnails, editing, and export; unsupported variants receive a conversion-oriented error.
 - [x] Add JPEG export with a user-controlled 1–100 quality setting. PNG remains available, and JPEG exports flatten transparent areas to white with an explicit warning.
 - [ ] Add fast population tools such as fill-empty-frames, shuffle, or optional automatic assignment after multi-image import.
