@@ -947,6 +947,9 @@ test('autosave failures remain visible with quota guidance', async ({ page }) =>
     })
   })
   await page.goto('/')
+  const title = page.getByRole('textbox', { name: 'Project title' })
+  await title.fill('Storage full')
+  await title.press('Tab')
   const failedStatus = page.getByRole('button', {
     name: /Autosave failed.*Manage local copies/i,
   })
