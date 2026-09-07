@@ -2,9 +2,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import type { Plugin } from 'vite'
 
-const projectDocuments = [
-  ['LICENSE.txt', 'LICENSE'],
-] as const
+const projectDocuments = [['LICENSE.txt', 'LICENSE']] as const
 
 const licenseFilePattern = /^(?:licen[cs]e|copying|notice)(?:\..+)?$/i
 const sourceFilePattern = /\.(?:css|svelte|ts)$/
