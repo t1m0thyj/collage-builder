@@ -3,6 +3,7 @@
   import { RecoveryController, type RecoveryState } from '../../app/recovery'
   import type { RecoveryManagementSnapshot } from '../../persistence/autosave'
   import * as Dialog from '../ui/dialog'
+  import RecoveryThumbnail from './RecoveryThumbnail.svelte'
 
   export let open: boolean
   export let recovery: RecoveryController
@@ -185,6 +186,8 @@
           <ul class="recovery-list">
             {#each snapshot.recoveries as recovery (recovery.projectId)}
               <li class:corrupt-recovery={recovery.corrupt}>
+                <RecoveryThumbnail blob={recovery.preview} alt={`Preview of ${recovery.title}`}
+                ></RecoveryThumbnail>
                 <div class="recovery-copy-details">
                   <strong>{recovery.title}</strong>
                   <span>

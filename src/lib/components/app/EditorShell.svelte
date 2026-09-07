@@ -65,7 +65,7 @@
 </script>
 
 <section class="editor-column">
-  <section class="canvas-area" aria-label="Canvas preview">
+  <section id="collage-canvas" class="canvas-area" aria-label="Canvas preview" tabindex="-1">
     <div class="pasteboard">
       <CanvasEditor
         page={activePage}

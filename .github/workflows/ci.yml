@@ -17,8 +17,12 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm run verify
+      - name: Install dependencies
+        run: npm ci
+      - name: Check formatting
+        run: npm run format
+      - name: Verify types, lint, unit tests, and build
+        run: npm run verify:code
 
   test:
     needs: verify

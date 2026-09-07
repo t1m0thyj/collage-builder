@@ -1,6 +1,7 @@
 import type { CollageDocumentV1 } from '../domain/types'
 import type { RecoveryManagementSnapshot } from '../persistence/autosave'
 import type { AssetRegistry } from '../render/assetRegistry'
+import { createRecoveryPreview } from '../render/recoveryPreview'
 import { createId } from '../utils/ids'
 
 export type RecoveryStateStatus = 'idle' | 'pending' | 'saving' | 'saved' | 'failed' | 'conflict'
@@ -10,6 +11,14 @@ export interface RecoveryState {
   message: string
   detail?: string
   savedAt?: string
+}
+
+export interface StartupRecovery {
+  projectId: string
+  title: string
+  updatedAt: string
+  assetCount: number
+  preview?: Blob
 }
 
 export async function persistRecovery(
@@ -207,6 +216,10 @@ export class RecoveryController {
   private revision = 0
   private persistenceRequested = false
   private currentDocument?: CollageDocumentV1
+  private startupRecovery?: {
+    document: CollageDocumentV1
+    assets: Map<string, Blob>
+  }
   private writeChain: Promise<void> = Promise.resolve()
   private readonly coordinator: ProjectTabCoordinator
 
@@ -233,22 +246,49 @@ export class RecoveryController {
   schedule(document: CollageDocumentV1): void {
     this.currentDocument = document
     this.coordinator.activate(document.projectId)
-    if (!this.ready || this.conflict) return
+    if (!this.ready || this.conflict || !this.hasMeaningfulChanges(document)) return
     if (this.timer) clearTimeout(this.timer)
     const revision = ++this.revision
     this.host.onState({ status: 'pending', message: 'Autosave pending' })
     this.timer = setTimeout(() => void this.queuePersist(document, revision), 1000)
   }
 
-  async restore(currentProjectId: string): Promise<void> {
+  async initialize(currentProjectId: string): Promise<StartupRecovery | undefined> {
     try {
       const recovery = await restoreLatestRecovery(currentProjectId)
-      if (!recovery) return
-      await this.installRecovery(recovery)
-    } finally {
-      this.ready = true
-      this.schedule(this.host.document())
+      if (recovery) {
+        this.startupRecovery = recovery
+        this.host.onState({ status: 'idle', message: 'Recovery available' })
+        return {
+          projectId: recovery.document.projectId,
+          title: recovery.document.title,
+          updatedAt: recovery.document.updatedAt,
+          assetCount: Object.keys(recovery.document.assets).length,
+          preview: await createRecoveryPreview(recovery.document, recovery.assets).catch(
+            () => undefined,
+          ),
+        }
+      }
+    } catch (error) {
+      this.host.announce(
+        error instanceof Error ? error.message : 'Unable to check for a local recovery.',
+      )
     }
+    this.startAutosave()
+    return undefined
+  }
+
+  async restoreStartup(): Promise<void> {
+    const recovery = this.startupRecovery
+    if (!recovery) throw new Error('That local recovery is no longer available.')
+    this.startupRecovery = undefined
+    await this.installRecovery(recovery)
+    this.startAutosave()
+  }
+
+  startWithoutRecovery(): void {
+    this.startupRecovery = undefined
+    this.startAutosave()
   }
 
   async restoreProject(projectId: string): Promise<void> {
@@ -258,7 +298,9 @@ export class RecoveryController {
     if (!recovery)
       throw new Error('That local recovery is incomplete or corrupt and cannot be restored.')
     await this.installRecovery(recovery)
-    this.schedule(this.host.document())
+    this.startupRecovery = undefined
+    if (this.ready) this.schedule(this.host.document())
+    else this.startAutosave()
   }
 
   async managementSnapshot(): Promise<RecoveryManagementSnapshot> {
@@ -308,11 +350,27 @@ export class RecoveryController {
     this.host.announce('Local recovery restored.')
   }
 
+  private startAutosave(): void {
+    if (this.ready) return
+    this.ready = true
+    this.schedule(this.host.document())
+  }
+
   private async flush(): Promise<void> {
-    if (!this.ready || this.conflict || !this.currentDocument) return
+    if (
+      !this.ready ||
+      this.conflict ||
+      !this.currentDocument ||
+      !this.hasMeaningfulChanges(this.currentDocument)
+    )
+      return
     if (this.timer) clearTimeout(this.timer)
     this.timer = undefined
     await this.queuePersist(this.currentDocument, ++this.revision)
+  }
+
+  private hasMeaningfulChanges(document: CollageDocumentV1): boolean {
+    return document.updatedAt !== document.createdAt || Object.keys(document.assets).length > 0
   }
 
   private cancelPendingWrite(): void {

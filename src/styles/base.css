@@ -11,7 +11,7 @@
   --secondary: #e8eef8;
   --secondary-foreground: #264670;
   --muted: #edf1f7;
-  --muted-foreground: #6b7280;
+  --muted-foreground: #626a76;
   --accent: #dce8f7;
   --accent-foreground: #264670;
   --destructive: #b42318;
@@ -70,6 +70,23 @@ button:disabled {
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+.skip-link {
+  position: fixed;
+  z-index: 500;
+  top: 8px;
+  left: 8px;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 7px;
+  background: #14233a;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  transform: translateY(-160%);
+}
+.skip-link:focus {
+  transform: translateY(0);
 }
 .canvas-frame-controls {
   position: absolute;

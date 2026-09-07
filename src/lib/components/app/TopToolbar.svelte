@@ -1,5 +1,14 @@
 <script lang="ts">
-  import { ChevronDown, FileImage, Files, Minus, Plus, Redo2, Undo2 } from '@lucide/svelte'
+  import {
+    ChevronDown,
+    CircleHelp,
+    FileImage,
+    Files,
+    Minus,
+    Plus,
+    Redo2,
+    Undo2,
+  } from '@lucide/svelte'
   import Button from '../ui/button/button.svelte'
   import Input from '../ui/input/input.svelte'
   import * as DropdownMenu from '../ui/dropdown-menu'
@@ -9,7 +18,6 @@
   export let canUndo: boolean
   export let canRedo: boolean
   export let viewportZoom: number
-  export let exportFormat: 'png' | 'jpeg'
   export let fittedViewportZoom: number
   export let isViewportFit: boolean
   export let isDirty: boolean
@@ -25,6 +33,7 @@
   export let onrename: () => void
   export let onexport: (scope: 'current' | 'all' | 'range') => void
   export let onmanagerecovery: () => void
+  export let onshowquickstart: () => void
 
   $: saveLabel =
     recoveryState.status === 'idle'
@@ -106,6 +115,14 @@
     <Input bind:value={projectTitle} aria-label="Project title" onblur={onrename} />
   </label>
   <div class="toolbar-group topbar-end">
+    <Button
+      class="icon-button"
+      variant="ghost"
+      size="icon"
+      aria-label="Show quick start"
+      title="Quick start"
+      onclick={onshowquickstart}><CircleHelp size={16}></CircleHelp></Button
+    >
     <button
       class="save-status recovery-status-button"
       class:recovery-error={recoveryState.status === 'failed'}
@@ -123,8 +140,7 @@
     >
     <DropdownMenu.Root>
       <div class="export-menu">
-        <Button class="button button-primary" onclick={() => onexport('current')}
-          >Export {exportFormat === 'jpeg' ? 'JPEG' : 'PNG'}</Button
+        <Button class="button button-primary" onclick={() => onexport('current')}>Export…</Button
         ><DropdownMenu.Trigger
           class="button button-primary export-caret"
           aria-label="Choose export scope"

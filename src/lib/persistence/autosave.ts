@@ -2,6 +2,7 @@ import { openDB } from 'idb'
 import type { CollageDocumentV1 } from '../domain/types'
 import { migrateDocument } from '../domain/migrations'
 import type { AssetRegistry } from '../render/assetRegistry'
+import { createRecoveryPreview } from '../render/recoveryPreview'
 
 const recoveryLimit = 5
 
@@ -12,6 +13,7 @@ export interface RecoverySummary {
   bytes: number
   assetCount: number
   corrupt: boolean
+  preview?: Blob
 }
 
 export interface RecoveryStorageEstimate {
@@ -174,19 +176,25 @@ export async function getRecoveryManagementSnapshot(): Promise<RecoveryManagemen
   const projects = tx.objectStore('projects')
   const assetBlobs = tx.objectStore('assetBlobs')
   const recoveries: RecoverySummary[] = []
+  const previewSources: Array<{
+    document: CollageDocumentV1
+    summary: RecoverySummary
+  }> = []
   for (const key of await projects.getAllKeys()) {
     if (typeof key !== 'string') continue
     const stored = await projects.get(key)
     try {
       const document = migrateDocument(stored)
-      recoveries.push({
+      const summary: RecoverySummary = {
         projectId: document.projectId,
         title: document.title,
         updatedAt: document.updatedAt,
         bytes: await recoveryBytes(key, stored, assetBlobs),
         assetCount: Object.keys(document.assets).length,
         corrupt: false,
-      })
+      }
+      recoveries.push(summary)
+      previewSources.push({ document, summary })
     } catch {
       recoveries.push({
         projectId: key,
@@ -198,6 +206,16 @@ export async function getRecoveryManagementSnapshot(): Promise<RecoveryManagemen
     }
   }
   await tx.done
+  for (const { document, summary } of previewSources)
+    summary.preview = await createRecoveryPreview(document, async (assetId) => {
+      const asset = document.assets[assetId]
+      if (!asset) return undefined
+      const blob = ((await db.get(
+        'assetBlobs',
+        `${document.projectId}:${asset.id}:${asset.sha256}`,
+      )) ?? (await db.get('assetBlobs', `${document.projectId}:${asset.id}`))) as Blob | undefined
+      return blob?.slice(0, blob.size, asset.mediaType)
+    }).catch(() => undefined)
   recoveries.sort((left, right) => (right.updatedAt ?? '').localeCompare(left.updatedAt ?? ''))
   return { recoveries, storage: await getRecoveryStorageEstimate() }
 }

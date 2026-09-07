@@ -3,11 +3,12 @@ import { svelte } from '@sveltejs/vite-plugin-svelte'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'node:path'
 import { offlineServiceWorker } from './build/offlineServiceWorker.js'
+import { releaseArtifacts } from './build/releaseArtifacts.js'
 
 // https://vite.dev/config/
 export default defineConfig({
   base: process.env.BASE_PATH ?? '/',
-  plugins: [tailwindcss(), svelte(), offlineServiceWorker()],
+  plugins: [tailwindcss(), svelte(), releaseArtifacts(), offlineServiceWorker()],
   resolve: {
     alias: {
       $lib: path.resolve('./src/lib'),

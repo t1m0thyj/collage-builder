@@ -353,8 +353,8 @@
     const assetId = event.dataTransfer?.getData('application/x-collage-asset')
     if (!assetId) return
     const bounds = host.getBoundingClientRect()
-    const x = (event.clientX - bounds.left - stageX) / fitScale
-    const y = (event.clientY - bounds.top - stageY) / fitScale
+    const x = (event.clientX - bounds.left + host.scrollLeft - stageX) / fitScale
+    const y = (event.clientY - bounds.top + host.scrollTop - stageY) / fitScale
     const frame = model.frames.find(
       (candidate) =>
         candidate.x <= x &&
@@ -449,8 +449,10 @@
   )
   $: fitScale = fitToViewport ? fittedZoom : viewportZoom
   $: onfitzoomchange(fittedZoom)
-  $: stageX = Math.max(0, (viewportWidth - page.width * fitScale) / 2)
-  $: stageY = Math.max(0, (viewportHeight - page.height * fitScale) / 2)
+  $: stageWidth = Math.max(viewportWidth, Math.ceil(page.width * fitScale + 48))
+  $: stageHeight = Math.max(viewportHeight, Math.ceil(page.height * fitScale + 48))
+  $: stageX = Math.max(24, (stageWidth - page.width * fitScale) / 2)
+  $: stageY = Math.max(24, (stageHeight - page.height * fitScale) / 2)
 
   onMount(() => {
     const resize = () => {
@@ -493,8 +495,8 @@
   ondrop={dropAsset}
 >
   <Stage
-    width={viewportWidth}
-    height={viewportHeight}
+    width={stageWidth}
+    height={stageHeight}
     onwheel={handleWheel}
     onpointermove={previewSideZoom}
     onpointerup={() => (sideCropDrag = null)}

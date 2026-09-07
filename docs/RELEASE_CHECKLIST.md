@@ -35,10 +35,10 @@ This checklist tracks every finding from the initial architecture and first-rele
 - [x] Split the root component into dedicated project-I/O, persistence, recovery, export, asset, image-session, editor-session, page-workflow, preferences, lifecycle, toolbar, file-input, sidebar, dialog, properties-panel, layout-panel, and editor-shell modules. The canvas page and crop layers and the global stylesheet are also split along functional boundaries. `App.svelte` is 571 lines, down from 2,566, and now focuses on application composition and cross-feature coordination; executable component and stylesheet modules stay around the 500-line target. Large layout-definition files remain declarative-data exceptions.
 - [x] Load noncritical layout definitions and editor workflows on demand. Default two- and three-frame layouts and the canvas editor remain eager for first-paint usability; layout groups 4–11 share one deferred 4.94 kB gzip catalog warmed on layout-control hover or focus. Archive, linked-project, recovery, and export implementations also load on demand. Konva remains eager in a separately cacheable chunk. The larger HEIC decoder is isolated in its own optional chunk and loads only when a HEIC/HEIF asset needs decoding.
 - [x] Add offline support without installability. A generated service worker precaches the complete production application bundle, including lazy chunks and public assets, and supports root or subdirectory deployments. Project data remains local; no web app manifest or install prompt is included.
-- [ ] Bring release engineering beyond prototype status.
-  - [ ] Set a real package/release version instead of `0.0.0`.
-  - [ ] Replace the template README with product, privacy, support, and release documentation and resolve its legal/attribution notes.
-  - [ ] Normalize repository formatting and add the formatter to CI verification.
+- [x] Bring release engineering beyond prototype status.
+  - [x] Set the initial package and release version to `0.1.0`.
+  - [x] Replace the template README with concise product documentation linked to separate usage, privacy, support, security, development, release, and attribution documents. License the project under Apache-2.0 and remove unused starter artwork.
+  - [x] Normalize repository text formatting with EditorConfig, Git attributes, explicit LF handling in Prettier, and a named formatting gate in CI.
 
 ## First-release collage-builder assessment
 
@@ -49,6 +49,8 @@ This checklist tracks every finding from the initial architecture and first-rele
   - [x] Expose named, focusable canvas-frame controls with content and selection state.
   - [x] Provide visible keyboard focus and a sensible initial focus target.
   - [x] Add keyboard equivalents for layout-divider manipulation and graphical crop handles.
+  - [x] Add a keyboard bypass to the canvas, prevent global editor shortcuts from firing behind open dialogs, and improve muted-text and dark-dialog control contrast.
+  - [x] Keep primary controls available at a 960 CSS-pixel viewport (equivalent to 200% zoom on a 1920 px desktop viewport) and honor reduced-motion preferences.
   - [ ] Verify selection/status announcements with screen readers. Persistent live-region wiring and automated interaction coverage are in place; an NVDA/VoiceOver pass remains.
   - [ ] Complete manual contrast and assistive-technology testing.
 - [x] Correct the initial Undo/Redo state. Both controls now use subscribed store values and are disabled on a blank project.
@@ -64,7 +66,11 @@ This checklist tracks every finding from the initial architecture and first-rele
 - [ ] Add fast population tools such as fill-empty-frames, shuffle, or optional automatic assignment after multi-image import.
 - [ ] Add practical page presets for square, portrait, landscape, print, and common social-media formats, with DPI guidance where relevant.
 - [ ] Add usage navigation from an image to the pages and frames where it appears; the image manager currently reports only a usage count.
-- [ ] Resolve scope drift before adding more advanced layout features. Finish onboarding, storage management, recovery choices, and the remaining accessibility work before expanding polygon/splitter functionality.
+- [ ] **Partially complete:** Resolve scope drift before adding more advanced layout features.
+  - [x] Add first-run onboarding with direct import/open actions and a persistent way to reopen it.
+  - [x] Add explicit startup recovery choices: restore, retain and start blank, or review local copies.
+  - [x] Finish bounded storage management, persistence guidance, corrupt-copy removal, and multi-tab conflict handling.
+  - [ ] Complete the remaining manual screen-reader, contrast, zoom, and reduced-motion release audits listed below.
 
 ## Release validation
 

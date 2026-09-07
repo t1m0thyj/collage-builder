@@ -1,7 +1,17 @@
 {
   "name": "collage-builder",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "A local-first browser editor for creating and exporting photo collages.",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/t1m0thyj/collage-builder#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/t1m0thyj/collage-builder.git"
+  },
+  "bugs": {
+    "url": "https://github.com/t1m0thyj/collage-builder/issues"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,7 +23,8 @@
     "test:e2e": "playwright test",
     "test:offline": "vite build --base=/offline-test/ && playwright test tests/e2e/offline.spec.ts --config=playwright.offline.config.ts --project=chromium --workers=1",
     "test:benchmark": "playwright test tests/e2e/benchmark.spec.ts --project=chromium --workers=1",
-    "verify": "npm run format && npm run check && npm run lint && npm test && npm run build",
+    "verify": "npm run format && npm run verify:code",
+    "verify:code": "npm run check && npm run lint && npm test && npm run build",
     "lint": "eslint .",
     "format": "prettier --plugin=prettier-plugin-svelte --check .",
     "format:write": "prettier --plugin=prettier-plugin-svelte --write ."

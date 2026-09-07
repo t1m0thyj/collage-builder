@@ -47,7 +47,7 @@
   border: 0;
   border-bottom: 2px solid transparent;
   background: transparent;
-  color: #777269;
+  color: #68635c;
   font-size: 13px;
   font-weight: 700;
 }
@@ -259,7 +259,7 @@ h2 {
 }
 .asset-row small {
   margin-top: 2px;
-  color: #777269;
+  color: #68635c;
   font-size: 10px;
 }
 .asset-thumb {
@@ -298,7 +298,7 @@ h2 {
   border-radius: 5px;
   transform: translateY(-50%);
   background: transparent;
-  color: #777269;
+  color: #68635c;
 }
 .asset-sort-menu:hover,
 .asset-sort-menu[data-state='open'] {

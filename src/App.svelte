@@ -4,6 +4,7 @@
   import EditorShell from './lib/components/app/EditorShell.svelte'
   import ImageManagerDialog from './lib/components/app/ImageManagerDialog.svelte'
   import RecoveryManagerDialog from './lib/components/app/RecoveryManagerDialog.svelte'
+  import StartupDialogs from './lib/components/app/StartupDialogs.svelte'
   import ProjectDialogs from './lib/components/app/ProjectDialogs.svelte'
   import LeftSidebar from './lib/components/app/LeftSidebar.svelte'
   import ProjectFileInputs from './lib/components/app/ProjectFileInputs.svelte'
@@ -13,7 +14,7 @@
   import { ProjectStore } from './lib/state/projectStore'
   import { AssetRegistry } from './lib/render/assetRegistry'
   import { onMount } from 'svelte'
-  import { RecoveryController, type RecoveryState } from './lib/app/recovery'
+  import { RecoveryController, type RecoveryState, type StartupRecovery } from './lib/app/recovery'
   import { ExportWorkflowController } from './lib/app/exportProject'
   import type { ExportFormat } from './lib/render/exportPng'
   import {
@@ -40,6 +41,7 @@
   import { attachAppLifecycle } from './lib/app/appLifecycle'
   import { UiPreferencesController } from './lib/app/uiPreferences'
   import { PageWorkflowController, type SidebarTab } from './lib/app/pageWorkflow'
+  import { completeOnboarding, hasCompletedOnboarding } from './lib/app/onboarding'
 
   const defaultSidebarWidth = 255
   const sidebarWidthsStorageKey = 'collage-builder:sidebar-widths'
@@ -120,6 +122,9 @@
   let activeTab: SidebarTab = 'layouts'
   let isImageManagerOpen = false
   let isRecoveryManagerOpen = false
+  let isOnboardingOpen = false
+  let startupRecovery: StartupRecovery | null = null
+  let restoringRecovery = false
   let recoveryState: RecoveryState = {
     status: 'idle',
     message: 'Local autosave starting…',
@@ -297,7 +302,7 @@
   onMount(() =>
     attachAppLifecycle({
       initializePreferences: uiPreferences.initialize,
-      restoreRecovery: () => void recovery.restore(document.projectId),
+      initializeStartup: () => void initializeStartup(),
       applyTheme: uiPreferences.applyTheme,
       pendingNavigation: () => pendingNavigation !== null,
       cancelPendingNavigation: () => (pendingNavigation = null),
@@ -343,6 +348,58 @@
     }, 3200)
   }
 
+  function focusCanvas() {
+    globalThis.document.getElementById('collage-canvas')?.focus()
+  }
+
+  async function initializeStartup() {
+    const candidate = await recovery.initialize(document.projectId)
+    if (candidate) startupRecovery = candidate
+    else if (!hasCompletedOnboarding()) isOnboardingOpen = true
+  }
+
+  function closeOnboarding() {
+    completeOnboarding()
+    isOnboardingOpen = false
+  }
+
+  async function restoreStartupRecovery() {
+    restoringRecovery = true
+    try {
+      await recovery.restoreStartup()
+      startupRecovery = null
+      completeOnboarding()
+    } catch (error) {
+      announce(error instanceof Error ? error.message : 'Unable to restore the local project.')
+    } finally {
+      restoringRecovery = false
+    }
+  }
+
+  function startWithoutRecovery() {
+    recovery.startWithoutRecovery()
+    startupRecovery = null
+    completeOnboarding()
+    announce('Started with a blank project. The previous recovery is still available locally.')
+  }
+
+  function manageStartupRecovery() {
+    recovery.startWithoutRecovery()
+    startupRecovery = null
+    completeOnboarding()
+    isRecoveryManagerOpen = true
+  }
+
+  function importFromOnboarding() {
+    closeOnboarding()
+    projectFiles.chooseImages()
+  }
+
+  function openFromOnboarding() {
+    closeOnboarding()
+    projectWorkflow.requestOpen()
+  }
+
   function renameProject() {
     project.renameProject(projectTitle)
     projectTitle = document.title
@@ -371,6 +428,7 @@
 </svelte:head>
 
 <main class="app-shell" data-theme={prefersDark ? 'dark' : 'light'}>
+  <button class="skip-link" onclick={focusCanvas}>Skip to canvas</button>
   <ProjectFileInputs
     bind:this={projectFiles}
     onimport={assetWorkflow.import}
@@ -383,7 +441,6 @@
     canUndo={$canUndo}
     canRedo={$canRedo}
     bind:viewportZoom
-    {exportFormat}
     {fittedViewportZoom}
     bind:isViewportFit
     {isDirty}
@@ -399,6 +456,7 @@
     onrename={renameProject}
     onexport={exportWorkflow.choose}
     onmanagerecovery={() => (isRecoveryManagerOpen = true)}
+    onshowquickstart={() => (isOnboardingOpen = true)}
   ></TopToolbar>
 
   <section
@@ -577,6 +635,18 @@
     {formatBytes}
     {announce}
   ></RecoveryManagerDialog>
+
+  <StartupDialogs
+    onboardingOpen={isOnboardingOpen}
+    {startupRecovery}
+    {restoringRecovery}
+    oncloseonboarding={closeOnboarding}
+    onimportimages={importFromOnboarding}
+    onopenproject={openFromOnboarding}
+    onrestorerecovery={() => void restoreStartupRecovery()}
+    onstartblank={startWithoutRecovery}
+    onmanagerecovery={manageStartupRecovery}
+  ></StartupDialogs>
 
   <div class:toast-visible={Boolean(toast)} class="toast" role="status" aria-atomic="true">
     {toast}

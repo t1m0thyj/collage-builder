@@ -127,6 +127,13 @@
     background: #1d1d1d;
     color: #ededed;
   }
+  .icon-button,
+  .text-button {
+    color: #d6d6d6;
+  }
+  .danger-text {
+    color: #ffaaa0;
+  }
   .button:hover:not(:disabled),
   .zoom-menu-content [role='menuitem'][data-highlighted],
   .asset-menu [role='menuitem'][data-highlighted] {
@@ -329,13 +336,25 @@
   .recovery-state,
   .storage-summary,
   .recovery-list li,
-  .recovery-empty {
+  .recovery-empty,
+  .startup-recovery-card,
+  .privacy-note,
+  .recovery-thumbnail {
     border-color: #414141;
     background: #222222;
     color: #c0c0c0;
   }
   .recovery-state {
     color: #a9cdfc;
+  }
+  .startup-recovery-card,
+  .quick-start-steps svg {
+    color: #a9cdfc;
+  }
+  .startup-recovery-card span,
+  .quick-start-steps span,
+  .startup-content {
+    color: #b5b5b5;
   }
   .recovery-alert {
     border-color: #75463f;

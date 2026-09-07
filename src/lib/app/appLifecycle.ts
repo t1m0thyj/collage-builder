@@ -1,6 +1,6 @@
 interface AppLifecycleHost {
   initializePreferences: () => void
-  restoreRecovery: () => void
+  initializeStartup: () => void
   applyTheme: (dark: boolean) => void
   pendingNavigation: () => boolean
   cancelPendingNavigation: () => void
@@ -24,11 +24,18 @@ export function attachAppLifecycle(host: AppLifecycleHost): () => void {
   const syncDarkMode = () => host.applyTheme(darkMedia.matches)
   syncDarkMode()
   darkMedia.addEventListener('change', syncDarkMode)
-  host.restoreRecovery()
+  host.initializeStartup()
 
   const keyboard = (event: KeyboardEvent) => {
     const target = event.target as HTMLElement | null
-    if (target?.matches('input, textarea, select')) return
+    if (target?.matches('input, textarea, select, [contenteditable="true"]')) return
+    const dialog = target?.closest<HTMLElement>('[role="dialog"]')
+    if (
+      dialog &&
+      dialog.getAttribute('data-state') !== 'closed' &&
+      dialog.getAttribute('aria-hidden') !== 'true'
+    )
+      return
     if (event.key === 'Escape' && host.pendingNavigation()) {
       host.cancelPendingNavigation()
       event.preventDefault()

@@ -193,20 +193,33 @@
       >
     </div>
     <div class="export-form">
-      <label
-        >Format <Select.Root
-          type="single"
-          value={exportFormat}
-          disabled={isExporting}
-          onValueChange={(value) => value && (exportFormat = value as typeof exportFormat)}
-          ><Select.Trigger class="export-scope" aria-label="Export format"
-            ><span>{exportFormat === 'jpeg' ? 'JPEG' : 'PNG'}</span></Select.Trigger
-          ><Select.Content
-            ><Select.Item value="png">PNG</Select.Item><Select.Item value="jpeg">JPEG</Select.Item
-            ></Select.Content
-          ></Select.Root
-        ></label
-      >
+      <div class="export-format-fields">
+        <label
+          >Format <Select.Root
+            type="single"
+            value={exportFormat}
+            disabled={isExporting}
+            onValueChange={(value) => value && (exportFormat = value as typeof exportFormat)}
+            ><Select.Trigger class="export-scope" aria-label="Export format"
+              ><span>{exportFormat === 'jpeg' ? 'JPEG' : 'PNG'}</span></Select.Trigger
+            ><Select.Content
+              ><Select.Item value="png">PNG</Select.Item><Select.Item value="jpeg">JPEG</Select.Item
+              ></Select.Content
+            ></Select.Root
+          ></label
+        >
+        {#if exportFormat === 'jpeg'}
+          <label
+            >JPEG quality (%) <input
+              type="number"
+              min="1"
+              max="100"
+              bind:value={exportQuality}
+              disabled={isExporting}
+            /></label
+          >
+        {/if}
+      </div>
       <label
         >Scope <Select.Root
           type="single"
@@ -239,15 +252,6 @@
         /></label
       >
       {#if exportFormat === 'jpeg'}
-        <label
-          >JPEG quality (%) <input
-            type="number"
-            min="1"
-            max="100"
-            bind:value={exportQuality}
-            disabled={isExporting}
-          /></label
-        >
         {#if activePage.style.transparentBackground}<p class="export-warning" role="note">
             JPEG does not support transparency. Transparent areas will be exported as white.
           </p>{/if}
