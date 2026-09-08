@@ -201,8 +201,3 @@ export class ProjectWorkflowController {
     }
   }
 }
-
-export function saveAsModifierPressed(event: MouseEvent): boolean {
-  const isApplePlatform = /Mac|iPhone|iPad|iPod/.test(globalThis.navigator.platform)
-  return isApplePlatform ? event.altKey : event.shiftKey
-}

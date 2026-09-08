@@ -566,8 +566,8 @@
         aria-pressed={selectedSlotId === frame.slotId}
         aria-label={`Frame ${index + 1}, ${asset ? asset.originalName : 'empty'}`}
         aria-keyshortcuts={content ? 'Enter Delete' : undefined}
-        onfocus={() => selectFrameControl(frame.slotId, index)}
-        onclick={() => (content ? onselect(frame.slotId) : onrequestimage(frame.slotId))}
+        onclick={() =>
+          content ? selectFrameControl(frame.slotId, index) : onrequestimage(frame.slotId)}
       >
         Frame {index + 1}: {asset ? asset.originalName : 'Empty — add an image'}
       </button>

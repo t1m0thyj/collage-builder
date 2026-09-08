@@ -8,7 +8,6 @@ interface EditorSessionHost {
   selectedSlotId: () => string | null
   selectedContent: () => SlotContentV1 | null
   cropModeSlotId: () => string | null
-  selectedAssetId: () => string | null
   setSelectedSlotId: (slotId: string | null) => void
   setCropModeSlotId: (slotId: string | null) => void
   setSelectedAssetId: (assetId: string | null) => void
@@ -44,14 +43,6 @@ export class EditorSessionController {
   }
 
   selectFrame(slotId: string) {
-    const selectedAssetId = this.host.selectedAssetId()
-    if (selectedAssetId) {
-      this.host.project.assignAsset(this.host.page().id, slotId, selectedAssetId)
-      this.host.setSelectedSlotId(slotId)
-      this.host.setCropModeSlotId(null)
-      this.cropOrigin = null
-      return
-    }
     if (this.host.cropModeSlotId() && this.host.cropModeSlotId() !== slotId) this.finishCrop()
     this.host.setSelectedSlotId(slotId)
   }

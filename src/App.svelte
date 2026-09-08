@@ -38,7 +38,7 @@
     updateShadowPolar as setShadowPolar,
   } from './lib/app/pageAppearance'
   import { EditorSessionController } from './lib/app/editorSession'
-  import { ProjectWorkflowController, saveAsModifierPressed } from './lib/app/projectWorkflow'
+  import { ProjectWorkflowController } from './lib/app/projectWorkflow'
   import { attachAppLifecycle } from './lib/app/appLifecycle'
   import { UiPreferencesController } from './lib/app/uiPreferences'
   import { PageWorkflowController, type SidebarTab } from './lib/app/pageWorkflow'
@@ -160,7 +160,6 @@
     selectedSlotId: () => selectedSlotId,
     selectedContent: () => selectedContent,
     cropModeSlotId: () => cropModeSlotId,
-    selectedAssetId: () => selectedAssetId,
     setSelectedSlotId: (slotId) => (selectedSlotId = slotId),
     setCropModeSlotId: (slotId) => (cropModeSlotId = slotId),
     setSelectedAssetId: (assetId) => (selectedAssetId = assetId),
@@ -172,7 +171,6 @@
     document: () => document,
     pageId: () => activePage.id,
     selectedSlotId: () => selectedSlotId,
-    selectedContentAssetId: () => selectedContent?.assetId ?? null,
     libraryTargetSlotId: () => libraryTargetSlotId,
     selectedAssetId: () => selectedAssetId,
     selectedAssetIds: () => selectedAssetIds,
@@ -498,7 +496,8 @@
     deployment={$deploymentState}
     onnew={projectWorkflow.requestNew}
     onopen={projectWorkflow.requestOpen}
-    onsave={(event) => void projectWorkflow.save(saveAsModifierPressed(event))}
+    onsave={() => void projectWorkflow.save()}
+    onsaveas={() => void projectWorkflow.save(true)}
     onundo={() => project.undo()}
     onredo={() => project.redo()}
     onzoomstep={pageWorkflow.stepViewportZoom}
@@ -624,7 +623,6 @@
       onupdatecropposition={(axis, percent) => editorSession.updatePosition(axis, percent)}
       onfinishcrop={() => editorSession.finishCrop()}
       onresetcrop={() => editorSession.resetCrop()}
-      onreplaceimage={assetWorkflow.replaceSelectedImage}
       onremoveimage={() => editorSession.removeSelectedImage()}
     ></PropertiesPanel>
   </section>

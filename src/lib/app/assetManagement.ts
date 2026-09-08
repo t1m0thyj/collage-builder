@@ -229,7 +229,6 @@ interface AssetWorkflowHost {
   document: () => CollageDocumentV1
   pageId: () => string
   selectedSlotId: () => string | null
-  selectedContentAssetId: () => string | null
   libraryTargetSlotId: () => string | null
   selectedAssetId: () => string | null
   selectedAssetIds: () => string[]
@@ -338,11 +337,6 @@ export class AssetWorkflowController {
   chooseRelinkFor = (assetId: string) => {
     this.host.setSelectedAssetId(assetId)
     this.host.chooseRelink()
-  }
-
-  replaceSelectedImage = () => {
-    const assetId = this.host.selectedContentAssetId()
-    if (assetId) this.chooseReplacementFor(assetId)
   }
 
   replace = async (file: File | undefined) => {

@@ -5,11 +5,23 @@
       minmax(210px, var(--right-sidebar-width, 255px));
   }
   .topbar {
-    padding: 0 12px;
-    gap: 8px;
+    padding: 0 6px;
+    gap: 4px;
   }
-  .save-status {
-    display: none;
+  .topbar .toolbar-group {
+    gap: 4px;
+  }
+  .topbar .button {
+    padding-inline: 9px;
+  }
+  .topbar .history-controls {
+    padding-left: 8px;
+  }
+  .topbar .editor-zoom {
+    padding-left: 6px;
+  }
+  .topbar .project-title {
+    min-width: 140px;
   }
   .deployment-status {
     display: none;
@@ -28,9 +40,11 @@
 .color-trigger {
   font-size: 12px;
 }
-.asset-row small,
-.page-dimensions label > span {
+.asset-row small {
   font-size: 11px;
+}
+.page-dimensions label > span {
+  font-size: 12px;
 }
 .asset-row.selected-asset,
 .manager-asset-card.selected-asset .asset-row,

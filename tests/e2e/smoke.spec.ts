@@ -743,9 +743,10 @@ test('crop handles have keyboard-equivalent controls', async ({ page }) => {
   await page.goto('/')
   await importImage(page, 'keyboard-crop.png', redPng)
   await page.getByRole('tab', { name: 'Images' }).click()
-  await page.getByText('keyboard-crop.png', { exact: true }).click()
   const frame = page.getByRole('button', { name: 'Frame 1, empty' })
   await frame.focus()
+  await page.keyboard.press('Enter')
+  await page.getByText('keyboard-crop.png', { exact: true }).click()
   await page.getByRole('button', { name: 'Crop image' }).click()
 
   const zoomIn = page.getByRole('button', { name: 'Zoom crop image in' })
@@ -761,9 +762,78 @@ test('crop handles have keyboard-equivalent controls', async ({ page }) => {
 
 test('frame selection announces its current state', async ({ page }) => {
   await page.goto('/')
+  await importImage(page, 'announced.png', redPng)
   const frame = page.getByRole('button', { name: 'Frame 1, empty' })
   await frame.focus()
-  await expect(page.getByRole('status')).toHaveText('Frame 1 selected, empty.')
+  await page.keyboard.press('Enter')
+  await page.getByText('announced.png', { exact: true }).click()
+  await page.getByRole('button', { name: 'Frame 1, announced.png' }).focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('status')).toHaveText('Frame 1 selected, announced.png.')
+})
+
+test('library selection and frame focus do not replace placed images', async ({ page }) => {
+  await page.goto('/')
+  await chooseTwoColumnLayout(page)
+  await importImage(page, 'red.png', redPng)
+  await importImage(page, 'blue.png', bluePng)
+  const [left, right] = await twoColumnFrameCenters(page)
+  await assignSidebarImage(page, 'red.png', left)
+  await assignSidebarImage(page, 'blue.png', right)
+
+  await page.getByRole('button', { name: 'Frame 1, red.png' }).focus()
+  await page.keyboard.press('Enter')
+  await page.getByRole('tab', { name: 'Images' }).click()
+  await page.getByText('red.png', { exact: true }).click()
+  const blueFrame = page.getByRole('button', { name: 'Frame 2, blue.png' })
+  await blueFrame.focus()
+  await expect(blueFrame).toHaveAttribute('aria-pressed', 'false')
+  await expect.poll(() => sampleStageColor(page, right)).toBe('blue')
+
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('button', { name: 'Frame 2, blue.png' })).toBeVisible()
+  await expect.poll(() => sampleStageColor(page, right)).toBe('blue')
+})
+
+test('Replace this frame preserves other uses of the original image', async ({ page }) => {
+  await page.goto('/')
+  await chooseTwoColumnLayout(page)
+  await importImage(page, 'shared.png', redPng)
+  await importImage(page, 'replacement.png', bluePng)
+  const [left, right] = await twoColumnFrameCenters(page)
+  await assignSidebarImage(page, 'shared.png', left)
+  await assignSidebarImage(page, 'shared.png', right)
+
+  await page.getByRole('button', { name: 'Frame 1, shared.png' }).focus()
+  await page.keyboard.press('Enter')
+  const properties = page.getByRole('complementary', { name: 'Properties' })
+  await expect(properties.locator('.property-group-heading button').first()).toHaveText(
+    /Image & crop/,
+  )
+  await expect(properties.getByRole('button', { name: 'Advanced shadow' })).toHaveAttribute(
+    'aria-expanded',
+    'false',
+  )
+  await page.getByRole('button', { name: 'Replace this frame' }).click()
+  await page.getByText('replacement.png', { exact: true }).click()
+
+  await expect(page.getByRole('button', { name: 'Frame 1, replacement.png' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Frame 2, shared.png' })).toBeVisible()
+  await expect.poll(() => sampleStageColor(page, left)).toBe('blue')
+  await expect.poll(() => sampleStageColor(page, right)).toBe('red')
+
+  await page.getByRole('button', { name: 'Actions for shared.png' }).click()
+  await expect(page.getByRole('menuitem', { name: 'Replace original' })).toBeVisible()
+})
+
+test('shadow opacity increases directly with the displayed percentage', async ({ page }) => {
+  await page.goto('/')
+  const properties = page.getByRole('complementary', { name: 'Properties' })
+  await properties.getByRole('button', { name: 'Advanced shadow' }).click()
+  const opacity = properties.getByRole('spinbutton', { name: 'Frame shadow opacity value' })
+  await expect(opacity).toHaveValue('50')
+  await setNumber(page, 'Frame shadow opacity value', '80')
+  await expect(opacity).toHaveValue('80')
 })
 
 test('crop changes cancel with Escape and commit as one undo entry', async ({ page }) => {
@@ -1044,7 +1114,7 @@ test('initial keyboard focus skips hidden file inputs and canvas frames are name
   await expect(frameControls.first()).toHaveAttribute('aria-label', 'Frame 1, empty')
   await page.keyboard.press('Tab')
   await expect(frameControls.first()).toBeFocused()
-  await expect(frameControls.first()).toHaveAttribute('aria-pressed', 'true')
+  await expect(frameControls.first()).toHaveAttribute('aria-pressed', 'false')
 })
 
 test('honors reduced-motion preference', async ({ page }) => {
@@ -1061,7 +1131,11 @@ test('keeps primary editing controls available in a 960 CSS pixel viewport', asy
   await page.goto('/')
 
   await expect(page.getByRole('button', { name: 'New', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Save As…', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Show quick start' })).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: /Manage local copies and browser storage/ }),
+  ).toBeVisible()
   await expect(page.getByRole('button', { name: 'Export…' })).toBeVisible()
   await expect(page.getByRole('tab', { name: 'Layouts' })).toBeVisible()
   await expect(page.getByRole('complementary', { name: 'Properties' })).toBeVisible()
@@ -1363,7 +1437,7 @@ test('Save retains the current format while Save As offers both project extensio
   expect((await repeatedSave).suggestedFilename()).toBe('Untitled collage.collage')
   await expect(formatDialog).toBeHidden()
 
-  await page.getByRole('button', { name: 'Save', exact: true }).click({ modifiers: ['Shift'] })
+  await page.getByRole('button', { name: 'Save As…', exact: true }).click()
   await expect(formatDialog).toBeVisible()
   await formatDialog.getByRole('button', { name: 'Cancel', exact: true }).click()
 

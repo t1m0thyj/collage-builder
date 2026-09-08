@@ -20,9 +20,6 @@
   flex-direction: column;
   border-top: 1px solid #e7e4de;
 }
-.selected-properties {
-  order: -1;
-}
 .property-group {
   border-bottom: 1px solid #e7e4de;
 }
@@ -38,7 +35,7 @@
   border: 0;
   background: #faf9f6;
   color: #5e5a52;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.06em;
   text-align: left;
@@ -65,7 +62,7 @@
   padding: 10px 20px;
   border-bottom: 1px solid #e7e4de;
   color: #68635c;
-  font-size: 12px;
+  font-size: 13px;
 }
 .page-dimensions {
   display: grid !important;
@@ -81,7 +78,7 @@
 }
 .page-dimensions label > span {
   color: #68635c;
-  font-size: 11px;
+  font-size: 12px;
 }
 .page-dimensions input {
   min-width: 0;
@@ -92,7 +89,7 @@
   border-radius: 5px;
   background: #fff;
   color: #403d37;
-  font-size: 12px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
   flex: 1 1 0;
 }
@@ -188,7 +185,7 @@
   border: 1px solid #d6d3ca;
   border-radius: 5px;
   color: #403d37;
-  font-size: 11px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
@@ -199,7 +196,7 @@
 }
 .property-list strong {
   color: #403d37;
-  font-size: 11px;
+  font-size: 12px;
 }
 .color-trigger {
   display: flex;
@@ -210,7 +207,7 @@
   border-radius: 6px;
   background: #fff;
   color: #403d37;
-  font-size: 11px;
+  font-size: 12px;
 }
 .color-trigger i {
   width: 16px;
@@ -234,7 +231,7 @@
   grid-column: 1 / -1;
   margin: 0;
   color: #716d64;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 750;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -309,7 +306,7 @@
   border: 1px solid #d6d3ca;
   border-radius: 6px;
   color: #48453d;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 650;
   cursor: pointer;
 }
@@ -334,7 +331,7 @@
   border-radius: 8px;
   background: #f7f5ee;
   color: #716d64;
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.45;
 }
 .property-note p {
@@ -350,7 +347,7 @@
 .crop-controls {
   display: grid;
   gap: 8px;
-  font-size: 12px;
+  font-size: 13px;
   color: #716d64;
 }
 .crop-controls label {
@@ -391,11 +388,11 @@
 .image-action-button {
   min-height: 28px;
   padding: 4px 7px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .crop-hint {
   margin: 0;
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.4;
 }
 .crop-coordinates {

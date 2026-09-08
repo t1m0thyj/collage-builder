@@ -35,7 +35,6 @@
   export let onupdatecropposition: (axis: 'positionX' | 'positionY', percent: number) => void
   export let onfinishcrop: () => void
   export let onresetcrop: () => void
-  export let onreplaceimage: () => void
   export let onremoveimage: () => void
 </script>
 
@@ -48,6 +47,116 @@
     </p>
   </div>
   <div class="property-groups">
+    {#if selectedSlotId && !selectedContent}
+      <Collapsible.Root class="property-group selected-properties" open
+        ><div class="property-group-heading">
+          <Collapsible.Trigger
+            >Selected frame <ChevronDown size={14} aria-hidden="true"
+            ></ChevronDown></Collapsible.Trigger
+          >
+        </div>
+        <Collapsible.Content
+          ><div class="frame-action">
+            <button class="button button-primary" onclick={() => onrequestimage(selectedSlotId!)}
+              >Add image</button
+            >
+          </div></Collapsible.Content
+        ></Collapsible.Root
+      >
+    {:else if selectedSlotId && selectedContent}
+      <Collapsible.Root class="property-group selected-properties" open
+        ><div class="property-group-heading">
+          <Collapsible.Trigger
+            >Image & crop <ChevronDown size={14} aria-hidden="true"
+            ></ChevronDown></Collapsible.Trigger
+          >
+        </div>
+        <Collapsible.Content
+          ><div class="crop-controls">
+            {#if cropModeSlotId === selectedSlotId}<p class="crop-hint">
+                Crop mode is active. Drag the image, use the corner dots to zoom, or adjust values
+                precisely. Escape cancels.
+              </p>{:else}<button class="button" onclick={() => onbegincrop(selectedSlotId!)}
+                >Crop image</button
+              >
+              <p class="crop-hint">
+                Double-click the image, press Enter, or use Crop image to begin.
+              </p>{/if}
+            <div class="crop-zoom">
+              <span>Zoom</span>
+              <div class="inspector-slider">
+                <Slider.Root
+                  class="inspector-slider-root"
+                  aria-label="Crop zoom"
+                  type="single"
+                  min={1}
+                  max={8}
+                  step={0.05}
+                  value={cropZoom}
+                  onValueChange={onupdatecropzoom}
+                /><input
+                  class="slider-value"
+                  aria-label="Crop zoom value"
+                  type="number"
+                  min="1"
+                  max="8"
+                  step="0.05"
+                  value={cropZoom.toFixed(2)}
+                  onchange={(event) =>
+                    onupdatecropzoom(Math.min(8, Math.max(1, Number(event.currentTarget.value))))}
+                />
+              </div>
+            </div>
+            <div class="crop-coordinates">
+              <label
+                >X <input
+                  aria-label="Crop horizontal position"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={Math.round(selectedContent.placement.positionX * 100)}
+                  onchange={(event) =>
+                    onupdatecropposition('positionX', Number(event.currentTarget.value))}
+                />%</label
+              ><label
+                >Y <input
+                  aria-label="Crop vertical position"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={Math.round(selectedContent.placement.positionY * 100)}
+                  onchange={(event) =>
+                    onupdatecropposition('positionY', Number(event.currentTarget.value))}
+                />%</label
+              >
+            </div>
+            <div class="crop-actions">
+              <button class="text-button" onclick={onresetcrop}>Reset crop</button
+              >{#if cropModeSlotId === selectedSlotId}<button
+                  class="button button-primary"
+                  onclick={onfinishcrop}>Done</button
+                >{/if}
+            </div>
+            <div class="image-actions">
+              <button
+                class="button image-action-button"
+                onclick={() => onrequestimage(selectedSlotId!)}>Replace this frame</button
+              ><button class="button image-action-button" onclick={onremoveimage}>Remove</button>
+            </div>
+          </div></Collapsible.Content
+        ></Collapsible.Root
+      >
+    {/if}
+    <div class="property-note">
+      <span aria-hidden="true"><Sparkles size={14}></Sparkles></span>
+      <p>
+        {selectedContent
+          ? 'Click the image to focus it, then drag or use the precise crop controls.'
+          : 'Select a frame on the canvas to inspect it.'}
+      </p>
+    </div>
     <Collapsible.Root class="property-group page-properties" open
       ><div class="property-group-heading">
         <Collapsible.Trigger
@@ -243,12 +352,10 @@
         </div></Collapsible.Content
       ></Collapsible.Root
     >
-    {#if activePage.style.shadow.enabled}<Collapsible.Root
-        class="property-group shadow-properties"
-        open
+    {#if activePage.style.shadow.enabled}<Collapsible.Root class="property-group shadow-properties"
         ><div class="property-group-heading">
           <Collapsible.Trigger
-            >Shadow Appearance <ChevronDown size={14} aria-hidden="true"
+            >Advanced shadow <ChevronDown size={14} aria-hidden="true"
             ></ChevronDown></Collapsible.Trigger
           >
         </div>
@@ -295,11 +402,11 @@
               >
             </div>
             <div class="slider-row-wide-label">
-              <span>Transparency</span>
+              <span>Opacity</span>
               <div class="inspector-slider">
                 <Slider.Root
                   class="inspector-slider-root"
-                  aria-label="Frame shadow transparency"
+                  aria-label="Frame shadow opacity"
                   type="single"
                   min={0}
                   max={100}
@@ -312,7 +419,7 @@
                   onValueCommit={() => oncommitstyle('shadow.opacity')}
                 /><input
                   class="slider-value"
-                  aria-label="Frame shadow transparency value"
+                  aria-label="Frame shadow opacity value"
                   type="number"
                   min="0"
                   max="100"
@@ -419,113 +526,5 @@
           </div></Collapsible.Content
         ></Collapsible.Root
       >{/if}
-    <div class="property-note">
-      <span aria-hidden="true"><Sparkles size={14}></Sparkles></span>
-      <p>
-        {selectedContent
-          ? 'Click the image to focus it, then drag or use the precise crop controls.'
-          : 'Select a frame on the canvas to inspect it.'}
-      </p>
-    </div>
-    {#if selectedSlotId && !selectedContent}
-      <Collapsible.Root class="property-group selected-properties" open
-        ><div class="property-group-heading">
-          <Collapsible.Trigger
-            >Selected frame <ChevronDown size={14} aria-hidden="true"
-            ></ChevronDown></Collapsible.Trigger
-          >
-        </div>
-        <Collapsible.Content
-          ><div class="frame-action">
-            <button class="button button-primary" onclick={() => onrequestimage(selectedSlotId!)}
-              >Add image</button
-            >
-          </div></Collapsible.Content
-        ></Collapsible.Root
-      >
-    {:else if selectedSlotId && selectedContent}
-      <Collapsible.Root class="property-group selected-properties" open
-        ><div class="property-group-heading">
-          <Collapsible.Trigger
-            >Image & crop <ChevronDown size={14} aria-hidden="true"
-            ></ChevronDown></Collapsible.Trigger
-          >
-        </div>
-        <Collapsible.Content
-          ><div class="crop-controls">
-            {#if cropModeSlotId === selectedSlotId}<p class="crop-hint">
-                Crop mode is active. Drag the image, use the corner dots to zoom, or adjust values
-                precisely. Escape cancels.
-              </p>{:else}<button class="button" onclick={() => onbegincrop(selectedSlotId!)}
-                >Crop image</button
-              >
-              <p class="crop-hint">
-                Double-click the image, press Enter, or use Crop image to begin.
-              </p>{/if}
-            <div class="crop-zoom">
-              <span>Zoom</span>
-              <div class="inspector-slider">
-                <Slider.Root
-                  class="inspector-slider-root"
-                  aria-label="Crop zoom"
-                  type="single"
-                  min={1}
-                  max={8}
-                  step={0.05}
-                  value={cropZoom}
-                  onValueChange={onupdatecropzoom}
-                /><input
-                  class="slider-value"
-                  aria-label="Crop zoom value"
-                  type="number"
-                  min="1"
-                  max="8"
-                  step="0.05"
-                  value={cropZoom.toFixed(2)}
-                  onchange={(event) =>
-                    onupdatecropzoom(Math.min(8, Math.max(1, Number(event.currentTarget.value))))}
-                />
-              </div>
-            </div>
-            <div class="crop-coordinates">
-              <label
-                >X <input
-                  aria-label="Crop horizontal position"
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="1"
-                  value={Math.round(selectedContent.placement.positionX * 100)}
-                  onchange={(event) =>
-                    onupdatecropposition('positionX', Number(event.currentTarget.value))}
-                />%</label
-              ><label
-                >Y <input
-                  aria-label="Crop vertical position"
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="1"
-                  value={Math.round(selectedContent.placement.positionY * 100)}
-                  onchange={(event) =>
-                    onupdatecropposition('positionY', Number(event.currentTarget.value))}
-                />%</label
-              >
-            </div>
-            <div class="crop-actions">
-              <button class="text-button" onclick={onresetcrop}>Reset crop</button
-              >{#if cropModeSlotId === selectedSlotId}<button
-                  class="button button-primary"
-                  onclick={onfinishcrop}>Done</button
-                >{/if}
-            </div>
-            <div class="image-actions">
-              <button class="button image-action-button" onclick={onreplaceimage}>Replace</button
-              ><button class="button image-action-button" onclick={onremoveimage}>Remove</button>
-            </div>
-          </div></Collapsible.Content
-        ></Collapsible.Root
-      >
-    {/if}
   </div>
 </aside>

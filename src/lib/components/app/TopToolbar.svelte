@@ -28,7 +28,8 @@
   export let deployment: DeploymentState
   export let onnew: () => void
   export let onopen: () => void
-  export let onsave: (event: MouseEvent) => void
+  export let onsave: () => void
+  export let onsaveas: () => void
   export let onundo: () => void
   export let onredo: () => void
   export let onzoomstep: (delta: number) => void
@@ -55,11 +56,13 @@
   <div class="toolbar-group">
     <Button class="button button-primary" onclick={onnew}>New</Button>
     <Button class="button" variant="outline" onclick={onopen}>Open</Button>
+    <Button class="button" variant="outline" title="Save (Ctrl/Cmd+S)" onclick={onsave}>Save</Button
+    >
     <Button
-      class="button"
+      class="button save-as-button"
       variant="outline"
-      title="Save (Ctrl/Cmd+S) · Save As (Ctrl/Cmd+Shift+S, Option-click on Apple devices, Shift-click elsewhere)"
-      onclick={onsave}>Save</Button
+      title="Save As (Ctrl/Cmd+Shift+S)"
+      onclick={onsaveas}>Save As…</Button
     >
   </div>
   <div class="toolbar-group history-controls" aria-label="History">
