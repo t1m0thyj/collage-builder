@@ -131,12 +131,12 @@ h2 {
   gap: 8px;
   align-content: start;
   overflow-y: auto;
+  scrollbar-gutter: stable;
+  /* Keep the cards at their full width while reserving room for the 6px scrollbar. */
+  margin-right: -6px;
   overscroll-behavior: contain;
   scrollbar-width: thin;
   scrollbar-color: #9fb3cc transparent;
-}
-.layout-options.layout-list-overflow {
-  margin-right: calc(-1 * var(--layout-list-scrollbar-width, 0px));
 }
 .layout-options::-webkit-scrollbar {
   width: 6px;

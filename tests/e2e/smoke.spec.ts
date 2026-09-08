@@ -259,7 +259,7 @@ async function exportCurrentPng(page: BrowserPage, width: number) {
 async function chooseTwoColumnLayout(page: BrowserPage) {
   await page.getByRole('tab', { name: 'Layouts' }).click()
   await page.getByRole('tab', { name: '2', exact: true }).click()
-  await page.getByRole('button', { name: 'Two photos side by side', exact: true }).click()
+  await page.locator('[data-layout-id="layout-2-001"]').click()
 }
 
 async function twoColumnFrameCenters(page: BrowserPage) {
@@ -384,8 +384,23 @@ test('layout count tabs stay compact and follow the active page', async ({ page 
 
   await photoCounts.getByRole('tab', { name: '2', exact: true }).click()
   await expect(page.locator('.layout-card')).toHaveCount(2)
-  await page.getByRole('button', { name: 'Two photos stacked', exact: true }).click()
-  await expect(page.getByRole('status')).toContainText('Two photos stacked selected')
+  await page.locator('[data-layout-id="layout-2-002"]').click()
+  await expect(page.getByRole('status')).toContainText('Layout selected: 2 landscapes')
+
+  const firstCard = page.locator('.layout-card').first()
+  const widthWithoutOverflow = (await firstCard.boundingBox())?.width
+  expect(widthWithoutOverflow).toBeDefined()
+  await photoCounts.getByRole('tab', { name: '8', exact: true }).click()
+  await expect(page.locator('.layout-card')).toHaveCount(29)
+  await expect
+    .poll(() =>
+      page
+        .locator('#layout-options-panel')
+        .evaluate((element) => element.scrollHeight > element.clientHeight),
+    )
+    .toBe(true)
+  const widthWithOverflow = (await firstCard.boundingBox())?.width
+  expect(widthWithOverflow).toBeCloseTo(widthWithoutOverflow!, 3)
 
   await photoCounts.getByRole('tab', { name: '4', exact: true }).click()
   await page.getByRole('button', { name: 'Add page' }).click()

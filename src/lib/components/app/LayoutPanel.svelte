@@ -13,7 +13,6 @@
   let presets: LayoutPresetDefinition[] = []
   let loading = false
   let requestId = 0
-  let listOverflows = false
 
   function focusCountTab(frameCount: number) {
     requestAnimationFrame(() =>
@@ -34,27 +33,6 @@
     const frameCount = layoutFrameCounts[nextIndex]
     void selectGroup(frameCount)
     focusCountTab(frameCount)
-  }
-
-  function trackOverflow(element: HTMLElement) {
-    const update = () => {
-      listOverflows = element.scrollHeight > element.clientHeight + 1
-      element.style.setProperty(
-        '--layout-list-scrollbar-width',
-        `${Math.max(0, element.offsetWidth - element.clientWidth)}px`,
-      )
-    }
-    const resizeObserver = new ResizeObserver(update)
-    const mutationObserver = new MutationObserver(update)
-    resizeObserver.observe(element)
-    mutationObserver.observe(element, { childList: true, subtree: true })
-    requestAnimationFrame(update)
-    return {
-      destroy() {
-        resizeObserver.disconnect()
-        mutationObserver.disconnect()
-      },
-    }
   }
 
   async function selectGroup(frameCount: number) {
@@ -102,11 +80,9 @@
     {/each}
   </div>
   <div
-    use:trackOverflow
     id="layout-options-panel"
     role="tabpanel"
     aria-labelledby={`layout-count-tab-${expandedFrameCount}`}
-    class:layout-list-overflow={listOverflows}
     class="layout-options"
     aria-busy={loading}
   >
@@ -120,7 +96,7 @@
           class:selected={page.layout.presetId === preset.id}
           class="layout-card"
           data-layout-id={preset.id}
-          aria-label={`${preset.frameCount}-photo layout, option ${index + 1} of ${presets.length}: ${summary}`}
+          aria-label={`${preset.frameCount}-photo layout, option ${index + 1}: ${summary}`}
           title={summary}
           onclick={() => onselect(preset)}
         >
