@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createProject } from './lib/domain/factories'
-  import type { PageV1, SlotContentV1 } from './lib/domain/types'
+  import type { LayoutPresetDefinition, PageV1, SlotContentV1 } from './lib/domain/types'
   import EditorShell from './lib/components/app/EditorShell.svelte'
   import ImageManagerDialog from './lib/components/app/ImageManagerDialog.svelte'
   import RecoveryManagerDialog from './lib/components/app/RecoveryManagerDialog.svelte'
@@ -32,6 +32,7 @@
     replaceProjectDocument,
   } from './lib/app/imageSession'
   import {
+    resizePage,
     shadowAngle as getShadowAngle,
     shadowDistance as getShadowDistance,
     shadowPolarPatch,
@@ -41,7 +42,8 @@
   import { ProjectWorkflowController } from './lib/app/projectWorkflow'
   import { attachAppLifecycle } from './lib/app/appLifecycle'
   import { UiPreferencesController } from './lib/app/uiPreferences'
-  import { PageWorkflowController, type SidebarTab } from './lib/app/pageWorkflow'
+  import { clampViewportZoom, type PageStyleControl, type SidebarTab } from './lib/app/pageActions'
+  import { layoutDisplayName } from './lib/layouts/displayName'
   import { completeOnboarding, hasCompletedOnboarding } from './lib/app/onboarding'
   import { applyAvailableUpdate, deploymentState } from './lib/app/deployment'
 
@@ -269,22 +271,60 @@
     sidebarWidthsStorageKey,
     recentColorsStorageKey,
   )
-  const pageWorkflow = new PageWorkflowController({
-    project,
-    document: () => document,
-    page: () => activePage,
-    pageAspectLinked: () => pageAspectLinked,
-    viewportZoom: () => viewportZoom,
-    fittedViewportZoom: () => fittedViewportZoom,
-    isViewportFit: () => isViewportFit,
-    setActivePageId: (value) => (activePageId = value),
-    setSelectedSlotId: (value) => (selectedSlotId = value),
-    setLibraryTargetSlotId: (value) => (libraryTargetSlotId = value),
-    setActiveTab: (value) => (activeTab = value),
-    setViewportZoom: (value) => (viewportZoom = value),
-    setViewportFit: (value) => (isViewportFit = value),
-    announce,
-  })
+  const pageActions = {
+    selectLayout(preset: LayoutPresetDefinition) {
+      project.changeLayout(activePage.id, preset)
+      announce(`${layoutDisplayName(preset)} selected.`)
+    },
+    requestImage(slotId: string) {
+      selectedSlotId = slotId
+      libraryTargetSlotId = slotId
+      activeTab = 'images'
+      announce('Choose a photo from the library, or add a photo from your device.')
+    },
+    setViewportZoom(zoom: number) {
+      isViewportFit = false
+      viewportZoom = clampViewportZoom(zoom)
+    },
+    stepViewportZoom(delta: number) {
+      pageActions.setViewportZoom((isViewportFit ? fittedViewportZoom : viewportZoom) + delta)
+    },
+    applyViewportWheelZoom(factor: number) {
+      pageActions.setViewportZoom((isViewportFit ? fittedViewportZoom : viewportZoom) * factor)
+    },
+    updateStyle(patch: Partial<PageV1['style']>) {
+      project.setPageStyle(activePage.id, patch)
+    },
+    previewStyle(control: PageStyleControl, patch: Partial<PageV1['style']>) {
+      project.previewPageStyle(activePage.id, control, patch)
+    },
+    commitStyle(control: PageStyleControl) {
+      project.commitPageStyle(activePage.id, control)
+    },
+    resize(axis: 'width' | 'height', value: number) {
+      try {
+        resizePage(project, activePage, axis, value, pageAspectLinked)
+      } catch (error) {
+        announce(error instanceof Error ? error.message : 'Unable to resize page')
+      }
+    },
+    add() {
+      project.addPage(activePage.id)
+      activePageId = document.pages.at(-1)!.id
+    },
+    rename() {
+      const name = globalThis.prompt('Page name', activePage.name)
+      if (name !== null) project.renamePage(activePage.id, name)
+    },
+    assignAsset(assetId: string, slotId: string) {
+      project.assignAsset(activePage.id, slotId, assetId)
+      libraryTargetSlotId = null
+    },
+    delete() {
+      project.deletePage(activePage.id)
+      activePageId = document.pages[0].id
+    },
+  }
 
   async function preparePageImages(page: PageV1, registry = assetRegistry): Promise<void> {
     try {
@@ -500,8 +540,8 @@
     onsaveas={() => void projectWorkflow.save(true)}
     onundo={() => project.undo()}
     onredo={() => project.redo()}
-    onzoomstep={pageWorkflow.stepViewportZoom}
-    onsetzoom={pageWorkflow.setViewportZoom}
+    onzoomstep={pageActions.stepViewportZoom}
+    onsetzoom={pageActions.setViewportZoom}
     onrename={renameProject}
     onexport={exportWorkflow.choose}
     onmanagerecovery={() => (isRecoveryManagerOpen = true)}
@@ -526,7 +566,7 @@
       bind:assetQuery
       bind:assetSort
       bind:assetFilter
-      onselectlayout={pageWorkflow.selectLayout}
+      onselectlayout={pageActions.selectLayout}
       onerror={announce}
       ondrop={dropImages}
       onselectasset={assetWorkflow.select}
@@ -570,9 +610,9 @@
         if (cropModeSlotId) editorSession.finishCrop()
         selectedSlotId = null
       }}
-      onrequestimage={pageWorkflow.requestImage}
+      onrequestimage={pageActions.requestImage}
       onplacementchange={(slotId, placement) => editorSession.commitPan(slotId, placement)}
-      onassetdrop={pageWorkflow.assignAsset}
+      onassetdrop={pageActions.assignAsset}
       onframeswap={(sourceSlotId, targetSlotId) =>
         project.moveOrSwapSlots(activePage.id, sourceSlotId, targetSlotId)}
       onwheelzoom={(slotId, factor) => {
@@ -580,14 +620,14 @@
         if (content)
           editorSession.updateZoom(Math.min(8, Math.max(1, content.placement.zoom * factor)))
       }}
-      onviewportzoom={pageWorkflow.applyViewportWheelZoom}
+      onviewportzoom={pageActions.applyViewportWheelZoom}
       ondividerchange={(changes) => project.adjustDividers(activePage.id, changes)}
-      onaddpage={pageWorkflow.add}
-      onrenamepage={pageWorkflow.rename}
+      onaddpage={pageActions.add}
+      onrenamepage={pageActions.rename}
       onduplicatepage={() => project.duplicatePage(activePageId)}
       onmovepage={(direction) => project.movePage(activePageId, direction)}
       onclearpage={() => project.clearPage(activePageId)}
-      ondeletepage={pageWorkflow.delete}
+      ondeletepage={pageActions.delete}
     ></EditorShell>
 
     <SidebarResizer
@@ -605,10 +645,10 @@
       {recentColors}
       {cropModeSlotId}
       {cropZoom}
-      onresizepage={pageWorkflow.resize}
-      onupdatestyle={pageWorkflow.updateStyle}
-      onpreviewstyle={pageWorkflow.previewStyle}
-      oncommitstyle={pageWorkflow.commitStyle}
+      onresizepage={pageActions.resize}
+      onupdatestyle={pageActions.updateStyle}
+      onpreviewstyle={pageActions.previewStyle}
+      oncommitstyle={pageActions.commitStyle}
       onsetbackground={uiPreferences.setBackground}
       onsetshadow={uiPreferences.setShadow}
       shadowDistance={() => getShadowDistance(activePage)}
@@ -616,8 +656,8 @@
       onupdateshadowpolar={(distance, angle) =>
         setShadowPolar(project, activePage, distance, angle)}
       onpreviewshadowpolar={(control, distance, angle) =>
-        pageWorkflow.previewStyle(control, shadowPolarPatch(activePage, distance, angle))}
-      onrequestimage={pageWorkflow.requestImage}
+        pageActions.previewStyle(control, shadowPolarPatch(activePage, distance, angle))}
+      onrequestimage={pageActions.requestImage}
       onbegincrop={(slotId) => editorSession.beginCrop(slotId)}
       onupdatecropzoom={(zoom) => editorSession.updateZoom(zoom)}
       onupdatecropposition={(axis, percent) => editorSession.updatePosition(axis, percent)}

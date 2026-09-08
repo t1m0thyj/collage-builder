@@ -41,7 +41,7 @@
     <Dialog.Content class="dialog" aria-modal="true" aria-labelledby="remove-images-title">
       <div class="dialog-header">
         <div>
-          <p class="eyebrow">Project collection</p>
+          <p class="eyebrow">Photo library</p>
           <h2 id="remove-images-title">
             Remove {pendingRemovalAssetIds.length} image{pendingRemovalAssetIds.length === 1
               ? ''
@@ -99,7 +99,7 @@
     <div class="dialog-header">
       <div>
         <p class="eyebrow">Save project</p>
-        <h2 id="save-format-title">Choose a project format</h2>
+        <h2 id="save-format-title">Choose how to save</h2>
       </div>
       <button class="icon-button" aria-label="Cancel save" onclick={() => onresolvesaveformat(null)}
         ><X size={17}></X></button
@@ -107,19 +107,21 @@
     </div>
     <div class="export-form">
       <p>
-        <strong>Embedded archive (.collage)</strong> includes every original image and is fully portable.
+        <strong>Save project with photos</strong> keeps every original photo together in one
+        portable
+        <code>.collage</code> file.
       </p>
       <p>
-        <strong>Linked project (.collage.json)</strong> stores relative paths and keeps image bytes in
-        a chosen folder.
+        <strong>Save project linking to original files</strong> stores a <code>.collage.json</code>
+        project file beside a folder of your photos.
       </p>
     </div>
     <div class="dialog-footer">
       <button class="button" onclick={() => onresolvesaveformat(null)}>Cancel</button><span
         ><button class="button" onclick={() => onresolvesaveformat('linked')}
-          >Save linked JSON</button
+          >Save linked project</button
         ><button class="button button-primary" onclick={() => onresolvesaveformat('embedded')}
-          >Save embedded archive</button
+          >Save with photos</button
         ></span
       >
     </div>

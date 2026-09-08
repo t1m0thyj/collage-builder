@@ -29,10 +29,10 @@ CI runs the formatting gate explicitly before the remaining verification steps. 
 - `src/lib/app/`: application workflows and lifecycle
 - `src/lib/components/`: editor and UI components
 - `src/lib/state/`: project data, history, and persistence state
-- `src/lib/io/`: project import/export and archive handling
+- `src/lib/persistence/`: project import/export formats, archives, and browser recovery storage
 - `src/lib/render/`: canvas and export rendering
 - `tests/`: unit and browser tests
 - `build/`: build-time service-worker support
 - `docs/adr/`: architecture decisions
 
-Keep browser-only APIs behind focused modules, add tests for behavior changes, and run `npm run verify` before opening a pull request.
+Keep browser-only APIs behind focused modules, add tests for behavior changes, and run `npm run verify` before opening a pull request. Update this map when moving responsibilities; it describes the current repository, not a planned architecture.

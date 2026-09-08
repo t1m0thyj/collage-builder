@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { ChevronDown, Link2, Link2Off, Palette, Sparkles } from '@lucide/svelte'
-  import type { PageStyleControl } from '../../app/pageWorkflow'
+  import { ChevronDown, Link2, Link2Off, Palette } from '@lucide/svelte'
+  import type { PageStyleControl } from '../../app/pageActions'
   import type { PageV1, SlotContentV1 } from '../../domain/types'
   import * as Collapsible from '../ui/collapsible'
   import * as Popover from '../ui/popover'
@@ -150,11 +150,10 @@
       >
     {/if}
     <div class="property-note">
-      <span aria-hidden="true"><Sparkles size={14}></Sparkles></span>
       <p>
         {selectedContent
-          ? 'Click the image to focus it, then drag or use the precise crop controls.'
-          : 'Select a frame on the canvas to inspect it.'}
+          ? 'Drag the photo to reposition it. Double-click it to crop.'
+          : 'Select a frame to adjust its photo or page settings.'}
       </p>
     </div>
     <Collapsible.Root class="property-group page-properties" open

@@ -65,11 +65,11 @@
 <div
   class="panel-body image-panel"
   role="region"
-  aria-label="Image collection drop zone"
+  aria-label="Photo library drop zone"
   ondragover={(event) => event.preventDefault()}
   {ondrop}
 >
-  <p class="eyebrow">Project collection</p>
+  <p class="eyebrow">Photo library</p>
   {#if importStatus}
     <section
       class:import-complete={importStatus.phase === 'complete'}
@@ -218,11 +218,11 @@
   {:else}
     <div class="empty-library">
       <div class="image-icon" aria-hidden="true"><ImageIcon size={30}></ImageIcon></div>
-      <p>Upload photos to use them across every page in this project.</p>
+      <p>Add photos to use them across every page in this project.</p>
     </div>
   {/if}
   <div class="image-panel-actions">
-    <button class="button button-primary" onclick={onchooseimages}>Upload images</button>
-    <button class="button" onclick={onmanageimages}>Manage images</button>
+    <button class="button button-primary" onclick={onchooseimages}>Add photos</button>
+    <button class="button" onclick={onmanageimages}>Manage photos</button>
   </div>
 </div>

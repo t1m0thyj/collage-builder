@@ -18,6 +18,11 @@
   --border: #d6dfed;
   --input: #cfd9e8;
   --ring: #315c9c;
+  --control-border: #d6d3ca;
+  --control-hover: #f5f3ed;
+  --quiet-control-hover: #efeee9;
+  --selection-border: #91add0;
+  --selection-surface: #f3f7fc;
   --app-canvas: #dce5f2;
   --app-canvas-highlight: #f4f7fc;
   --app-surface: #ffffff;
@@ -56,7 +61,7 @@ button {
 }
 button:focus-visible,
 input:focus-visible {
-  outline: 3px solid #315c9c;
+  outline: 3px solid var(--ring);
   outline-offset: 2px;
 }
 button:disabled {

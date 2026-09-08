@@ -1,59 +1,3 @@
-@media (max-width: 1050px) {
-  .workspace {
-    grid-template-columns:
-      minmax(210px, var(--left-sidebar-width, 255px)) 6px minmax(360px, 1fr) 6px
-      minmax(210px, var(--right-sidebar-width, 255px));
-  }
-  .topbar {
-    padding: 0 6px;
-    gap: 4px;
-  }
-  .topbar .toolbar-group {
-    gap: 4px;
-  }
-  .topbar .button {
-    padding-inline: 9px;
-  }
-  .topbar .history-controls {
-    padding-left: 8px;
-  }
-  .topbar .editor-zoom {
-    padding-left: 6px;
-  }
-  .topbar .project-title {
-    min-width: 140px;
-  }
-  .deployment-status {
-    display: none;
-  }
-}
-
-/* Shared polished states. */
-.icon-button:hover:not(:disabled),
-.text-button:hover {
-  background: #e9f0fa;
-}
-.asset-row strong,
-.asset-search,
-.asset-sort,
-.slider-value,
-.color-trigger {
-  font-size: 12px;
-}
-.asset-row small {
-  font-size: 11px;
-}
-.page-dimensions label > span {
-  font-size: 12px;
-}
-.asset-row.selected-asset,
-.manager-asset-card.selected-asset .asset-row,
-.manager-view [role='radio'][data-state='on'],
-.asset-filters [role='radio'][data-state='on'] {
-  border-color: #91add0;
-  background: #f3f7fc;
-}
-
 :root[data-theme='dark'] {
   & {
     color-scheme: dark;
@@ -75,6 +19,11 @@
     --border: #3a3a3a;
     --input: #4a4a4a;
     --ring: #8ab9f4;
+    --control-border: #404040;
+    --control-hover: #292929;
+    --quiet-control-hover: rgba(108, 153, 213, 0.18);
+    --selection-border: #699bd9;
+    --selection-surface: #213653;
     --app-canvas: #101010;
     --app-canvas-highlight: #252525;
     --app-surface: #1c1c1c;
@@ -115,7 +64,7 @@
   }
   .recovery-status-button:hover,
   .recovery-status-button:focus-visible {
-    background: rgba(108, 153, 213, 0.18);
+    background: var(--quiet-control-hover);
   }
   .recovery-status-button.recovery-error,
   .recovery-status-button.recovery-conflict {
@@ -136,7 +85,7 @@
   .icon-button:hover:not(:disabled),
   .text-button:hover {
     border-color: #48678f;
-    background: rgba(108, 153, 213, 0.18);
+    background: var(--quiet-control-hover);
   }
   .button,
   .export-menu-popover,
@@ -146,7 +95,7 @@
   .dialog,
   .page-tab-preview,
   .color-popover {
-    border-color: #404040;
+    border-color: var(--control-border);
     background: #1d1d1d;
     color: #ededed;
   }
@@ -160,7 +109,7 @@
   .button:hover:not(:disabled),
   .zoom-menu-content [role='menuitem'][data-highlighted],
   .asset-menu [role='menuitem'][data-highlighted] {
-    background: #292929;
+    background: var(--control-hover);
   }
   .button-primary {
     border-color: #5b8dcc;
@@ -236,8 +185,8 @@
   }
   .layout-count-tabs button:hover,
   .layout-count-tabs button.active {
-    border-color: #699bd9;
-    background: #213653;
+    border-color: var(--selection-border);
+    background: var(--selection-surface);
     color: #b7d5fb;
   }
   .property-group-heading button:hover {

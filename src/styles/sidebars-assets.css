@@ -466,3 +466,19 @@ h2 {
   font-size: 12px;
   font-weight: 700;
 }
+/* Photo-library controls share the same selection tokens in both themes. */
+.asset-row strong,
+.asset-search,
+.asset-sort {
+  font-size: 12px;
+}
+.asset-row small {
+  font-size: 11px;
+}
+.asset-row.selected-asset,
+.manager-asset-card.selected-asset .asset-row,
+.manager-view [role='radio'][data-state='on'],
+.asset-filters [role='radio'][data-state='on'] {
+  border-color: var(--selection-border);
+  background: var(--selection-surface);
+}

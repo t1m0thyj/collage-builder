@@ -67,7 +67,7 @@
   display: grid;
   min-width: 112px;
   padding: 4px;
-  border: 1px solid #d6d3ca;
+  border: 1px solid var(--control-border);
   border-radius: 8px;
   background: #fff;
   box-shadow: 0 12px 28px rgba(33, 32, 28, 0.18);
@@ -99,7 +99,7 @@
   font-weight: 650;
 }
 .button:hover:not(:disabled) {
-  background: #f5f3ed;
+  background: var(--control-hover);
 }
 .button-primary {
   border-color: #3c68aa;
@@ -143,7 +143,7 @@
 }
 .icon-button:hover:not(:disabled),
 .text-button:hover {
-  background: #efeee9;
+  background: var(--quiet-control-hover);
 }
 .project-title {
   min-width: 200px;
@@ -228,6 +228,35 @@
 }
 .status-dot.conflict {
   background: #b85f25;
+}
+@media (max-width: 1050px) {
+  .workspace {
+    grid-template-columns:
+      minmax(210px, var(--left-sidebar-width, 255px)) 6px minmax(360px, 1fr) 6px
+      minmax(210px, var(--right-sidebar-width, 255px));
+  }
+  .topbar {
+    padding: 0 6px;
+    gap: 4px;
+  }
+  .topbar .toolbar-group {
+    gap: 4px;
+  }
+  .topbar .button {
+    padding-inline: 9px;
+  }
+  .topbar .history-controls {
+    padding-left: 8px;
+  }
+  .topbar .editor-zoom {
+    padding-left: 6px;
+  }
+  .topbar .project-title {
+    min-width: 140px;
+  }
+  .deployment-status {
+    display: none;
+  }
 }
 @keyframes recovery-pulse {
   to {

@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { LayoutPresetDefinition, PageV1 } from '../../domain/types'
   import { loadLayouts, layoutFrameCounts, preloadOptionalLayouts } from '../../layouts/loader'
+  import { layoutDisplayName } from '../../layouts/displayName'
   import { previewFrames, previewFrameStyle } from '../../layouts/preview'
 
   export let page: PageV1
@@ -114,11 +115,12 @@
     {:else}
       {#each presets as preset (preset.id)}
         {@const frames = previewFrames(preset, 80, 80)}
+        {@const name = layoutDisplayName(preset)}
         <button
           class:selected={page.layout.presetId === preset.id}
           class="layout-card"
-          aria-label={preset.name}
-          title={preset.name}
+          aria-label={name}
+          title={name}
           onclick={() => onselect(preset)}
         >
           <span class="layout-preview" aria-hidden="true"

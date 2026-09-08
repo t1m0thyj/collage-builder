@@ -89,7 +89,9 @@
         <li>
           <Images size={20} aria-hidden="true"></Images>
           <div>
-            <strong>Import images</strong><span>Add photos from this device to a new project.</span>
+            <strong>Add photos</strong><span
+              >Import photos from this device into a new project.</span
+            >
           </div>
         </li>
         <li>
@@ -114,7 +116,7 @@
       <button class="button" onclick={onopenproject}
         ><FolderOpen size={15} aria-hidden="true"></FolderOpen> Open project</button
       ><button class="button button-primary" onclick={onimportimages}
-        ><Images size={15} aria-hidden="true"></Images> Import images</button
+        ><Images size={15} aria-hidden="true"></Images> Add photos</button
       >
     </div>
   </Dialog.Content>

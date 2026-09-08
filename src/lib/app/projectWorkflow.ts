@@ -153,7 +153,7 @@ export class ProjectWorkflowController {
       this.host.announce(
         matches.size === Object.keys(target.assets).length
           ? 'Linked images loaded.'
-          : `${matches.size} linked image(s) found; the rest still need relinking.`,
+          : `${matches.size} linked photo${matches.size === 1 ? '' : 's'} found; the rest still need relinking.`,
       )
     } catch (error) {
       this.host.announce(
@@ -191,7 +191,7 @@ export class ProjectWorkflowController {
       this.host.setProjectTitle(opened.document.title)
       this.host.announce(
         opened.missingAssetIds.length || linkedIds.length
-          ? `Project opened with ${opened.missingAssetIds.length + linkedIds.length} image(s) to locate.`
+          ? `Project opened with ${opened.missingAssetIds.length + linkedIds.length} photo${opened.missingAssetIds.length + linkedIds.length === 1 ? '' : 's'} to locate.`
           : 'Project opened.',
       )
     } catch (error) {

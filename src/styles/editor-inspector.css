@@ -412,3 +412,8 @@
   border-radius: 5px;
   color: #403d37;
 }
+.slider-value,
+.color-trigger,
+.page-dimensions label > span {
+  font-size: 12px;
+}

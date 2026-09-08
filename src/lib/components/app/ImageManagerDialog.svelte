@@ -49,8 +49,8 @@
   >
     <div class="dialog-header">
       <div>
-        <p class="eyebrow">Project collection</p>
-        <h2 id="image-manager-title">Image Manager</h2>
+        <p class="eyebrow">Photo library</p>
+        <h2 id="image-manager-title">Photo library</h2>
       </div>
       <button class="icon-button" aria-label="Close image manager" onclick={() => (open = false)}
         ><X size={17}></X></button
@@ -60,25 +60,25 @@
       <div
         class="upload-well"
         role="region"
-        aria-label="Upload images drop zone"
+        aria-label="Add photos drop zone"
         ondragover={(event) => event.preventDefault()}
         {ondrop}
       >
         <div class="upload-mark" aria-hidden="true"><Upload size={19}></Upload></div>
-        <strong>Drop PNG, JPEG, or WebP files here</strong><span
-          >Original files remain local and are embedded in saved projects.</span
-        ><button class="button button-primary" onclick={onchooseimages}>Choose images</button>
+        <strong>Drop PNG, JPEG, or WebP photos here</strong><span
+          >Original files remain on this device and are included when you save with photos.</span
+        ><button class="button button-primary" onclick={onchooseimages}>Choose photos</button>
       </div>
     {:else}
       <div
         class="manager-add-images"
         role="region"
-        aria-label="Add images drop zone"
+        aria-label="Add photos drop zone"
         ondragover={(event) => event.preventDefault()}
         {ondrop}
       >
-        <span>Drop more images here, or</span><button class="text-button" onclick={onchooseimages}
-          ><Upload size={14}></Upload> Add images</button
+        <span>Drop more photos here, or</span><button class="text-button" onclick={onchooseimages}
+          ><Upload size={14}></Upload> Add photos</button
         >
       </div>
     {/if}
@@ -87,14 +87,14 @@
           <div class="asset-tools">
             <Input
               class="asset-search"
-              aria-label="Search project images"
+              aria-label="Search project photos"
               bind:value={assetQuery}
-              placeholder="Search images"
+              placeholder="Search photos"
             /><Select.Root
               type="single"
               value={assetSort}
               onValueChange={(value) => value && (assetSort = value as typeof assetSort)}
-              ><Select.Trigger class="asset-sort" aria-label="Sort project images"
+              ><Select.Trigger class="asset-sort" aria-label="Sort project photos"
                 ><span
                   >{assetSort === 'import'
                     ? 'Import order'
@@ -132,7 +132,7 @@
               type="single"
               value={assetFilter}
               onValueChange={(value) => value && (assetFilter = value as typeof assetFilter)}
-              aria-label="Filter project images"
+              aria-label="Filter project photos"
               ><ToggleGroup.Item value="all">All</ToggleGroup.Item><ToggleGroup.Item value="used"
                 >Used</ToggleGroup.Item
               ><ToggleGroup.Item value="unused">Unused</ToggleGroup.Item><ToggleGroup.Item
@@ -140,7 +140,7 @@
               ></ToggleGroup.Root
             >
             <span class="manager-summary"
-              >{assets.length} images · {formatBytes(assetLibraryBytes)} embedded</span
+              >{assets.length} photos · {formatBytes(assetLibraryBytes)} included</span
             >
           </div>
         </div>
@@ -188,7 +188,7 @@
               >
             </div>{/each}
         </div>
-        {#if !filteredAssets.length}<p class="empty-filter">No images match this view.</p>{/if}
+        {#if !filteredAssets.length}<p class="empty-filter">No photos match this view.</p>{/if}
         <div class="manager-bulk-actions">
           {#if selectedAssetIds.length > 1}<button
               class="button"
@@ -201,7 +201,7 @@
       <button
         class="text-button danger"
         disabled={unusedAssetIds.length === 0}
-        onclick={() => onremove(unusedAssetIds)}>Remove unused images</button
+        onclick={() => onremove(unusedAssetIds)}>Remove unused photos</button
       ><button class="button" onclick={() => (open = false)}>Done</button>
     </div>
   </Dialog.Content>

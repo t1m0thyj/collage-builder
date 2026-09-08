@@ -259,7 +259,7 @@ async function exportCurrentPng(page: BrowserPage, width: number) {
 async function chooseTwoColumnLayout(page: BrowserPage) {
   await page.getByRole('tab', { name: 'Layouts' }).click()
   await page.getByRole('tab', { name: '2', exact: true }).click()
-  await page.getByRole('button', { name: 'Layout 1', exact: true }).click()
+  await page.getByRole('button', { name: 'Two photos side by side', exact: true }).click()
 }
 
 async function twoColumnFrameCenters(page: BrowserPage) {
@@ -341,19 +341,19 @@ async function expectOnTop(page: import('@playwright/test').Page, dialogName: st
     {
       x: box!.x + box!.width / 2,
       y: box!.y + box!.height / 2,
-      dialogName: dialogName === 'Image Manager' ? 'image-manager-title' : 'export-title',
+      dialogName: dialogName === 'Photo library' ? 'image-manager-title' : 'export-title',
     },
   )
   expect(isTopmost).toBe(true)
 }
 
-test('renders the editor shell and opens image manager', async ({ page }) => {
+test('renders the editor shell and opens the photo library', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('textbox', { name: 'Project title' })).toHaveValue('Untitled collage')
   await page.getByRole('tab', { name: 'Images' }).click()
-  await page.getByRole('button', { name: 'Manage images' }).click()
-  await expect(page.getByRole('dialog', { name: 'Image Manager' })).toBeVisible()
-  await expectOnTop(page, 'Image Manager')
+  await page.getByRole('button', { name: 'Manage photos' }).click()
+  await expect(page.getByRole('dialog', { name: 'Photo library' })).toBeVisible()
+  await expectOnTop(page, 'Photo library')
 })
 
 test('page-range export dialog overlays the editor', async ({ page }) => {
@@ -384,8 +384,8 @@ test('layout count tabs stay compact and follow the active page', async ({ page 
 
   await photoCounts.getByRole('tab', { name: '2', exact: true }).click()
   await expect(page.locator('.layout-card')).toHaveCount(2)
-  await page.getByRole('button', { name: 'Layout 2', exact: true }).click()
-  await expect(page.getByRole('status')).toContainText('Layout 2 layout selected')
+  await page.getByRole('button', { name: 'Two photos stacked', exact: true }).click()
+  await expect(page.getByRole('status')).toContainText('Two photos stacked selected')
 
   await photoCounts.getByRole('tab', { name: '4', exact: true }).click()
   await page.getByRole('button', { name: 'Add page' }).click()
@@ -493,12 +493,12 @@ test('imports and removes an image from the project collection', async ({ page }
       buffer: onePixelPng,
     })
   await page.getByRole('tab', { name: 'Images' }).click()
-  await page.getByRole('button', { name: 'Manage images' }).click()
+  await page.getByRole('button', { name: 'Manage photos' }).click()
   await expect(
-    page.getByRole('dialog', { name: 'Image Manager' }).getByText('remove-me.png'),
+    page.getByRole('dialog', { name: 'Photo library' }).getByText('remove-me.png'),
   ).toBeVisible()
   await page
-    .getByRole('dialog', { name: 'Image Manager' })
+    .getByRole('dialog', { name: 'Photo library' })
     .getByRole('button', { name: 'Actions for remove-me.png' })
     .click()
   await page.getByRole('menuitem', { name: 'Remove from project' }).click()
@@ -580,17 +580,17 @@ test('imports stay unused until assigned and used removal requires confirmation'
   await assignSidebarImage(page, 'used.png', firstFrame)
   await expect(page.getByTitle(/^used\.png.*1 use/)).toBeVisible()
 
-  await page.getByRole('button', { name: 'Manage images' }).click()
-  const manager = page.getByRole('dialog', { name: 'Image Manager' })
+  await page.getByRole('button', { name: 'Manage photos' }).click()
+  const manager = page.getByRole('dialog', { name: 'Photo library' })
   await manager.getByRole('radio', { name: 'Used', exact: true }).click()
   await expect(manager.getByText('used.png', { exact: true })).toBeVisible()
   await expect(manager.getByText('unused.png', { exact: true })).toHaveCount(0)
   await manager.getByRole('radio', { name: 'Unused', exact: true }).click()
   await expect(manager.getByText('unused.png', { exact: true })).toBeVisible()
 
-  await manager.getByRole('button', { name: 'Remove unused images' }).click()
+  await manager.getByRole('button', { name: 'Remove unused photos' }).click()
   await expect(manager.getByText('unused.png', { exact: true })).toHaveCount(0)
-  await expect(manager.getByRole('button', { name: 'Remove unused images' })).toBeDisabled()
+  await expect(manager.getByRole('button', { name: 'Remove unused photos' })).toBeDisabled()
 
   await manager.getByRole('radio', { name: 'All', exact: true }).click()
   await manager.getByRole('button', { name: 'Actions for used.png' }).click()
@@ -601,21 +601,21 @@ test('imports stay unused until assigned and used removal requires confirmation'
   await expect(manager.getByText('used.png', { exact: true })).toBeVisible()
 })
 
-test('Image Manager supports list view, search, sorting, and modal dismissal', async ({ page }) => {
+test('Photo library supports list view, search, sorting, and modal dismissal', async ({ page }) => {
   await page.goto('/')
   await importImage(page, 'zebra.png', redPng)
   await importImage(page, 'apple.png', bluePng)
   await page.getByRole('tab', { name: 'Images' }).click()
-  await page.getByRole('button', { name: 'Manage images' }).click()
-  const manager = page.getByRole('dialog', { name: 'Image Manager' })
+  await page.getByRole('button', { name: 'Manage photos' }).click()
+  const manager = page.getByRole('dialog', { name: 'Photo library' })
 
   await manager.getByRole('radio', { name: 'List view' }).click()
   await expect(manager.locator('.manager-asset-list')).toHaveClass(/manager-list-view/)
-  await manager.getByRole('button', { name: 'Sort project images' }).click()
+  await manager.getByRole('button', { name: 'Sort project photos' }).click()
   await page.getByRole('option', { name: 'Filename' }).click()
   await expect(manager.locator('.manager-asset-card strong')).toHaveText(['apple.png', 'zebra.png'])
 
-  await manager.getByRole('textbox', { name: 'Search project images' }).fill('zeb')
+  await manager.getByRole('textbox', { name: 'Search project photos' }).fill('zeb')
   await expect(manager.getByText('zebra.png', { exact: true })).toBeVisible()
   await expect(manager.getByText('apple.png', { exact: true })).toHaveCount(0)
   await page.keyboard.press('Escape')
@@ -665,7 +665,9 @@ test('Escape cancels an in-progress normal-mode frame swap', async ({ page }) =>
 test('dragging a layout splitter re-renders the page', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('tab', { name: '4', exact: true }).click()
-  await page.getByRole('button', { name: 'Layout 2', exact: true }).click()
+  await page
+    .getByRole('button', { name: 'Four photos with a large left panel', exact: true })
+    .click()
   const host = page.getByRole('region', { name: 'Collage canvas' })
   const stageContainer = page.locator('.konvajs-content').first()
   const box = await host.boundingBox()
@@ -697,7 +699,9 @@ test('dragging a layout splitter re-renders the page', async ({ page }) => {
 test('layout dividers have keyboard slider controls', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('tab', { name: '4', exact: true }).click()
-  await page.getByRole('button', { name: 'Layout 2', exact: true }).click()
+  await page
+    .getByRole('button', { name: 'Four photos with a large left panel', exact: true })
+    .click()
 
   const divider = page.getByRole('slider', { name: 'Vertical divider 1' })
   const before = Number(await divider.getAttribute('aria-valuenow'))
@@ -916,11 +920,16 @@ test('crop changes cancel with Escape and commit as one undo entry', async ({ pa
 test('page appearance slider drags create one undo entry per control', async ({ page }) => {
   await page.goto('/')
 
-  const dragSlider = async (name: string, from: number, to: number) => {
+  const dragSlider = async (name: string, to: number) => {
     const slider = page.locator(`[data-slot="slider"][aria-label="${name}"]`)
+    const thumb = slider.locator('[data-slot="slider-thumb"]')
     const box = await slider.boundingBox()
+    const thumbBox = await thumb.boundingBox()
     expect(box).not.toBeNull()
-    await page.mouse.move(box!.x + box!.width * from, box!.y + box!.height / 2)
+    expect(thumbBox).not.toBeNull()
+    // Start on the thumb, rather than an estimated fraction of the track. The
+    // thumb is inset from the track ends and that inset changes with CSS size.
+    await page.mouse.move(thumbBox!.x + thumbBox!.width / 2, thumbBox!.y + thumbBox!.height / 2)
     await page.mouse.down()
     await page.mouse.move(box!.x + box!.width * to, box!.y + box!.height / 2, { steps: 10 })
     await page.mouse.up()
@@ -929,12 +938,12 @@ test('page appearance slider drags create one undo entry per control', async ({ 
   const outerMarginValue = page.getByRole('spinbutton', { name: 'Outer margin value' })
   const innerSpacingValue = page.getByRole('spinbutton', { name: 'Inner spacing value' })
 
-  await dragSlider('Outer margin', 0.25, 1 / 3)
+  await dragSlider('Outer margin', 0.5)
   await expect(outerMarginValue).not.toHaveValue('30')
   const outerMarginAfterDrag = await outerMarginValue.inputValue()
   expect(Number(outerMarginAfterDrag)).toBeGreaterThan(30)
 
-  await dragSlider('Inner spacing', 0.25, 5 / 12)
+  await dragSlider('Inner spacing', 0.6)
   await expect(innerSpacingValue).not.toHaveValue('30')
   const innerSpacingAfterDrag = await innerSpacingValue.inputValue()
   expect(Number(innerSpacingAfterDrag)).toBeGreaterThan(30)
@@ -1135,12 +1144,12 @@ test('keyboard focus is visible and returns to the image-manager trigger', async
   await expect(openProject).toBeFocused()
 
   await page.getByRole('tab', { name: 'Images' }).click()
-  const managerTrigger = page.getByRole('button', { name: 'Manage images' })
+  const managerTrigger = page.getByRole('button', { name: 'Manage photos' })
   await managerTrigger.focus()
   await page.keyboard.press('Enter')
-  await expect(page.getByRole('dialog', { name: 'Image Manager' })).toBeVisible()
+  await expect(page.getByRole('dialog', { name: 'Photo library' })).toBeVisible()
   await page.keyboard.press('Escape')
-  await expect(page.getByRole('dialog', { name: 'Image Manager' })).toBeHidden()
+  await expect(page.getByRole('dialog', { name: 'Photo library' })).toBeHidden()
   await expect(managerTrigger).toBeFocused()
 })
 
@@ -1506,8 +1515,8 @@ test('a complete multi-page project survives embedded save, fresh-context reopen
   const firstSave = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Save', exact: true }).click()
   await page
-    .getByRole('dialog', { name: 'Choose a project format' })
-    .getByRole('button', { name: 'Save embedded archive' })
+    .getByRole('dialog', { name: 'Choose how to save' })
+    .getByRole('button', { name: 'Save with photos' })
     .click()
   const savedArchive = await downloadBytes(await firstSave)
   const savedDocument = JSON.parse(strFromU8(unzipSync(savedArchive)['document.json']))
@@ -1565,8 +1574,8 @@ test('a complete multi-page project survives embedded save, fresh-context reopen
     const resaved = reopened.waitForEvent('download')
     await reopened.getByRole('button', { name: 'Save', exact: true }).click()
     await reopened
-      .getByRole('dialog', { name: 'Choose a project format' })
-      .getByRole('button', { name: 'Save embedded archive' })
+      .getByRole('dialog', { name: 'Choose how to save' })
+      .getByRole('button', { name: 'Save with photos' })
       .click()
     const reopenedDocument = JSON.parse(
       strFromU8(unzipSync(await downloadBytes(await resaved))['document.json']),
@@ -1588,11 +1597,11 @@ test('Save retains the current format while Save As offers both project extensio
   await page.goto('/')
 
   await page.getByRole('button', { name: 'Save', exact: true }).click()
-  const formatDialog = page.getByRole('dialog', { name: 'Choose a project format' })
-  await expect(formatDialog).toContainText('Embedded archive (.collage)')
-  await expect(formatDialog).toContainText('Linked project (.collage.json)')
+  const formatDialog = page.getByRole('dialog', { name: 'Choose how to save' })
+  await expect(formatDialog).toContainText('Save project with photos')
+  await expect(formatDialog).toContainText('Save project linking to original files')
   const embeddedDownload = page.waitForEvent('download')
-  await formatDialog.getByRole('button', { name: 'Save embedded archive' }).click()
+  await formatDialog.getByRole('button', { name: 'Save with photos' }).click()
   expect((await embeddedDownload).suggestedFilename()).toBe('Untitled collage.collage')
 
   const repeatedSave = page.waitForEvent('download')
@@ -1607,7 +1616,7 @@ test('Save retains the current format while Save As offers both project extensio
   await page.keyboard.press('Control+Shift+s')
   await expect(formatDialog).toBeVisible()
   const linkedDownload = page.waitForEvent('download')
-  await formatDialog.getByRole('button', { name: 'Save linked JSON' }).click()
+  await formatDialog.getByRole('button', { name: 'Save linked project' }).click()
   expect((await linkedDownload).suggestedFilename()).toBe('Untitled collage.collage.json')
 })
 

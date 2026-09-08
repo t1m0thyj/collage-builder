@@ -326,7 +326,9 @@ export class AssetWorkflowController {
     this.host.setSelectedAssetId(null)
     this.host.setSelectedAssetIds([])
     this.host.setPendingRemovalAssetIds(null)
-    this.host.announce(`${assetIds.length} image(s) removed from project.`)
+    this.host.announce(
+      `${assetIds.length} photo${assetIds.length === 1 ? '' : 's'} removed from the project.`,
+    )
   }
 
   chooseReplacementFor = (assetId: string) => {
