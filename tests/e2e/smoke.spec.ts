@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import { deflateSync } from 'node:zlib'
-import { strToU8, zipSync } from 'fflate'
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 import { createProject } from '../../src/lib/domain/factories'
 import { collageMimeType } from '../../src/lib/persistence/archive'
 
@@ -199,6 +199,12 @@ async function downloadBytes(download: import('@playwright/test').Download) {
   const chunks: Buffer[] = []
   for await (const chunk of stream) chunks.push(Buffer.from(chunk))
   return Buffer.concat(chunks)
+}
+
+function comparableProjectDocument(document: unknown) {
+  // Layout-grid cell keys are legacy editor metadata. They are intentionally
+  // removed by the archive parser and do not affect the rendered project.
+  return JSON.parse(JSON.stringify(document, (key, value) => (key === 'key' ? undefined : value)))
 }
 
 async function rasterDimensions(page: BrowserPage, bytes: Buffer) {
@@ -1452,6 +1458,125 @@ test('a failed project open keeps the current document and decoded assets intact
   await expect(page.getByRole('status')).toContainText(/decode|image|source/i)
   await expect(title).toHaveValue('Keep current project')
   await expect.poll(() => sampleStageColor(page, left)).toBe('red')
+})
+
+test('a complete multi-page project survives embedded save, fresh-context reopen, and export', async ({
+  page,
+  browser,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'showSaveFilePicker', { value: undefined, configurable: true })
+  })
+  await page.goto('/')
+  const title = page.getByRole('textbox', { name: 'Project title' })
+  await title.fill('Saved family album')
+  await title.press('Tab')
+  await chooseTwoColumnLayout(page)
+  await importImage(page, 'red.png', redPng)
+  await importImage(page, 'blue.png', bluePng)
+  const [left, right] = await twoColumnFrameCenters(page)
+  await assignSidebarImage(page, 'red.png', left)
+  await assignSidebarImage(page, 'blue.png', right)
+  await page.getByRole('button', { name: 'Crop image' }).click()
+  await setNumber(page, 'Crop zoom value', '1.60')
+  await setNumber(page, 'Crop horizontal position', '30')
+  await page.getByRole('button', { name: 'Done' }).click()
+  await page.getByRole('button', { name: 'Choose background color' }).click()
+  await page.getByRole('button', { name: 'Set background to #2507B3' }).click()
+
+  const firstPagePixels = await sampleDownloadedPng(page, await exportCurrentPng(page, 400), [
+    { x: 0, y: 0 },
+    { x: 100, y: 150 },
+    { x: 300, y: 150 },
+  ])
+
+  await page.getByRole('button', { name: 'Add page' }).click()
+  await chooseTwoColumnLayout(page)
+  const [secondLeft, secondRight] = await twoColumnFrameCenters(page)
+  await assignSidebarImage(page, 'blue.png', secondLeft)
+  await assignSidebarImage(page, 'red.png', secondRight)
+  await page.getByRole('button', { name: 'Choose background color' }).click()
+  await page.getByRole('button', { name: 'Set background to #67BA24' }).click()
+  const secondPagePixels = await sampleDownloadedPng(page, await exportCurrentPng(page, 400), [
+    { x: 0, y: 0 },
+    { x: 100, y: 150 },
+    { x: 300, y: 150 },
+  ])
+
+  const firstSave = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await page
+    .getByRole('dialog', { name: 'Choose a project format' })
+    .getByRole('button', { name: 'Save embedded archive' })
+    .click()
+  const savedArchive = await downloadBytes(await firstSave)
+  const savedDocument = JSON.parse(strFromU8(unzipSync(savedArchive)['document.json']))
+  expect(savedDocument).toMatchObject({
+    title: 'Saved family album',
+    pages: [
+      { layout: { presetId: 'layout-2-001' }, style: { backgroundColor: '#2507B3FF' } },
+      {
+        layout: { presetId: 'layout-2-001' },
+        style: { backgroundColor: '#67BA24FF' },
+      },
+    ],
+  })
+  expect(Object.keys(savedDocument.assets)).toHaveLength(2)
+
+  const reopenedContext = await browser.newContext()
+  await reopenedContext.addInitScript(() => {
+    localStorage.setItem('collage-builder:onboarding-complete:v1', 'true')
+    Object.defineProperty(window, 'showSaveFilePicker', { value: undefined, configurable: true })
+  })
+  const reopened = await reopenedContext.newPage()
+  try {
+    await reopened.goto('/')
+    await reopened.locator('input[type="file"][accept*=".collage.json"]').setInputFiles({
+      name: 'saved-family-album.collage',
+      mimeType: collageMimeType,
+      buffer: savedArchive,
+    })
+    await expect(reopened.getByRole('textbox', { name: 'Project title' })).toHaveValue(
+      'Saved family album',
+    )
+    await expect(reopened.getByRole('button', { name: 'Page 2' })).toBeVisible()
+    await reopened.getByRole('tab', { name: 'Images' }).click()
+    await expect(reopened.getByText('red.png', { exact: true })).toBeVisible()
+    await expect(reopened.getByText('blue.png', { exact: true })).toBeVisible()
+
+    await reopened.getByRole('button', { name: 'Page 1' }).click()
+    expect(
+      await sampleDownloadedPng(reopened, await exportCurrentPng(reopened, 400), [
+        { x: 0, y: 0 },
+        { x: 100, y: 150 },
+        { x: 300, y: 150 },
+      ]),
+    ).toEqual(firstPagePixels)
+
+    await reopened.getByRole('button', { name: 'Page 2' }).click()
+    expect(
+      await sampleDownloadedPng(reopened, await exportCurrentPng(reopened, 400), [
+        { x: 0, y: 0 },
+        { x: 100, y: 150 },
+        { x: 300, y: 150 },
+      ]),
+    ).toEqual(secondPagePixels)
+
+    const resaved = reopened.waitForEvent('download')
+    await reopened.getByRole('button', { name: 'Save', exact: true }).click()
+    await reopened
+      .getByRole('dialog', { name: 'Choose a project format' })
+      .getByRole('button', { name: 'Save embedded archive' })
+      .click()
+    const reopenedDocument = JSON.parse(
+      strFromU8(unzipSync(await downloadBytes(await resaved))['document.json']),
+    )
+    expect(comparableProjectDocument(reopenedDocument)).toEqual(
+      comparableProjectDocument(savedDocument),
+    )
+  } finally {
+    await reopenedContext.close()
+  }
 })
 
 test('Save retains the current format while Save As offers both project extensions', async ({

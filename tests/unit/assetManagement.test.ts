@@ -9,7 +9,11 @@ vi.mock('../../src/lib/domain/importImage', () => ({
   validateImportedImage: imageValidation.validate,
 }))
 
-import { importProjectAssets } from '../../src/lib/app/assetManagement'
+import {
+  importProjectAssets,
+  relinkProjectAsset,
+  replaceProjectAsset,
+} from '../../src/lib/app/assetManagement'
 
 describe('asset operation lifecycle guards', () => {
   it('does not commit an import after its original project is replaced', async () => {
@@ -109,4 +113,72 @@ describe('asset operation lifecycle guards', () => {
     expect(result.importedAssetIds).toEqual([asset.id])
     expect(progress.mock.calls.at(-1)?.[0]).toMatchObject({ processed: 2, added: 1, skipped: 1 })
   })
+
+  it.each(['replacement', 'relinking'] as const)(
+    'does not commit %s after its project is switched',
+    async (operation) => {
+      const original = createProject('Original')
+      const replacement = createProject('Replacement')
+      const target = '11111111-1111-4111-8111-111111111111'
+      original.assets[target] = {
+        id: target,
+        originalName: 'original.png',
+        mediaType: 'image/png',
+        byteLength: 4,
+        width: 1,
+        height: 1,
+        sha256: 'a'.repeat(64),
+        storage: { kind: 'embedded', archivePath: `assets/${target}` },
+      }
+      const project = new ProjectStore(original)
+      const version = project.versionedSnapshot()
+      let finishRegistration: (() => void) | undefined
+      const registration = new Promise<void>((resolve) => (finishRegistration = resolve))
+      const validatedAsset = {
+        ...original.assets[target],
+        id: '22222222-2222-4222-8222-222222222222',
+        originalName: 'new.png',
+      }
+      imageValidation.validate.mockResolvedValue({
+        asset: validatedAsset,
+        file: new File(['new'], 'new.png', { type: 'image/png' }),
+        displayBlob: undefined,
+      })
+      const registry = {
+        retain: vi.fn(),
+        register: vi.fn(async () => {
+          await registration
+          return true
+        }),
+      } as unknown as AssetRegistry
+      const isCurrent = () => project.isCurrentProject(version)
+      const pending =
+        operation === 'replacement'
+          ? replaceProjectAsset(
+              new File(['new'], 'new.png', { type: 'image/png' }),
+              target,
+              version.document,
+              registry,
+              project,
+              isCurrent,
+            )
+          : relinkProjectAsset(
+              new File(['new'], 'new.png', { type: 'image/png' }),
+              target,
+              version.document,
+              registry,
+              project,
+              () => true,
+              isCurrent,
+            )
+
+      await vi.waitFor(() => expect(registry.register).toHaveBeenCalled())
+      project.replaceDocument(replacement)
+      finishRegistration?.()
+
+      expect(await pending).toBe(false)
+      expect(project.snapshot().projectId).toBe(replacement.projectId)
+      expect(project.snapshot().assets).toEqual({})
+    },
+  )
 })
