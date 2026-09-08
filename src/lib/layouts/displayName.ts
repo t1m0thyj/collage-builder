@@ -1,42 +1,28 @@
-import type { LayoutPresetDefinition } from '../domain/types'
+import type { LayoutPresetDefinition, ResolvedFrame } from '../domain/types'
+import { previewFrames } from './preview'
 
-const numberWords = [
-  'Zero',
-  'One',
-  'Two',
-  'Three',
-  'Four',
-  'Five',
-  'Six',
-  'Seven',
-  'Eight',
-  'Nine',
-  'Ten',
-  'Eleven',
-]
+type FrameShape = 'portrait' | 'landscape' | 'square'
 
-function photoCount(count: number) {
-  return `${numberWords[count] ?? String(count)} photo${count === 1 ? '' : 's'}`
+const shapes: FrameShape[] = ['portrait', 'landscape', 'square']
+
+function frameShape(frame: Pick<ResolvedFrame, 'width' | 'height'>): FrameShape {
+  const aspectRatio = frame.width / frame.height
+  if (aspectRatio < 0.9) return 'portrait'
+  if (aspectRatio > 1.1) return 'landscape'
+  return 'square'
 }
 
-/** A human-readable label derived from the stable, serializable preset definition. */
-export function layoutDisplayName(preset: LayoutPresetDefinition): string {
-  const { root, frameCount } = preset
-  if (root.kind === 'grid') {
-    if (root.columns === 1) return `${photoCount(frameCount)} stacked`
-    if (root.rows === 1) return `${photoCount(frameCount)} side by side`
-    if (root.columns === root.rows) return `${photoCount(frameCount)} in equal tiles`
-    return `${root.columns} by ${root.rows} photo grid`
-  }
-  if (root.kind === 'split' && root.weights.length === 2) {
-    const [first, second] = root.weights
-    const largerSide = first === second ? undefined : first > second ? 'first' : 'second'
-    if (largerSide && root.axis === 'x')
-      return `${photoCount(frameCount)} with a large ${largerSide === 'first' ? 'left' : 'right'} panel`
-    if (largerSide && root.axis === 'y')
-      return `${photoCount(frameCount)} with a large ${largerSide === 'first' ? 'top' : 'bottom'} panel`
-  }
-  return preset.tags.includes('asymmetric')
-    ? `Asymmetric ${photoCount(frameCount).toLocaleLowerCase()} layout`
-    : `${photoCount(frameCount)} layout`
+/** A concise visual summary for a layout picker tooltip. */
+export function layoutShapeSummary(preset: LayoutPresetDefinition): string {
+  const counts = new Map<FrameShape, number>(shapes.map((shape) => [shape, 0]))
+  previewFrames(preset, 100, 100).forEach((frame) => {
+    const shape = frameShape(frame)
+    counts.set(shape, (counts.get(shape) ?? 0) + 1)
+  })
+  return shapes
+    .flatMap((shape) => {
+      const count = counts.get(shape) ?? 0
+      return count === 0 ? [] : `${count} ${shape}${count === 1 ? '' : 's'}`
+    })
+    .join(', ')
 }

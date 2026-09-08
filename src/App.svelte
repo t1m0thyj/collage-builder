@@ -43,7 +43,7 @@
   import { attachAppLifecycle } from './lib/app/appLifecycle'
   import { UiPreferencesController } from './lib/app/uiPreferences'
   import { clampViewportZoom, type PageStyleControl, type SidebarTab } from './lib/app/pageActions'
-  import { layoutDisplayName } from './lib/layouts/displayName'
+  import { layoutShapeSummary } from './lib/layouts/displayName'
   import { completeOnboarding, hasCompletedOnboarding } from './lib/app/onboarding'
   import { applyAvailableUpdate, deploymentState } from './lib/app/deployment'
 
@@ -274,7 +274,7 @@
   const pageActions = {
     selectLayout(preset: LayoutPresetDefinition) {
       project.changeLayout(activePage.id, preset)
-      announce(`${layoutDisplayName(preset)} selected.`)
+      announce(`Layout selected: ${layoutShapeSummary(preset)}.`)
     },
     requestImage(slotId: string) {
       selectedSlotId = slotId
