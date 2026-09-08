@@ -185,23 +185,8 @@ export async function renderPageImage(
   ).blob
 }
 
-export async function renderPagePng(
-  page: PageV1,
-  assets: Record<string, AssetRecordV1>,
-  getImage: (assetId: string) => HTMLImageElement | undefined,
-  width: number,
-): Promise<Blob> {
-  return renderPageImage(page, assets, getImage, width, 'png')
-}
-
 export async function zipImages(
   pages: Iterable<{ name: string; blob: Blob }> | AsyncIterable<{ name: string; blob: Blob }>,
 ): Promise<Blob> {
   return zipBlobs(pages, 'application/zip')
-}
-
-export async function zipPngs(
-  pages: Iterable<{ name: string; blob: Blob }> | AsyncIterable<{ name: string; blob: Blob }>,
-): Promise<Blob> {
-  return zipImages(pages)
 }

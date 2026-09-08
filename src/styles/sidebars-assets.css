@@ -173,12 +173,6 @@ h2 {
 .layout-card.selected .layout-preview i {
   background: #6798ce;
 }
-.layout-preview.feature i:first-child {
-  grid-row: span 2;
-}
-.layout-preview.feature i:last-child {
-  display: none;
-}
 .empty-library {
   margin: 22px 0 16px;
   padding: 18px 12px;

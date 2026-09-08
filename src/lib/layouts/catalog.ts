@@ -33,8 +33,3 @@ if (new Set(layoutCatalog.map((preset) => preset.id)).size !== layoutCatalog.len
 export function presetsForFrameCount(frameCount: number): LayoutPresetDefinition[] {
   return layoutCatalog.filter((preset) => preset.frameCount === frameCount)
 }
-export function getPreset(id: string): LayoutPresetDefinition {
-  const preset = layoutCatalog.find((candidate) => candidate.id === id)
-  if (!preset) throw new Error(`Unknown layout preset: ${id}`)
-  return preset
-}
