@@ -1,6 +1,6 @@
 const CACHE_PREFIX = `collage-builder-shell:${self.registration.scope}:`
-const CACHE_NAME = CACHE_PREFIX + "f7e8c74fd3148db6"
-const PRECACHE_FILES = ["","LICENSE.txt","THIRD_PARTY_NOTICES.md","assets/archive-CnDnxezk.js","assets/autosave-YDJKEAb4.js","assets/canvas-vendor-Bl7Cu_oJ.js","assets/export.worker-D9TimHIy.js","assets/exportPng-DiztOOaM.js","assets/heic-to-CuP2Qlsw.js","assets/index-BNZNl8qA.css","assets/index-CLIwvDoR.js","assets/linkedAssets-pkdpbjsa.js","assets/migrations-CQDlTTF2.js","assets/optional-COeV9fyn.js","assets/zipStreams-BvnqxO7c.js","favicon.svg","index.html","licenses/bits-ui-2.18.1.txt","licenses/clsx-2.1.1.txt","licenses/esm-env-1.2.2.txt","licenses/fflate-0.8.3.txt","licenses/floating-ui-core-1.8.0.txt","licenses/floating-ui-dom-1.8.0.txt","licenses/floating-ui-utils-0.2.12.txt","licenses/heic-to-1.5.2.txt","licenses/idb-8.0.3.txt","licenses/inline-style-parser-0.2.7.txt","licenses/internationalized-date-3.12.3.txt","licenses/konva-10.3.0.txt","licenses/lucide-svelte-1.29.0.txt","licenses/remixicon-svelte-0.0.5.txt","licenses/runed-0.35.1.txt","licenses/style-to-object-1.0.14.txt","licenses/svelte-5.56.8.txt","licenses/svelte-konva-1.0.1.txt","licenses/svelte-toolbelt-0.10.6.txt","licenses/tabbable-6.5.0.txt","licenses/tailwind-merge-3.6.0.txt","licenses/tailwind-variants-3.3.1.txt","licenses/tailwindcss-4.3.3.txt","licenses/tw-animate-css-1.4.0.txt","licenses/zod-4.4.3.txt"]
+const CACHE_NAME = CACHE_PREFIX + "e7e34abf1cda862e"
+const PRECACHE_FILES = ["","LICENSE.txt","THIRD_PARTY_NOTICES.md","assets/archive-Cnrm-1yX.js","assets/autosave-D368iwUR.js","assets/canvas-vendor-Bl7Cu_oJ.js","assets/export.worker-6wkYzw46.js","assets/exportPng-PcOqFPZl.js","assets/heic-to-CuP2Qlsw.js","assets/index-C7u9Aata.css","assets/index-WALZJ_03.js","assets/linkedAssets-CXDwpu5k.js","assets/migrations-CBNGawZl.js","assets/optional-COeV9fyn.js","assets/zipStreams-BvnqxO7c.js","favicon.svg","index.html","licenses/bits-ui-2.18.1.txt","licenses/clsx-2.1.1.txt","licenses/esm-env-1.2.2.txt","licenses/fflate-0.8.3.txt","licenses/floating-ui-core-1.8.0.txt","licenses/floating-ui-dom-1.8.0.txt","licenses/floating-ui-utils-0.2.12.txt","licenses/heic-to-1.5.2.txt","licenses/idb-8.0.3.txt","licenses/inline-style-parser-0.2.7.txt","licenses/internationalized-date-3.12.3.txt","licenses/konva-10.3.0.txt","licenses/lucide-svelte-1.29.0.txt","licenses/remixicon-svelte-0.0.5.txt","licenses/runed-0.35.1.txt","licenses/style-to-object-1.0.14.txt","licenses/svelte-5.56.8.txt","licenses/svelte-konva-1.0.1.txt","licenses/svelte-toolbelt-0.10.6.txt","licenses/tabbable-6.5.0.txt","licenses/tailwind-merge-3.6.0.txt","licenses/tailwind-variants-3.3.1.txt","licenses/tailwindcss-4.3.3.txt","licenses/tw-animate-css-1.4.0.txt","licenses/zod-4.4.3.txt"]
 
 const scopedUrl = (file) => new URL(file, self.registration.scope).href
 
@@ -23,6 +23,10 @@ self.addEventListener('activate', (event) => {
       )
       .then(() => self.clients.claim()),
   )
+})
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting()
 })
 
 self.addEventListener('fetch', (event) => {
