@@ -260,6 +260,7 @@ async function chooseTwoColumnLayout(page: BrowserPage) {
   await page.getByRole('tab', { name: 'Layouts' }).click()
   await page.getByRole('tab', { name: '2', exact: true }).click()
   await page.locator('[data-layout-id="layout-2-001"]').click()
+  await expect(page.locator('.canvas-frame-controls button')).toHaveCount(2)
 }
 
 async function canvasDocumentPoint(page: BrowserPage, point: { x: number; y: number }) {
@@ -281,25 +282,30 @@ async function canvasDocumentPoint(page: BrowserPage, point: { x: number; y: num
 }
 
 async function twoColumnFrameCenters(page: BrowserPage) {
-  const frameWidth = (3840 - 30 * 2 - 30) / 2
-  const frameHeight = 2880 - 30 * 2
-  return Promise.all([
-    canvasDocumentPoint(page, { x: 30 + frameWidth / 2, y: 30 + frameHeight / 2 }),
-    canvasDocumentPoint(page, {
-      x: 30 + frameWidth + 30 + frameWidth / 2,
-      y: 30 + frameHeight / 2,
-    }),
-  ])
+  const host = page.getByRole('region', { name: 'Collage canvas' })
+  const frames = JSON.parse((await host.getAttribute('data-frame-hitboxes')) ?? '[]') as Array<{
+    x: number
+    y: number
+    width: number
+    height: number
+  }>
+  expect(frames).toHaveLength(2)
+  return Promise.all(
+    frames.map((frame) =>
+      canvasDocumentPoint(page, {
+        x: frame.x + frame.width / 2,
+        y: frame.y + frame.height / 2,
+      }),
+    ),
+  )
 }
 
-async function assignSidebarImage(
-  page: BrowserPage,
-  name: string,
-  point: { x: number; y: number },
-) {
-  await page.getByRole('tab', { name: 'Images' }).click()
-  await page.mouse.click(point.x, point.y)
+async function assignSidebarImage(page: BrowserPage, name: string, frameNumber: number) {
+  const frame = page.getByRole('button', { name: new RegExp(`^Frame ${frameNumber},`) })
+  await frame.focus()
+  await frame.press('Enter')
   await page.getByText(name, { exact: true }).click()
+  await expect(page.getByRole('button', { name: `Frame ${frameNumber}, ${name}` })).toBeAttached()
 }
 
 async function sampleStagePixel(page: BrowserPage, point: { x: number; y: number }) {
@@ -601,12 +607,11 @@ test('imports stay unused until assigned and used removal requires confirmation'
   await chooseTwoColumnLayout(page)
   await importImage(page, 'used.png', redPng)
   await importImage(page, 'unused.png', bluePng)
-  const [firstFrame] = await twoColumnFrameCenters(page)
 
   await page.getByRole('tab', { name: 'Images' }).click()
   await expect(page.getByTitle(/^used\.png.*0 uses/)).toBeVisible()
   await expect(page.getByTitle(/^unused\.png.*0 uses/)).toBeVisible()
-  await assignSidebarImage(page, 'used.png', firstFrame)
+  await assignSidebarImage(page, 'used.png', 1)
   await expect(page.getByTitle(/^used\.png.*1 use/)).toBeVisible()
 
   await page.getByRole('button', { name: 'Manage photos' }).click()
@@ -656,16 +661,23 @@ test('normal-mode frame dragging swaps images without enabling crop', async ({ p
   await chooseTwoColumnLayout(page)
   await importImage(page, 'red.png', redPng)
   await importImage(page, 'blue.png', bluePng)
+  await assignSidebarImage(page, 'red.png', 1)
+  await assignSidebarImage(page, 'blue.png', 2)
   const [left, right] = await twoColumnFrameCenters(page)
-  await assignSidebarImage(page, 'red.png', left)
-  await assignSidebarImage(page, 'blue.png', right)
 
   await expect.poll(() => sampleStageColor(page, left)).toBe('red')
   await expect.poll(() => sampleStageColor(page, right)).toBe('blue')
+  const host = page.getByRole('region', { name: 'Collage canvas' })
   await page.mouse.move(left.x, left.y)
   await page.mouse.down()
-  await page.mouse.move(right.x, right.y, { steps: 10 })
-  await page.mouse.up()
+  try {
+    await page.mouse.move(left.x + 12, left.y, { steps: 4 })
+    await expect(host).toHaveAttribute('data-drag-source-slot', /.+/)
+    await page.mouse.move(right.x, right.y, { steps: 12 })
+    await expect(host).toHaveAttribute('data-drag-target-slot', /.+/)
+  } finally {
+    await page.mouse.up()
+  }
   await expect.poll(() => sampleStageColor(page, left)).toBe('blue')
   await expect.poll(() => sampleStageColor(page, right)).toBe('red')
   await expect(page.getByRole('button', { name: 'Crop image' })).toBeVisible()
@@ -677,16 +689,22 @@ test('Escape cancels an in-progress normal-mode frame swap', async ({ page }) =>
   await chooseTwoColumnLayout(page)
   await importImage(page, 'red.png', redPng)
   await importImage(page, 'blue.png', bluePng)
+  await assignSidebarImage(page, 'red.png', 1)
+  await assignSidebarImage(page, 'blue.png', 2)
   const [left, right] = await twoColumnFrameCenters(page)
-  await assignSidebarImage(page, 'red.png', left)
-  await assignSidebarImage(page, 'blue.png', right)
 
+  const host = page.getByRole('region', { name: 'Collage canvas' })
   await page.mouse.move(left.x, left.y)
   await page.mouse.down()
-  await page.mouse.move((left.x + right.x) / 2, left.y, { steps: 5 })
-  await page.keyboard.press('Escape')
-  await page.mouse.move(right.x, right.y, { steps: 5 })
-  await page.mouse.up()
+  try {
+    await page.mouse.move(left.x + 12, left.y, { steps: 4 })
+    await expect(host).toHaveAttribute('data-drag-source-slot', /.+/)
+    await page.mouse.move((left.x + right.x) / 2, left.y, { steps: 5 })
+    await page.keyboard.press('Escape')
+    await page.mouse.move(right.x, right.y, { steps: 5 })
+  } finally {
+    await page.mouse.up()
+  }
   await expect.poll(() => sampleStageColor(page, left)).toBe('red')
   await expect.poll(() => sampleStageColor(page, right)).toBe('blue')
 })
@@ -760,44 +778,20 @@ test('dragging crop edges changes zoom', async ({ page }) => {
 
   const cropZoom = page.getByRole('spinbutton', { name: 'Crop zoom value' })
   await expect(cropZoom).toHaveValue('1.00')
-  const canvases = page.locator('canvas')
-  let cropEdge: { x: number; y: number; scaleX: number; scaleY: number } | undefined
-  for (let index = 0; index < (await canvases.count()); index += 1) {
-    const canvas = canvases.nth(index)
-    const edge = await canvas.evaluate((element) => {
-      const pixels = element
-        .getContext('2d', { willReadFrequently: true })!
-        .getImageData(0, 0, element.width, element.height).data
-      let minX = element.width
-      let minY = element.height
-      let maxX = 0
-      let maxY = 0
-      for (let pixel = 0; pixel < pixels.length; pixel += 4) {
-        if (pixels[pixel] >= 8 || pixels[pixel + 1] <= 245 || pixels[pixel + 2] >= 8) continue
-        const x = (pixel / 4) % element.width
-        const y = Math.floor(pixel / 4 / element.width)
-        minX = Math.min(minX, x)
-        minY = Math.min(minY, y)
-        maxX = Math.max(maxX, x)
-        maxY = Math.max(maxY, y)
-      }
-      return minX === element.width ? undefined : { x: (minX + maxX) / 2, y: minY }
-    })
-    if (!edge) continue
-    const box = await canvas.boundingBox()
-    expect(box).not.toBeNull()
-    cropEdge = {
-      x: box!.x + edge.x * (box!.width / (await canvas.evaluate((element) => element.width))),
-      y: box!.y + edge.y * (box!.height / (await canvas.evaluate((element) => element.height))),
-      scaleX: box!.width / (await canvas.evaluate((element) => element.width)),
-      scaleY: box!.height / (await canvas.evaluate((element) => element.height)),
-    }
-    break
+  const host = page.getByRole('region', { name: 'Collage canvas' })
+  await expect(host).toHaveAttribute('data-crop-placement', /.+/)
+  const placement = JSON.parse((await host.getAttribute('data-crop-placement'))!) as {
+    x: number
+    y: number
+    width: number
   }
-  expect(cropEdge).toBeDefined()
-  await page.mouse.move(cropEdge!.x, cropEdge!.y)
+  const cropEdge = await canvasDocumentPoint(page, {
+    x: placement.x + placement.width / 2,
+    y: placement.y,
+  })
+  await page.mouse.move(cropEdge.x, cropEdge.y)
   await page.mouse.down()
-  await page.mouse.move(cropEdge!.x, cropEdge!.y - 36 * cropEdge!.scaleY, { steps: 8 })
+  await page.mouse.move(cropEdge.x, cropEdge.y - 24, { steps: 8 })
   await page.mouse.up()
   await expect(cropZoom).not.toHaveValue('1.00')
 })
@@ -840,9 +834,9 @@ test('library selection and frame focus do not replace placed images', async ({ 
   await chooseTwoColumnLayout(page)
   await importImage(page, 'red.png', redPng)
   await importImage(page, 'blue.png', bluePng)
-  const [left, right] = await twoColumnFrameCenters(page)
-  await assignSidebarImage(page, 'red.png', left)
-  await assignSidebarImage(page, 'blue.png', right)
+  await assignSidebarImage(page, 'red.png', 1)
+  await assignSidebarImage(page, 'blue.png', 2)
+  const [, right] = await twoColumnFrameCenters(page)
 
   await page.getByRole('button', { name: 'Frame 1, red.png' }).focus()
   await page.keyboard.press('Enter')
@@ -863,9 +857,9 @@ test('Replace this frame preserves other uses of the original image', async ({ p
   await chooseTwoColumnLayout(page)
   await importImage(page, 'shared.png', redPng)
   await importImage(page, 'replacement.png', bluePng)
+  await assignSidebarImage(page, 'shared.png', 1)
+  await assignSidebarImage(page, 'shared.png', 2)
   const [left, right] = await twoColumnFrameCenters(page)
-  await assignSidebarImage(page, 'shared.png', left)
-  await assignSidebarImage(page, 'shared.png', right)
 
   await page.getByRole('button', { name: 'Frame 1, shared.png' }).focus()
   await page.keyboard.press('Enter')
@@ -903,8 +897,7 @@ test('crop changes cancel with Escape and commit as one undo entry', async ({ pa
   await page.goto('/')
   await chooseTwoColumnLayout(page)
   await importImage(page, 'transactional-crop.png', redPng)
-  const [firstFrame] = await twoColumnFrameCenters(page)
-  await assignSidebarImage(page, 'transactional-crop.png', firstFrame)
+  await assignSidebarImage(page, 'transactional-crop.png', 1)
   await page.getByRole('button', { name: 'Crop image' }).click()
 
   await setNumber(page, 'Crop zoom value', '1.75')
@@ -975,8 +968,7 @@ test('startup recovery asks before restoring an unsaved project', async ({ page,
   if (browserName !== 'webkit') {
     await chooseTwoColumnLayout(page)
     await importImage(page, 'recovery-preview.png', redPng)
-    const [firstFrame] = await twoColumnFrameCenters(page)
-    await assignSidebarImage(page, 'recovery-preview.png', firstFrame)
+    await assignSidebarImage(page, 'recovery-preview.png', 1)
   }
   const title = page.getByRole('textbox', { name: 'Project title' })
   await title.fill('Recovered project')
@@ -1222,12 +1214,13 @@ test('canvas can scroll horizontally and vertically when zoomed in', async ({ pa
     )
     .toBe(true)
 
-  await canvas.evaluate((element) => {
-    element.scrollLeft = element.scrollWidth
-    element.scrollTop = element.scrollHeight
-  })
   await expect
-    .poll(() => canvas.evaluate((element) => element.scrollLeft > 0 && element.scrollTop > 0))
+    .poll(() =>
+      canvas.evaluate((element) => {
+        element.scrollTo(element.scrollWidth, element.scrollHeight)
+        return element.scrollLeft > 0 && element.scrollTop > 0
+      }),
+    )
     .toBe(true)
 })
 
@@ -1325,9 +1318,8 @@ test('export pixels preserve image colors and the configured page gap', async ({
   await chooseTwoColumnLayout(page)
   await importImage(page, 'red.png', redPng)
   await importImage(page, 'blue.png', bluePng)
-  const [left, right] = await twoColumnFrameCenters(page)
-  await assignSidebarImage(page, 'red.png', left)
-  await assignSidebarImage(page, 'blue.png', right)
+  await assignSidebarImage(page, 'red.png', 1)
+  await assignSidebarImage(page, 'blue.png', 2)
   await page.getByRole('switch', { name: 'Frame shadow enabled' }).click()
 
   await page.getByRole('button', { name: 'Export…' }).click()
@@ -1410,8 +1402,8 @@ test('real photo import, crop, thumbnail, and export stay visually consistent', 
     })),
   ).toEqual({ width: 256, height: 171 })
 
+  await assignSidebarImage(page, 'real-photo-still-life.png', 1)
   const [left] = await twoColumnFrameCenters(page)
-  await assignSidebarImage(page, 'real-photo-still-life.png', left)
   await page.getByRole('button', { name: 'Crop image' }).click()
   await setNumber(page, 'Crop zoom value', '1.20')
   await setNumber(page, 'Crop horizontal position', '45')
@@ -1446,8 +1438,8 @@ test('a failed project open keeps the current document and decoded assets intact
   await title.fill('Keep current project')
   await title.press('Tab')
   await importImage(page, 'current.png', redPng)
+  await assignSidebarImage(page, 'current.png', 1)
   const [left] = await twoColumnFrameCenters(page)
-  await assignSidebarImage(page, 'current.png', left)
   await expect.poll(() => sampleStageColor(page, left)).toBe('red')
 
   const invalidBytes = Buffer.from('not actually a PNG')
@@ -1487,7 +1479,12 @@ test('a failed project open keeps the current document and decoded assets intact
 test('a complete multi-page project survives embedded save, fresh-context reopen, and export', async ({
   page,
   browser,
+  browserName,
 }) => {
+  test.skip(
+    browserName === 'webkit',
+    'Playwright WebKit cannot clone Blob/File values into IndexedDB',
+  )
   await page.addInitScript(() => {
     Object.defineProperty(window, 'showSaveFilePicker', { value: undefined, configurable: true })
   })
@@ -1498,9 +1495,8 @@ test('a complete multi-page project survives embedded save, fresh-context reopen
   await chooseTwoColumnLayout(page)
   await importImage(page, 'red.png', redPng)
   await importImage(page, 'blue.png', bluePng)
-  const [left, right] = await twoColumnFrameCenters(page)
-  await assignSidebarImage(page, 'red.png', left)
-  await assignSidebarImage(page, 'blue.png', right)
+  await assignSidebarImage(page, 'red.png', 1)
+  await assignSidebarImage(page, 'blue.png', 2)
   await page.getByRole('button', { name: 'Crop image' }).click()
   await setNumber(page, 'Crop zoom value', '1.60')
   await setNumber(page, 'Crop horizontal position', '30')
@@ -1516,9 +1512,8 @@ test('a complete multi-page project survives embedded save, fresh-context reopen
 
   await page.getByRole('button', { name: 'Add page' }).click()
   await chooseTwoColumnLayout(page)
-  const [secondLeft, secondRight] = await twoColumnFrameCenters(page)
-  await assignSidebarImage(page, 'blue.png', secondLeft)
-  await assignSidebarImage(page, 'red.png', secondRight)
+  await assignSidebarImage(page, 'blue.png', 1)
+  await assignSidebarImage(page, 'red.png', 2)
   await page.getByRole('button', { name: 'Choose background color' }).click()
   await page.getByRole('button', { name: 'Set background to #67BA24' }).click()
   const secondPagePixels = await sampleDownloadedPng(page, await exportCurrentPng(page, 400), [

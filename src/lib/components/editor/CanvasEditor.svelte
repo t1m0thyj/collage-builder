@@ -488,6 +488,19 @@
   data-stage-y={stageY}
   data-fit-scale={fitScale}
   data-image-revision={imageRevision}
+  data-drag-source-slot={dragSourceSlotId ?? undefined}
+  data-drag-target-slot={dragTargetSlotId ?? undefined}
+  data-frame-hitboxes={JSON.stringify(
+    model.frames.map(({ x, y, width, height }) => ({ x, y, width, height })),
+  )}
+  data-crop-placement={cropFrame && cropPlacement
+    ? JSON.stringify({
+        x: cropFrame.x + cropPlacement.x,
+        y: cropFrame.y + cropPlacement.y,
+        width: cropPlacement.width,
+        height: cropPlacement.height,
+      })
+    : undefined}
   data-divider-hitboxes={JSON.stringify(
     displayDividers.map(({ axis, x, y, width, height }) => ({ axis, x, y, width, height })),
   )}
