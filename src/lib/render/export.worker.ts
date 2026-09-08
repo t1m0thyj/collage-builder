@@ -1,4 +1,5 @@
-import { drawExportPage } from './exportCanvas'
+import { resolveLayout } from '../domain/geometry'
+import { drawExportFrameImage, prepareExportPage } from './exportCanvas'
 import type { ExportWorkerRequest, ExportWorkerResponse } from './exportWorkerProtocol'
 
 const workerScope = globalThis as unknown as {
@@ -11,21 +12,27 @@ workerScope.onmessage = (event) => {
 }
 
 async function render(request: ExportWorkerRequest): Promise<void> {
-  const bitmaps = new Map<string, ImageBitmap>()
   try {
-    for (const { assetId, blob } of request.images)
-      bitmaps.set(assetId, await createImageBitmap(blob))
+    const imageBlobs = new Map(request.images.map((image) => [image.assetId, image.blob]))
     const canvas = new OffscreenCanvas(request.width, request.height)
     const context = canvas.getContext('2d')
     if (!context) throw new Error('Canvas rendering is unavailable')
-    drawExportPage(
-      context,
-      request.page,
-      request.assets,
-      (assetId) => bitmaps.get(assetId),
-      request.width,
-      request.format,
-    )
+    prepareExportPage(context, request.page, request.width, request.format)
+    // Decode one source at a time so worker export does not hold a second complete
+    // set of full-resolution page images alongside the editor's active-page images.
+    for (const frame of resolveLayout(request.page)) {
+      const content = request.page.slots[frame.slotId]
+      if (!content) continue
+      const asset = request.assets[content.assetId]
+      const imageBlob = imageBlobs.get(content.assetId)
+      if (!asset || !imageBlob) throw new Error('An image is not available for export')
+      const bitmap = await createImageBitmap(imageBlob)
+      try {
+        drawExportFrameImage(context, request.page, frame, asset, bitmap)
+      } finally {
+        bitmap.close()
+      }
+    }
     const blob = await canvas.convertToBlob({
       type: request.format === 'jpeg' ? 'image/jpeg' : 'image/png',
       quality: request.format === 'jpeg' ? request.quality : undefined,
@@ -36,7 +43,5 @@ async function render(request: ExportWorkerRequest): Promise<void> {
       id: request.id,
       error: error instanceof Error ? error.message : 'Image rendering failed',
     })
-  } finally {
-    for (const bitmap of bitmaps.values()) bitmap.close()
   }
 }

@@ -43,6 +43,23 @@ export function drawExportPage(
   width: number,
   format: 'png' | 'jpeg',
 ): void {
+  prepareExportPage(context, page, width, format)
+  for (const frame of resolveLayout(page)) {
+    const content = page.slots[frame.slotId]
+    if (!content) continue
+    const asset = assets[content.assetId]
+    const image = getImage(content.assetId)
+    if (!asset || !image) throw new Error('An image is not available for export')
+    drawExportFrameImage(context, page, frame, asset, image)
+  }
+}
+
+export function prepareExportPage(
+  context: ExportContext,
+  page: PageV1,
+  width: number,
+  format: 'png' | 'jpeg',
+): void {
   const scale = width / page.width
   context.scale(scale, scale)
   if (!page.style.transparentBackground || format === 'jpeg') {
@@ -62,29 +79,33 @@ export function drawExportPage(
       context.fill()
       context.restore()
     }
-  for (const frame of resolveLayout(page)) {
-    const content = page.slots[frame.slotId]
-    if (!content) continue
-    const asset = assets[content.assetId]
-    const image = getImage(content.assetId)
-    if (!asset || !image) throw new Error('An image is not available for export')
-    const placement = resolveCoverPlacement(
-      frame.width,
-      frame.height,
-      asset.width,
-      asset.height,
-      content.placement,
-    )
-    context.save()
-    framePath(context, frame, page.style.cornerRadius)
-    context.clip()
-    context.drawImage(
-      image,
-      frame.x + placement.x,
-      frame.y + placement.y,
-      placement.width,
-      placement.height,
-    )
-    context.restore()
-  }
+}
+
+export function drawExportFrameImage(
+  context: ExportContext,
+  page: PageV1,
+  frame: ResolvedFrame,
+  asset: AssetRecordV1,
+  image: CanvasImageSource,
+): void {
+  const content = page.slots[frame.slotId]
+  if (!content) return
+  const placement = resolveCoverPlacement(
+    frame.width,
+    frame.height,
+    asset.width,
+    asset.height,
+    content.placement,
+  )
+  context.save()
+  framePath(context, frame, page.style.cornerRadius)
+  context.clip()
+  context.drawImage(
+    image,
+    frame.x + placement.x,
+    frame.y + placement.y,
+    placement.width,
+    placement.height,
+  )
+  context.restore()
 }

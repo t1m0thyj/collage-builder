@@ -42,6 +42,7 @@
   import { UiPreferencesController } from './lib/app/uiPreferences'
   import { PageWorkflowController, type SidebarTab } from './lib/app/pageWorkflow'
   import { completeOnboarding, hasCompletedOnboarding } from './lib/app/onboarding'
+  import { applyAvailableUpdate, deploymentState } from './lib/app/deployment'
 
   const defaultSidebarWidth = 255
   const sidebarWidthsStorageKey = 'collage-builder:sidebar-widths'
@@ -129,8 +130,27 @@
     status: 'idle',
     message: 'Local autosave starting…',
   }
+  let operationProgress: string | null = null
   let toast = ''
   let projectTitle = document.title
+
+  async function reloadAfterRecovery(): Promise<void> {
+    operationProgress = 'Preserving unsaved work…'
+    const saved = await recovery.flushNow()
+    if (saved) globalThis.location.reload()
+    else {
+      operationProgress = null
+      announce('Reload cancelled because unsaved work could not be preserved locally.')
+    }
+  }
+
+  async function installUpdate(): Promise<void> {
+    operationProgress = 'Preparing update…'
+    if (!(await applyAvailableUpdate(() => recovery.flushNow()))) {
+      operationProgress = null
+      announce('The update could not be installed without risking unsaved work.')
+    }
+  }
 
   const editorSession = new EditorSessionController({
     project,
@@ -164,6 +184,7 @@
     setPendingRemovalAssetIds: (assetIds) => (pendingRemovalAssetIds = assetIds),
     chooseReplacement: () => projectFiles.chooseReplacement(),
     chooseRelink: () => projectFiles.chooseRelink(),
+    setOperationProgress: (message) => (operationProgress = message),
     announce,
   })
   const projectWorkflow = new ProjectWorkflowController({
@@ -193,6 +214,7 @@
     setCropModeSlotId: (value) => (cropModeSlotId = value),
     setProjectTitle: (value) => (projectTitle = value),
     incrementImageRevision: () => (imageRevision += 1),
+    setOperationProgress: (message) => (operationProgress = message),
     announce,
   })
   const exportWorkflow = new ExportWorkflowController({
@@ -268,15 +290,21 @@
     }
   }
 
-  async function installDocument(nextDocument: typeof document, blobs: Map<string, Blob>) {
-    await replaceProjectDocument(
+  async function installDocument(
+    nextDocument: typeof document,
+    blobs: Map<string, Blob>,
+    isCurrent: () => boolean = () => true,
+  ): Promise<boolean> {
+    const installed = await replaceProjectDocument(
       project,
       assetRegistry,
       nextDocument,
       blobs,
       (registry) => (assetRegistry = registry),
+      isCurrent,
     )
-    imageRevision += 1
+    if (installed) imageRevision += 1
+    return installed
   }
 
   project.document.subscribe((value) => {
@@ -319,6 +347,8 @@
       cancelCrop: () => editorSession.cancelCrop(),
       moveSelection: (key) => editorSession.moveSelection(key),
       isDirty: () => isDirty,
+      flushRecovery: () => recovery.flushNow(),
+      recoverFromLoadError: () => void reloadAfterRecovery(),
       cleanup: () => recovery.cleanup(),
     }),
   )
@@ -427,7 +457,11 @@
   <meta name="description" content="A local-first collage editor." />
 </svelte:head>
 
-<main class="app-shell" data-theme={prefersDark ? 'dark' : 'light'}>
+<main
+  class="app-shell"
+  data-theme={prefersDark ? 'dark' : 'light'}
+  data-decoded-image-bytes={assetRegistry.decodedImageBytes}
+>
   <button class="skip-link" onclick={focusCanvas}>Skip to canvas</button>
   <ProjectFileInputs
     bind:this={projectFiles}
@@ -446,6 +480,8 @@
     {isDirty}
     {recoveredOnly}
     {recoveryState}
+    {operationProgress}
+    deployment={$deploymentState}
     onnew={projectWorkflow.requestNew}
     onopen={projectWorkflow.requestOpen}
     onsave={(event) => void projectWorkflow.save(saveAsModifierPressed(event))}
@@ -457,6 +493,7 @@
     onexport={exportWorkflow.choose}
     onmanagerecovery={() => (isRecoveryManagerOpen = true)}
     onshowquickstart={() => (isOnboardingOpen = true)}
+    onapplyupdate={() => void installUpdate()}
   ></TopToolbar>
 
   <section

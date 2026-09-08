@@ -172,6 +172,24 @@
   color: #68635c;
   white-space: nowrap;
 }
+.deployment-status {
+  padding: 5px 7px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #68635c;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.deployment-status.update-ready {
+  cursor: pointer;
+  color: #315c9c;
+  font-weight: 700;
+}
+.deployment-status.update-ready:hover,
+.deployment-status.update-ready:focus-visible {
+  background: rgba(255, 255, 255, 0.55);
+}
 .recovery-status-button {
   padding: 6px 7px;
   border: 0;

@@ -15,6 +15,8 @@ interface AppLifecycleHost {
   cancelCrop: () => void
   moveSelection: (key: string) => void
   isDirty: () => boolean
+  flushRecovery: () => Promise<boolean>
+  recoverFromLoadError: () => void
   cleanup: () => void
 }
 
@@ -90,10 +92,23 @@ export function attachAppLifecycle(host: AppLifecycleHost): () => void {
   }
   globalThis.addEventListener('beforeunload', beforeUnload)
 
+  const visibilityChange = () => {
+    if (globalThis.document.visibilityState === 'hidden') void host.flushRecovery()
+  }
+  globalThis.document.addEventListener('visibilitychange', visibilityChange)
+
+  const preloadError = (event: Event) => {
+    event.preventDefault()
+    host.recoverFromLoadError()
+  }
+  globalThis.addEventListener('vite:preloadError', preloadError)
+
   return () => {
     host.cleanup()
     globalThis.removeEventListener('keydown', keyboard)
     globalThis.removeEventListener('beforeunload', beforeUnload)
+    globalThis.document.removeEventListener('visibilitychange', visibilityChange)
+    globalThis.removeEventListener('vite:preloadError', preloadError)
     darkMedia.removeEventListener('change', syncDarkMode)
   }
 }

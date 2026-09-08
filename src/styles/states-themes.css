@@ -11,6 +11,9 @@
   .save-status {
     display: none;
   }
+  .deployment-status {
+    display: none;
+  }
 }
 
 /* Shared polished states. */
@@ -89,6 +92,12 @@
   }
   .save-status {
     color: #d4e4f8;
+  }
+  .deployment-status {
+    color: #bfd1e9;
+  }
+  .deployment-status.update-ready {
+    color: #9fc7ff;
   }
   .recovery-status-button:hover,
   .recovery-status-button:focus-visible {

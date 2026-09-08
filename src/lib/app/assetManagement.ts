@@ -61,6 +61,8 @@ export async function importProjectAssets(
   registry: AssetRegistry,
   project: ProjectStore,
   onerror: (message: string) => void,
+  isCurrent: () => boolean = () => true,
+  onProgress: (message: string) => void = () => undefined,
 ): Promise<number> {
   if (!files?.length) return 0
   const existingBytes = Object.values(document.assets).reduce(
@@ -71,10 +73,21 @@ export async function importProjectAssets(
     throw new Error('This import would exceed the 1 GB project asset limit.')
 
   let added = 0
-  for (const file of files) {
+  for (const [index, file] of [...files].entries()) {
+    if (!isCurrent()) break
+    onProgress(`Importing image ${index + 1} of ${files.length}…`)
     try {
       const { asset, file: normalizedFile, displayBlob } = await validateImportedImage(file)
-      await registry.register(asset.id, normalizedFile, asset.sha256, asset, displayBlob)
+      if (!isCurrent()) break
+      const registered = await registry.register(
+        asset.id,
+        normalizedFile,
+        asset.sha256,
+        asset,
+        displayBlob,
+        isCurrent,
+      )
+      if (!registered || !isCurrent()) break
       try {
         project.addAsset(asset)
       } catch (error) {
@@ -95,10 +108,20 @@ export async function replaceProjectAsset(
   document: CollageDocumentV1,
   registry: AssetRegistry,
   project: ProjectStore,
-): Promise<void> {
+  isCurrent: () => boolean = () => true,
+): Promise<boolean> {
   const { asset, file: normalizedFile, displayBlob } = await validateImportedImage(file)
+  if (!isCurrent()) return false
   registry.retain(target, document.assets[target].sha256)
-  await registry.register(target, normalizedFile, asset.sha256, asset, displayBlob)
+  const registered = await registry.register(
+    target,
+    normalizedFile,
+    asset.sha256,
+    asset,
+    displayBlob,
+    isCurrent,
+  )
+  if (!registered || !isCurrent()) return false
   project.replaceAsset(target, {
     ...asset,
     id: target,
@@ -110,6 +133,7 @@ export async function replaceProjectAsset(
           : asset.storage.displayHint,
     },
   })
+  return true
 }
 
 export async function relinkProjectAsset(
@@ -119,11 +143,21 @@ export async function relinkProjectAsset(
   registry: AssetRegistry,
   project: ProjectStore,
   confirmMismatch: () => boolean,
+  isCurrent: () => boolean = () => true,
 ): Promise<boolean> {
   const { asset, file: normalizedFile, displayBlob } = await validateImportedImage(file)
+  if (!isCurrent()) return false
   const original = document.assets[target]
   if (original.sha256 !== asset.sha256 && !confirmMismatch()) return false
-  await registry.register(target, normalizedFile, asset.sha256, asset, displayBlob)
+  const registered = await registry.register(
+    target,
+    normalizedFile,
+    asset.sha256,
+    asset,
+    displayBlob,
+    isCurrent,
+  )
+  if (!registered || !isCurrent()) return false
   project.replaceAsset(target, {
     ...asset,
     id: target,
@@ -158,10 +192,14 @@ interface AssetWorkflowHost {
   setPendingRemovalAssetIds: (assetIds: string[] | null) => void
   chooseReplacement: () => void
   chooseRelink: () => void
+  setOperationProgress: (message: string | null) => void
   announce: (message: string) => void
 }
 
 export class AssetWorkflowController {
+  private importChain: Promise<void> = Promise.resolve()
+  private assetMutationSequence = 0
+
   constructor(private readonly host: AssetWorkflowHost) {}
 
   usage = (assetId: string) => assetUsage(this.host.document(), assetId)
@@ -257,37 +295,52 @@ export class AssetWorkflowController {
   replace = async (file: File | undefined) => {
     const target = this.host.selectedAssetId()
     if (!file || !target) return
+    const operation = ++this.assetMutationSequence
+    const version = this.host.project.versionedSnapshot()
+    const isCurrent = () =>
+      operation === this.assetMutationSequence && this.host.project.isCurrentProject(version)
     try {
-      await replaceProjectAsset(
+      this.host.setOperationProgress('Replacing image…')
+      const replaced = await replaceProjectAsset(
         file,
         target,
-        this.host.document(),
+        version.document,
         this.host.registry(),
         this.host.project,
+        isCurrent,
       )
+      if (!replaced || !isCurrent()) return
       this.host.persistence.invalidateLinkedMatch(target)
       this.host.announce('Original image replaced everywhere it is used.')
     } catch (error) {
       this.host.announce(error instanceof Error ? error.message : 'Unable to replace image')
+    } finally {
+      if (operation === this.assetMutationSequence) this.host.setOperationProgress(null)
     }
   }
 
   relink = async (file: File | undefined) => {
     const target = this.host.selectedAssetId()
     if (!file || !target || !this.host.missingAssetIds().has(target)) return
+    const operation = ++this.assetMutationSequence
+    const version = this.host.project.versionedSnapshot()
+    const isCurrent = () =>
+      operation === this.assetMutationSequence && this.host.project.isCurrentProject(version)
     try {
+      this.host.setOperationProgress('Relinking image…')
       const replaced = await relinkProjectAsset(
         file,
         target,
-        this.host.document(),
+        version.document,
         this.host.registry(),
         this.host.project,
         () =>
           globalThis.confirm(
             'This file differs from the missing original. Use it for this image anyway?',
           ),
+        isCurrent,
       )
-      if (!replaced) return
+      if (!replaced || !isCurrent()) return
       this.host.persistence.invalidateLinkedMatch(target)
       this.host.setMissingAssetIds(
         new Set([...this.host.missingAssetIds()].filter((id) => id !== target)),
@@ -295,22 +348,39 @@ export class AssetWorkflowController {
       this.host.announce('Image relinked everywhere it is used.')
     } catch (error) {
       this.host.announce(error instanceof Error ? error.message : 'Unable to relink image')
+    } finally {
+      if (operation === this.assetMutationSequence) this.host.setOperationProgress(null)
     }
   }
 
-  import = async (files: FileList | null) => {
-    try {
-      const added = await importProjectAssets(
-        files,
-        this.host.document(),
-        this.host.registry(),
-        this.host.project,
-        this.host.announce,
-      )
-      if (added)
-        this.host.announce(`${added} image${added === 1 ? '' : 's'} added to this project.`)
-    } catch (error) {
-      this.host.announce(error instanceof Error ? error.message : 'Unable to import image')
+  import = (files: FileList | null): Promise<void> => {
+    if (!files?.length) return Promise.resolve()
+    const version = this.host.project.versionedSnapshot()
+    const registry = this.host.registry()
+    const isCurrent = () =>
+      registry === this.host.registry() && this.host.project.isCurrentProject(version)
+    const run = async () => {
+      if (!isCurrent()) return
+      try {
+        const added = await importProjectAssets(
+          files,
+          this.host.document(),
+          registry,
+          this.host.project,
+          this.host.announce,
+          isCurrent,
+          (message) => this.host.setOperationProgress(message),
+        )
+        if (added && isCurrent())
+          this.host.announce(`${added} image${added === 1 ? '' : 's'} added to this project.`)
+      } catch (error) {
+        this.host.announce(error instanceof Error ? error.message : 'Unable to import image')
+      } finally {
+        this.host.setOperationProgress(null)
+      }
     }
+    const importing = this.importChain.then(run)
+    this.importChain = importing.catch(() => undefined)
+    return importing
   }
 }

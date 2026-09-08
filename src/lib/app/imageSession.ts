@@ -46,8 +46,13 @@ export async function replaceProjectDocument(
   document: CollageDocumentV1,
   blobs: Map<string, Blob>,
   setRegistry: (registry: AssetRegistry) => void,
-): Promise<void> {
+  isCurrent: () => boolean = () => true,
+): Promise<boolean> {
   const nextRegistry = await stagedRegistry(document, blobs)
+  if (!isCurrent()) {
+    nextRegistry.clear()
+    return false
+  }
   setRegistry(nextRegistry)
   try {
     project.replaceDocument(document)
@@ -57,4 +62,5 @@ export async function replaceProjectDocument(
     throw error
   }
   currentRegistry.clear()
+  return true
 }

@@ -18,6 +18,7 @@ interface SaveRequest {
   saveAs: boolean
   chooseFallback: () => Promise<ProjectSaveFormat | null>
   chooseLinkedFolder: () => Promise<FileList | null>
+  isCurrent?: () => boolean
 }
 
 export class ProjectPersistenceController {
@@ -65,16 +66,18 @@ export class ProjectPersistenceController {
     saveAs,
     chooseFallback,
     chooseLinkedFolder,
+    isCurrent = () => true,
   }: SaveRequest): Promise<ProjectSaveFormat | null> {
     const choosingDestination = saveAs || !this.hasSavedProject
     const target = choosingDestination
       ? await chooseSaveTarget(projectTitle, this.currentFormat, chooseFallback)
       : (this.currentTarget ?? { format: this.currentFormat })
-    if (!target) return null
+    if (!target || !isCurrent()) return null
 
     const baseName = projectTitle || 'collage'
     if (target.format === 'embedded') {
       const archive = await createEmbeddedProject(document, registry)
+      if (!isCurrent()) return null
       await writeProjectBlob(target, archive, `${baseName}.collage`)
     } else {
       const matches = await this.linkedMatchesForSave(
@@ -82,11 +85,13 @@ export class ProjectPersistenceController {
         chooseLinkedFolder,
         choosingDestination,
       )
-      if (!matches) return null
+      if (!matches || !isCurrent()) return null
       const linkedProject = await createLinkedProjectFile(document, matches)
+      if (!isCurrent()) return null
       await writeProjectBlob(target, linkedProject, `${baseName}.collage.json`)
     }
 
+    if (!isCurrent()) return null
     this.currentTarget = target.handle ? target : null
     this.currentFormat = target.format
     this.hasSavedProject = true

@@ -11,6 +11,7 @@ describe('offline service worker generation', () => {
     expect(source).toContain('const PRECACHE_FILES = ["assets/app-123.js","index.html"]')
     expect(source).toContain('const CACHE_NAME = CACHE_PREFIX + "revision-1"')
     expect(source).toContain("caches.match(scopedUrl('index.html'))")
+    expect(source).toContain("event.data?.type === 'SKIP_WAITING'")
     expect(source).not.toContain('"service-worker.js"')
   })
 })

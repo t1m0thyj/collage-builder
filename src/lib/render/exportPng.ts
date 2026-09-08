@@ -30,6 +30,8 @@ export interface ExportRenderMeasurement {
   durationMs: number
   pixelCount: number
   renderer: 'worker' | 'main-thread'
+  decodedSourceBytes: number
+  peakAdditionalDecodedBytes: number
 }
 
 export interface RenderedPageImage extends ExportRenderMeasurement {
@@ -140,6 +142,20 @@ export async function renderPageImageMeasured(
     durationMs: performance.now() - startedAt,
     pixelCount: width * height,
     renderer,
+    decodedSourceBytes: pageAssetIds(page).reduce(
+      (bytes, assetId) =>
+        bytes + (assets[assetId]?.width ?? 0) * (assets[assetId]?.height ?? 0) * 4,
+      0,
+    ),
+    peakAdditionalDecodedBytes:
+      renderer === 'worker'
+        ? Math.max(
+            0,
+            ...pageAssetIds(page).map(
+              (assetId) => (assets[assetId]?.width ?? 0) * (assets[assetId]?.height ?? 0) * 4,
+            ),
+          )
+        : 0,
   }
   recordMeasurement(measurement, startedAt)
   return { blob, ...measurement }

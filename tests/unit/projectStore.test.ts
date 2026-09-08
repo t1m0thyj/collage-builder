@@ -5,6 +5,19 @@ import { ProjectStore } from '../../src/lib/state/projectStore'
 import { layout4Presets } from '../../src/lib/layouts/definitions/4'
 
 describe('project history', () => {
+  it('only marks the exact saved revision clean', () => {
+    const store = new ProjectStore(createProject('Revision guard'))
+    store.renameProject('First edit')
+    const saving = store.versionedSnapshot()
+    store.renameProject('Edit made while saving')
+
+    expect(store.markClean(saving)).toBe(false)
+    expect(get(store.isDirty)).toBe(true)
+
+    expect(store.markClean(store.versionedSnapshot())).toBe(true)
+    expect(get(store.isDirty)).toBe(false)
+  })
+
   it('changes layouts transactionally and restores them through undo/redo', () => {
     const project = createProject('Original')
     const store = new ProjectStore(project)

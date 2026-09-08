@@ -22,7 +22,11 @@ interface ProjectWorkflowHost {
   chooseProject: () => void
   chooseLinkedFolder: () => Promise<FileList | null>
   chooseFallbackFormat: () => Promise<ProjectSaveFormat | null>
-  installDocument: (document: CollageDocumentV1, assets: Map<string, Blob>) => Promise<void>
+  installDocument: (
+    document: CollageDocumentV1,
+    assets: Map<string, Blob>,
+    isCurrent?: () => boolean,
+  ) => Promise<boolean>
   preparePageImages: (page: PageV1, registry: AssetRegistry) => Promise<void>
   setPendingNavigation: (pending: PendingNavigation) => void
   setPendingLinkedDocument: (document: CollageDocumentV1 | null) => void
@@ -34,16 +38,24 @@ interface ProjectWorkflowHost {
   setCropModeSlotId: (slotId: string | null) => void
   setProjectTitle: (title: string) => void
   incrementImageRevision: () => void
+  setOperationProgress: (message: string | null) => void
   announce: (message: string) => void
 }
 
 export class ProjectWorkflowController {
+  private saveSequence = 0
+  private openSequence = 0
+  private linkedFolderSequence = 0
+
   constructor(private readonly host: ProjectWorkflowHost) {}
 
   newProject = () => {
+    this.openSequence += 1
+    this.linkedFolderSequence += 1
     const next = createProject('Untitled collage')
     this.host.registry().clear()
     this.host.setMissingAssetIds(new Set())
+    this.host.setPendingLinkedDocument(null)
     this.host.persistence.reset()
     this.host.setRecoveredOnly(false)
     this.host.project.replaceDocument(next)
@@ -73,17 +85,23 @@ export class ProjectWorkflowController {
   }
 
   save = async (saveAs = false): Promise<boolean> => {
+    const operation = ++this.saveSequence
+    const snapshot = this.host.project.versionedSnapshot()
+    const isCurrent = () =>
+      operation === this.saveSequence && this.host.project.isCurrentVersion(snapshot)
     try {
+      this.host.setOperationProgress('Saving project…')
       const format = await this.host.persistence.save({
-        document: this.host.document(),
+        document: snapshot.document,
         registry: this.host.registry(),
         projectTitle: this.host.projectTitle(),
         saveAs,
         chooseFallback: this.host.chooseFallbackFormat,
         chooseLinkedFolder: this.host.chooseLinkedFolder,
+        isCurrent,
       })
-      if (!format) return false
-      this.host.project.markClean()
+      if (!format || !isCurrent()) return false
+      if (!this.host.project.markClean(snapshot)) return false
       this.host.setRecoveredOnly(false)
       this.host.announce(
         format === 'embedded'
@@ -94,6 +112,8 @@ export class ProjectWorkflowController {
     } catch (error) {
       this.host.announce(error instanceof Error ? error.message : 'Unable to save project')
       return false
+    } finally {
+      if (operation === this.saveSequence) this.host.setOperationProgress(null)
     }
   }
 
@@ -104,15 +124,26 @@ export class ProjectWorkflowController {
   requestLinkedFolder = async () => {
     const target = this.host.pendingLinkedDocument()
     if (!target) return
-    const files = await this.host.chooseLinkedFolder()
-    if (!files) return
+    const operation = ++this.linkedFolderSequence
+    const version = this.host.project.versionedSnapshot()
+    const registry = this.host.registry()
+    const isCurrent = () =>
+      operation === this.linkedFolderSequence &&
+      registry === this.host.registry() &&
+      this.host.project.isCurrentProject(version)
     try {
+      this.host.setOperationProgress('Locating linked images…')
+      const files = await this.host.chooseLinkedFolder()
+      if (!files || !isCurrent()) return
       const matches = await matchProjectAssets(target.assets, files)
+      if (!isCurrent()) return
       this.host.persistence.setLinkedMatches(matches)
       for (const [assetId, match] of matches) {
+        if (!isCurrent()) return
         const asset = target.assets[assetId]
-        await this.host.registry().register(assetId, match.file, asset?.sha256, asset)
+        await registry.register(assetId, match.file, asset?.sha256, asset, undefined, isCurrent)
       }
+      if (!isCurrent()) return
       this.host.setMissingAssetIds(
         new Set([...this.host.missingAssetIds()].filter((assetId) => !matches.has(assetId))),
       )
@@ -128,14 +159,28 @@ export class ProjectWorkflowController {
       this.host.announce(
         error instanceof Error ? error.message : 'Unable to use the selected asset folder',
       )
+    } finally {
+      if (operation === this.linkedFolderSequence) this.host.setOperationProgress(null)
     }
   }
 
   open = async (file: File | undefined) => {
     if (!file) return
+    const operation = ++this.openSequence
+    const version = this.host.project.versionedSnapshot()
+    const isCurrent = () =>
+      operation === this.openSequence && this.host.project.isCurrentVersion(version)
     try {
+      this.host.setOperationProgress('Opening project…')
       const { format, opened } = await openProjectFile(file)
-      await this.host.installDocument(opened.document, opened.assets)
+      if (!isCurrent()) return
+      const installed = await this.host.installDocument(opened.document, opened.assets, isCurrent)
+      if (!installed) return
+      if (
+        operation !== this.openSequence ||
+        this.host.document().projectId !== opened.document.projectId
+      )
+        return
       const linkedIds = format === 'linked' ? Object.keys(opened.document.assets) : []
       this.host.persistence.reset(format)
       this.host.setMissingAssetIds(new Set([...opened.missingAssetIds, ...linkedIds]))
@@ -151,6 +196,8 @@ export class ProjectWorkflowController {
       )
     } catch (error) {
       this.host.announce(error instanceof Error ? error.message : 'Unable to open project')
+    } finally {
+      if (operation === this.openSequence) this.host.setOperationProgress(null)
     }
   }
 }

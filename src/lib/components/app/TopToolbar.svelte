@@ -13,6 +13,7 @@
   import Input from '../ui/input/input.svelte'
   import * as DropdownMenu from '../ui/dropdown-menu'
   import type { RecoveryState } from '../../app/recovery'
+  import type { DeploymentState } from '../../app/deployment'
 
   export let projectTitle: string
   export let canUndo: boolean
@@ -23,6 +24,8 @@
   export let isDirty: boolean
   export let recoveredOnly: boolean
   export let recoveryState: RecoveryState
+  export let operationProgress: string | null
+  export let deployment: DeploymentState
   export let onnew: () => void
   export let onopen: () => void
   export let onsave: (event: MouseEvent) => void
@@ -34,15 +37,17 @@
   export let onexport: (scope: 'current' | 'all' | 'range') => void
   export let onmanagerecovery: () => void
   export let onshowquickstart: () => void
+  export let onapplyupdate: () => void
 
   $: saveLabel =
-    recoveryState.status === 'idle'
+    operationProgress ??
+    (recoveryState.status === 'idle'
       ? isDirty
         ? 'Unsaved changes'
         : recoveredOnly
           ? 'Recovered locally'
           : 'Saved'
-      : recoveryState.message
+      : recoveryState.message)
   $: accessibleSaveLabel = saveLabel.replace('Recovered', 'Restored')
 </script>
 
@@ -124,6 +129,13 @@
       onclick={onshowquickstart}><CircleHelp size={16}></CircleHelp></Button
     >
     <button
+      class="deployment-status"
+      class:update-ready={deployment.status === 'update-ready'}
+      disabled={deployment.status !== 'update-ready'}
+      title={deployment.detail ?? deployment.message}
+      onclick={onapplyupdate}>{deployment.message}</button
+    >
+    <button
       class="save-status recovery-status-button"
       class:recovery-error={recoveryState.status === 'failed'}
       class:recovery-conflict={recoveryState.status === 'conflict'}
@@ -134,7 +146,7 @@
         class:dirty={isDirty || recoveredOnly || recoveryState.status === 'pending'}
         class:error={recoveryState.status === 'failed'}
         class:conflict={recoveryState.status === 'conflict'}
-        class:saving={recoveryState.status === 'saving'}
+        class:saving={recoveryState.status === 'saving' || Boolean(operationProgress)}
         class="status-dot"
       ></span>{saveLabel}</button
     >

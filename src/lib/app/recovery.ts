@@ -64,7 +64,7 @@ export async function restoreLatestRecovery(currentProjectId: string): Promise<
 interface RecoveryControllerHost {
   document: () => CollageDocumentV1
   registry: () => AssetRegistry
-  installDocument: (document: CollageDocumentV1, assets: Map<string, Blob>) => Promise<void>
+  installDocument: (document: CollageDocumentV1, assets: Map<string, Blob>) => Promise<boolean>
   onRestored: (document: CollageDocumentV1) => void
   onState: (state: RecoveryState) => void
   announce: (message: string) => void
@@ -337,8 +337,12 @@ export class RecoveryController {
   }
 
   cleanup(): void {
-    if (this.timer) clearTimeout(this.timer)
+    void this.flushNow()
     this.coordinator.close()
+  }
+
+  async flushNow(): Promise<boolean> {
+    return this.flush()
   }
 
   private async installRecovery(recovery: {
@@ -356,17 +360,17 @@ export class RecoveryController {
     this.schedule(this.host.document())
   }
 
-  private async flush(): Promise<void> {
+  private async flush(): Promise<boolean> {
     if (
       !this.ready ||
       this.conflict ||
       !this.currentDocument ||
       !this.hasMeaningfulChanges(this.currentDocument)
     )
-      return
+      return true
     if (this.timer) clearTimeout(this.timer)
     this.timer = undefined
-    await this.queuePersist(this.currentDocument, ++this.revision)
+    return this.queuePersist(this.currentDocument, ++this.revision)
   }
 
   private hasMeaningfulChanges(document: CollageDocumentV1): boolean {
@@ -379,15 +383,18 @@ export class RecoveryController {
     this.revision += 1
   }
 
-  private queuePersist(document: CollageDocumentV1, revision: number): Promise<void> {
+  private queuePersist(document: CollageDocumentV1, revision: number): Promise<boolean> {
     const write = this.writeChain.then(() => this.persist(document, revision))
-    this.writeChain = write.catch(() => undefined)
+    this.writeChain = write.then(
+      () => undefined,
+      () => undefined,
+    )
     return write
   }
 
-  private async persist(document: CollageDocumentV1, revision: number): Promise<void> {
+  private async persist(document: CollageDocumentV1, revision: number): Promise<boolean> {
     this.timer = undefined
-    if (this.conflict || document.projectId !== this.host.document().projectId) return
+    if (this.conflict || document.projectId !== this.host.document().projectId) return false
     this.host.onState({ status: 'saving', message: 'Saving locally…' })
     try {
       await persistRecovery(document, this.host.registry())
@@ -411,12 +418,14 @@ export class RecoveryController {
           // The recovery is safely stored even if the optional persistence request fails.
         }
       }
+      return true
     } catch (error) {
       const detail = await persistenceFailureDetail(error)
       if (revision === this.revision) {
         this.host.onState({ status: 'failed', message: 'Autosave failed', detail })
         this.host.announce(`Local recovery save failed. ${detail}`)
       }
+      return false
     }
   }
 }

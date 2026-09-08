@@ -22,23 +22,34 @@ export class AssetRegistry {
     sha256?: string,
     dimensions?: { width: number; height: number },
     displayBlob?: Blob,
-  ): Promise<void> {
-    this.release(assetId)
+    isCurrent: () => boolean = () => true,
+  ): Promise<boolean> {
     const { renderableBlob, thumbnail } = await this.createRenderableThumbnail(
       blob,
       dimensions,
       displayBlob,
     )
+    if (!isCurrent()) return false
     const objectUrl = URL.createObjectURL(renderableBlob)
+    const thumbnailUrl = URL.createObjectURL(thumbnail)
     try {
+      if (!isCurrent()) return false
+      this.release(assetId)
       this.blobs.set(assetId, blob)
       this.renderableBlobs.set(assetId, renderableBlob)
       if (sha256) this.activeHashes.set(assetId, sha256)
       this.objectUrls.set(assetId, objectUrl)
-      this.thumbnailUrls.set(assetId, URL.createObjectURL(thumbnail))
+      this.thumbnailUrls.set(assetId, thumbnailUrl)
+      return true
     } catch (error) {
       URL.revokeObjectURL(objectUrl)
+      URL.revokeObjectURL(thumbnailUrl)
       throw error
+    } finally {
+      if (!this.objectUrls.has(assetId) || this.objectUrls.get(assetId) !== objectUrl) {
+        URL.revokeObjectURL(objectUrl)
+        URL.revokeObjectURL(thumbnailUrl)
+      }
     }
   }
 
@@ -149,8 +160,16 @@ export class AssetRegistry {
   async ensureImages(assetIds: Iterable<AssetId>): Promise<boolean> {
     const uniqueAssetIds = [...new Set(assetIds)]
     const missingAssetIds = uniqueAssetIds.filter((assetId) => !this.images.has(assetId))
-    await Promise.all(missingAssetIds.map((assetId) => this.ensureImage(assetId)))
+    // Serial decoding avoids a transient full-page spike while several large
+    // browser image decoders allocate their pixel buffers at once.
+    for (const assetId of missingAssetIds) await this.ensureImage(assetId)
     return missingAssetIds.length > 0
+  }
+
+  get decodedImageBytes(): number {
+    let bytes = 0
+    for (const image of this.images.values()) bytes += image.naturalWidth * image.naturalHeight * 4
+    return bytes
   }
 
   releaseDecodedExcept(assetIds: Iterable<AssetId>): void {

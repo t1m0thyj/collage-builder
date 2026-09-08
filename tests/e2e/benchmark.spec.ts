@@ -26,6 +26,9 @@ function fixtureVariant(fixture: Buffer, index: number): Buffer {
 
 test('100 images and 25 pages @benchmark', async ({ page, browser, browserName }, testInfo) => {
   test.setTimeout(300_000)
+  await page.addInitScript(() =>
+    localStorage.setItem('collage-builder:onboarding-complete:v1', 'true'),
+  )
   await page.addInitScript(() => {
     const target = globalThis as typeof globalThis & { __collageLongTasks: number[] }
     target.__collageLongTasks = []
@@ -60,12 +63,18 @@ test('100 images and 25 pages @benchmark', async ({ page, browser, browserName }
     timeout: 120_000,
   })
   const importedAt = performance.now()
-  await page.getByRole('button', { name: 'Frame 1, empty' }).focus()
-  await page.keyboard.press('Enter')
-  await page.getByText('benchmark-001.png', { exact: true }).click()
-  for (let pageNumber = 2; pageNumber <= 25; pageNumber += 1) {
-    await page.getByRole('button', { name: 'Page actions' }).click()
-    await page.getByRole('menuitem', { name: 'Duplicate' }).click()
+  let imageIndex = 1
+  for (let pageIndex = 0; pageIndex < 25; pageIndex += 1) {
+    const frameCount = pageIndex === 0 ? 3 : 2
+    for (let frameIndex = 0; frameIndex < frameCount; frameIndex += 1) {
+      await page.getByRole('button', { name: `Frame ${frameIndex + 1}, empty` }).focus()
+      await page.keyboard.press('Enter')
+      await page
+        .getByText(`benchmark-${String(imageIndex).padStart(3, '0')}.png`, { exact: true })
+        .click()
+      imageIndex += 1
+    }
+    if (pageIndex < 24) await page.getByRole('button', { name: 'Add page' }).click()
   }
   await expect(page.getByRole('button', { name: 'Choose page' })).toBeVisible()
   const pagesCreatedAt = performance.now()
@@ -86,6 +95,8 @@ test('100 images and 25 pages @benchmark', async ({ page, browser, browserName }
           durationMs: number
           pixelCount: number
           renderer: string
+          decodedSourceBytes: number
+          peakAdditionalDecodedBytes: number
         }
         return detail
       })
@@ -100,13 +111,16 @@ test('100 images and 25 pages @benchmark', async ({ page, browser, browserName }
       maxLongTaskMs: Math.round(Math.max(0, ...longTasks)),
       usedJSHeapBytes: memory.memory?.usedJSHeapSize,
       jsHeapLimitBytes: memory.memory?.jsHeapSizeLimit,
+      activePageDecodedImageBytes: Number(
+        document.querySelector<HTMLElement>('main')?.dataset.decodedImageBytes ?? 0,
+      ),
     }
   })
   await download.delete()
 
   console.info(
     JSON.stringify({
-      benchmark: '100 representative images / 25 pages',
+      benchmark: '100 representative images / 25 fully populated pages with distinct photos',
       browser: browserName,
       browserVersion: browser.version(),
       device: {
@@ -132,6 +146,15 @@ test('100 images and 25 pages @benchmark', async ({ page, browser, browserName }
       maxLongTaskMs: renderProfile.maxLongTaskMs,
       usedJSHeapBytes: renderProfile.usedJSHeapBytes,
       jsHeapLimitBytes: renderProfile.jsHeapLimitBytes,
+      activePageDecodedImageBytes: renderProfile.activePageDecodedImageBytes,
+      maxPageDecodedSourceBytes: Math.max(
+        0,
+        ...renderProfile.renderMeasurements.map((item) => item.decodedSourceBytes),
+      ),
+      maxWorkerAdditionalDecodedBytes: Math.max(
+        0,
+        ...renderProfile.renderMeasurements.map((item) => item.peakAdditionalDecodedBytes),
+      ),
     }),
   )
 })

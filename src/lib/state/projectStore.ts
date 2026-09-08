@@ -16,11 +16,22 @@ import { History } from './history'
 
 const clone = <T>(value: T): T => structuredClone(value)
 
+export interface ProjectVersion {
+  generation: number
+  revision: number
+}
+
+export interface VersionedProjectSnapshot extends ProjectVersion {
+  document: CollageDocumentV1
+}
+
 export class ProjectStore {
   private readonly state: Writable<CollageDocumentV1>
   private readonly history = new History<CollageDocumentV1>()
   private readonly historyRevision = writable(0)
   private readonly dirty = writable(false)
+  private generation = 0
+  private revision = 0
   private pageStyleInteraction:
     { pageId: string; control: string; before: CollageDocumentV1; wasDirty: boolean } | undefined
   readonly document: Readable<CollageDocumentV1>
@@ -41,16 +52,39 @@ export class ProjectStore {
     return clone(get(this.state))
   }
 
+  versionedSnapshot(): VersionedProjectSnapshot {
+    return { document: this.snapshot(), generation: this.generation, revision: this.revision }
+  }
+
+  isCurrentProject(version: Pick<ProjectVersion, 'generation'>): boolean {
+    return version.generation === this.generation
+  }
+
+  isCurrentVersion(version: ProjectVersion): boolean {
+    return this.isCurrentProject(version) && version.revision === this.revision
+  }
+
   replaceDocument(document: CollageDocumentV1): void {
     assertDocumentInvariants(document)
     this.pageStyleInteraction = undefined
     this.history.clear()
     this.historyRevision.update((value) => value + 1)
+    this.generation += 1
+    this.revision += 1
     this.state.set(clone(document))
     this.dirty.set(false)
   }
-  markClean(): void {
+
+  markClean(version: ProjectVersion): boolean {
+    if (!this.isCurrentVersion(version)) return false
     this.dirty.set(false)
+    return true
+  }
+
+  private publish(document: CollageDocumentV1, dirty?: boolean): void {
+    this.revision += 1
+    this.state.set(document)
+    if (dirty !== undefined) this.dirty.set(dirty)
   }
 
   private commit(mutator: (draft: CollageDocumentV1) => void): void {
@@ -62,8 +96,7 @@ export class ProjectStore {
     assertDocumentInvariants(draft)
     this.history.push(before)
     this.historyRevision.update((value) => value + 1)
-    this.state.set(draft)
-    this.dirty.set(true)
+    this.publish(draft, true)
   }
 
   renameProject(title: string): void {
@@ -109,8 +142,7 @@ export class ProjectStore {
     const draft = this.snapshot()
     Object.assign(this.findPage(draft, pageId).style, patch)
     assertDocumentInvariants(draft)
-    this.state.set(draft)
-    this.dirty.set(true)
+    this.publish(draft, true)
   }
 
   commitPageStyle(pageId: string, control: string): void {
@@ -133,8 +165,7 @@ export class ProjectStore {
     assertDocumentInvariants(after)
     this.history.push(interaction.before)
     this.historyRevision.update((value) => value + 1)
-    this.state.set(after)
-    this.dirty.set(true)
+    this.publish(after, true)
   }
 
   resizePage(pageId: string, width: number, height: number): void {
@@ -184,7 +215,7 @@ export class ProjectStore {
     if (!(slotId in page.slots)) throw new Error(`Unknown slot: ${slotId}`)
     page.slots[slotId] = clone(content)
     assertDocumentInvariants(draft)
-    this.state.set(draft)
+    this.publish(draft)
   }
 
   commitCrop(pageId: string, slotId: SlotId, originalPlacement: SlotContentV1['placement']): void {
@@ -199,8 +230,7 @@ export class ProjectStore {
     after.updatedAt = new Date().toISOString()
     assertDocumentInvariants(after)
     this.history.push(before)
-    this.state.set(after)
-    this.dirty.set(true)
+    this.publish(after, true)
   }
 
   cancelCrop(pageId: string, slotId: SlotId, originalPlacement: SlotContentV1['placement']): void {
@@ -208,7 +238,7 @@ export class ProjectStore {
     const content = this.findPage(draft, pageId).slots[slotId]
     if (!content) return
     content.placement = clone(originalPlacement)
-    this.state.set(draft)
+    this.publish(draft)
   }
 
   moveOrSwapSlots(pageId: string, sourceSlotId: SlotId, targetSlotId: SlotId): void {
@@ -360,16 +390,14 @@ export class ProjectStore {
     this.finishPageStyleInteraction()
     const previous = this.history.undo(this.snapshot())
     if (previous) {
-      this.state.set(previous)
-      this.dirty.set(true)
+      this.publish(previous, true)
     }
   }
   redo(): void {
     this.finishPageStyleInteraction()
     const next = this.history.redo(this.snapshot())
     if (next) {
-      this.state.set(next)
-      this.dirty.set(true)
+      this.publish(next, true)
     }
   }
 
