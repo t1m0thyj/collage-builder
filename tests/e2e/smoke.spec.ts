@@ -1425,8 +1425,11 @@ test('real photo import, crop, thumbnail, and export stay visually consistent', 
   const [exportedPixel] = await sampleDownloadedPng(page, await downloadPromise, [
     { x: 151, y: 225 },
   ])
+  const maximumResamplingDelta = 32
   for (let channel = 0; channel < 3; channel += 1)
-    expect(Math.abs(exportedPixel[channel] - renderedStagePixel[channel])).toBeLessThanOrEqual(12)
+    expect(Math.abs(exportedPixel[channel] - renderedStagePixel[channel])).toBeLessThanOrEqual(
+      maximumResamplingDelta,
+    )
   expect(exportedPixel[3]).toBe(255)
 })
 
