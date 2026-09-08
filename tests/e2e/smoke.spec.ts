@@ -389,6 +389,42 @@ test('layout count tabs stay compact and follow the active page', async ({ page 
   )
 })
 
+test('sidebar and layout tabs support keyboard navigation and identify their panels', async ({
+  page,
+}) => {
+  await page.goto('/')
+
+  const editorTabs = page.getByRole('tablist', { name: 'Editor panel' })
+  const layoutsTab = editorTabs.getByRole('tab', { name: 'Layouts' })
+  const imagesTab = editorTabs.getByRole('tab', { name: 'Images' })
+  await layoutsTab.focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(imagesTab).toBeFocused()
+  await expect(imagesTab).toHaveAttribute('aria-selected', 'true')
+  await expect(page.locator(`#${await imagesTab.getAttribute('aria-controls')}`)).toHaveAttribute(
+    'aria-labelledby',
+    await imagesTab.getAttribute('id'),
+  )
+  await page.keyboard.press('ArrowLeft')
+  await expect(layoutsTab).toBeFocused()
+
+  const photoCounts = page.getByRole('tablist', { name: 'Photo count' })
+  const threePhotos = photoCounts.getByRole('tab', { name: '3', exact: true })
+  const fourPhotos = photoCounts.getByRole('tab', { name: '4', exact: true })
+  await threePhotos.focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(fourPhotos).toBeFocused()
+  await expect(fourPhotos).toHaveAttribute('aria-selected', 'true')
+  await expect(page.locator(`#${await fourPhotos.getAttribute('aria-controls')}`)).toHaveAttribute(
+    'aria-labelledby',
+    await fourPhotos.getAttribute('id'),
+  )
+  await page.keyboard.press('Home')
+  await expect(photoCounts.getByRole('tab', { name: '2', exact: true })).toBeFocused()
+  await page.keyboard.press('End')
+  await expect(photoCounts.getByRole('tab', { name: '11+' })).toBeFocused()
+})
+
 test('page actions rename and duplicate without accidental deletion', async ({ page }) => {
   await page.goto('/')
   page.once('dialog', (dialog) => dialog.accept('Cover'))
@@ -503,7 +539,10 @@ test('an import opens Images and keeps one batch summary with file errors', asyn
 test('gives conversion guidance when a HEIC image cannot be decoded', async ({ page }) => {
   await page.goto('/')
   await importImage(page, 'damaged.heic', Buffer.from('not a valid HEIC image'), 'image/heic')
-  await expect(page.getByRole('status')).toContainText('Convert it to JPEG or PNG and try again.')
+  await expect(page.getByText('0 added · 1 skipped', { exact: true })).toBeVisible()
+  await page.getByText('Review 1 import issue', { exact: true }).click()
+  await expect(page.getByText('damaged.heic', { exact: true })).toBeVisible()
+  await expect(page.getByText(/Convert it to JPEG or PNG and try again/)).toBeVisible()
 })
 
 test('large originals use bounded thumbnails in the image library', async ({ page }) => {
@@ -677,12 +716,11 @@ test('dragging crop edges changes zoom', async ({ page }) => {
       buffer: onePixelPng,
     })
   await page.getByRole('tab', { name: 'Images' }).click()
+  const frame = page.getByRole('button', { name: 'Frame 1, empty' })
+  await frame.focus()
+  await page.keyboard.press('Enter')
   await page.getByText('crop.png', { exact: true }).click()
 
-  const host = page.getByRole('region', { name: 'Collage canvas' })
-  const hostBox = await host.boundingBox()
-  expect(hostBox).not.toBeNull()
-  await page.mouse.click(hostBox!.x + hostBox!.width * 0.38, hostBox!.y + hostBox!.height * 0.45)
   await page.getByRole('button', { name: 'Crop image' }).click()
 
   const cropZoom = page.getByRole('spinbutton', { name: 'Crop zoom value' })

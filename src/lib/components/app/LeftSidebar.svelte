@@ -31,50 +31,95 @@
   export let formatBytes: (bytes: number) => string
   export let importStatus: ImportBatchStatus | null
   export let ondismissimport: () => void
+
+  const tabs = ['layouts', 'images'] as const
+
+  function focusTab(tab: (typeof tabs)[number]) {
+    requestAnimationFrame(() => globalThis.document.getElementById(`editor-${tab}-tab`)?.focus())
+  }
+
+  function handleTabKeydown(event: KeyboardEvent, currentTab: (typeof tabs)[number]) {
+    const currentIndex = tabs.indexOf(currentTab)
+    let nextIndex: number | undefined
+    if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % tabs.length
+    else if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + tabs.length) % tabs.length
+    else if (event.key === 'Home') nextIndex = 0
+    else if (event.key === 'End') nextIndex = tabs.length - 1
+    if (nextIndex === undefined) return
+    event.preventDefault()
+    event.stopPropagation()
+    activeTab = tabs[nextIndex]
+    focusTab(activeTab)
+  }
 </script>
 
 <aside class="sidebar left-panel" aria-label="Layouts and images">
   <div class="panel-tabs" role="tablist" aria-label="Editor panel">
     <button
+      id="editor-layouts-tab"
       class:active={activeTab === 'layouts'}
       role="tab"
       aria-selected={activeTab === 'layouts'}
+      aria-controls="editor-layouts-panel"
+      tabindex={activeTab === 'layouts' ? 0 : -1}
+      onkeydown={(event) => handleTabKeydown(event, 'layouts')}
       onclick={() => (activeTab = 'layouts')}>Layouts</button
     >
     <button
+      id="editor-images-tab"
       class:active={activeTab === 'images'}
       role="tab"
       aria-selected={activeTab === 'images'}
+      aria-controls="editor-images-panel"
+      tabindex={activeTab === 'images' ? 0 : -1}
+      onkeydown={(event) => handleTabKeydown(event, 'images')}
       onclick={() => (activeTab = 'images')}>Images</button
     >
   </div>
 
-  {#if activeTab === 'layouts'}
-    <LayoutPanel {page} onselect={onselectlayout} {onerror}></LayoutPanel>
-  {:else}
-    <AssetPanel
-      {libraryTargetSlotId}
-      {assets}
-      {filteredAssets}
-      bind:selectedAssetIds
-      {missingAssetIds}
-      {assetRegistry}
-      bind:assetQuery
-      bind:assetSort
-      bind:assetFilter
-      {ondrop}
-      {onselectasset}
-      {onstartdrag}
-      {onaddtopage}
-      {onreplace}
-      {onrelink}
-      {onremove}
-      {onchooseimages}
-      {onmanageimages}
-      {assetUsage}
-      {formatBytes}
-      {importStatus}
-      {ondismissimport}
-    ></AssetPanel>
-  {/if}
+  <div
+    id="editor-layouts-panel"
+    class="sidebar-tab-panel"
+    role="tabpanel"
+    aria-labelledby="editor-layouts-tab"
+    hidden={activeTab !== 'layouts'}
+  >
+    {#if activeTab === 'layouts'}
+      <LayoutPanel {page} onselect={onselectlayout} {onerror}></LayoutPanel>
+    {/if}
+  </div>
+  <div
+    id="editor-images-panel"
+    class="sidebar-tab-panel"
+    role="tabpanel"
+    aria-labelledby="editor-images-tab"
+    hidden={activeTab !== 'images'}
+  >
+    {#if activeTab === 'images'}
+      <AssetPanel
+        {libraryTargetSlotId}
+        {assets}
+        {filteredAssets}
+        bind:selectedAssetIds
+        {missingAssetIds}
+        {assetRegistry}
+        bind:assetQuery
+        bind:assetSort
+        bind:assetFilter
+        {ondrop}
+        {onselectasset}
+        {onstartdrag}
+        {onaddtopage}
+        {onreplace}
+        {onrelink}
+        {onremove}
+        {onchooseimages}
+        {onmanageimages}
+        {assetUsage}
+        {formatBytes}
+        {importStatus}
+        {ondismissimport}
+      ></AssetPanel>
+    {/if}
+  </div>
 </aside>

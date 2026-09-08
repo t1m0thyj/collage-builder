@@ -14,6 +14,27 @@
   let requestId = 0
   let listOverflows = false
 
+  function focusCountTab(frameCount: number) {
+    requestAnimationFrame(() =>
+      globalThis.document.getElementById(`layout-count-tab-${frameCount}`)?.focus(),
+    )
+  }
+
+  function handleCountKeydown(event: KeyboardEvent, currentIndex: number) {
+    let nextIndex: number | undefined
+    if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % layoutFrameCounts.length
+    else if (event.key === 'ArrowLeft')
+      nextIndex = (currentIndex - 1 + layoutFrameCounts.length) % layoutFrameCounts.length
+    else if (event.key === 'Home') nextIndex = 0
+    else if (event.key === 'End') nextIndex = layoutFrameCounts.length - 1
+    if (nextIndex === undefined) return
+    event.preventDefault()
+    event.stopPropagation()
+    const frameCount = layoutFrameCounts[nextIndex]
+    void selectGroup(frameCount)
+    focusCountTab(frameCount)
+  }
+
   function trackOverflow(element: HTMLElement) {
     const update = () => {
       listOverflows = element.scrollHeight > element.clientHeight + 1
@@ -64,19 +85,26 @@
   <p class="eyebrow">Choose a layout</p>
   <p class="panel-copy">Pick a preset grid for your page.</p>
   <div class="layout-count-tabs" role="tablist" aria-label="Photo count">
-    {#each layoutFrameCounts as frameCount (frameCount)}
+    {#each layoutFrameCounts as frameCount, index (frameCount)}
       <button
+        id={`layout-count-tab-${frameCount}`}
         role="tab"
         aria-selected={expandedFrameCount === frameCount}
+        aria-controls="layout-options-panel"
+        tabindex={expandedFrameCount === frameCount ? 0 : -1}
         class:active={expandedFrameCount === frameCount}
         onpointerenter={preloadOptionalLayouts}
         onfocus={preloadOptionalLayouts}
+        onkeydown={(event) => handleCountKeydown(event, index)}
         onclick={() => selectGroup(frameCount)}>{frameCount === 11 ? '11+' : frameCount}</button
       >
     {/each}
   </div>
   <div
     use:trackOverflow
+    id="layout-options-panel"
+    role="tabpanel"
+    aria-labelledby={`layout-count-tab-${expandedFrameCount}`}
     class:layout-list-overflow={listOverflows}
     class="layout-options"
     aria-busy={loading}

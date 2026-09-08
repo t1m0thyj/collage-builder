@@ -361,13 +361,12 @@ export class RecoveryController {
   }
 
   private async flush(): Promise<boolean> {
-    if (
-      !this.ready ||
-      this.conflict ||
-      !this.currentDocument ||
-      !this.hasMeaningfulChanges(this.currentDocument)
-    )
+    if (!this.ready || !this.currentDocument || !this.hasMeaningfulChanges(this.currentDocument))
       return true
+    // A conflicted tab does not own this project's recovery record. Reporting
+    // success here would allow callers to reload with unsaved changes even
+    // though no preservation write was attempted.
+    if (this.conflict) return false
     if (this.timer) clearTimeout(this.timer)
     this.timer = undefined
     return this.queuePersist(this.currentDocument, ++this.revision)

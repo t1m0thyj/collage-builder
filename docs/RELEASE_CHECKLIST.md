@@ -51,6 +51,7 @@ This checklist tracks every finding from the initial architecture and first-rele
   - [x] Add keyboard equivalents for layout-divider manipulation and graphical crop handles.
   - [x] Add a keyboard bypass to the canvas, prevent global editor shortcuts from firing behind open dialogs, and improve muted-text and dark-dialog control contrast.
   - [x] Keep primary controls available at a 960 CSS-pixel viewport (equivalent to 200% zoom on a 1920 px desktop viewport) and honor reduced-motion preferences.
+  - [x] Implement arrow-key, Home, and End navigation with roving focus and tab-panel associations for the Layouts/Images and photo-count tabs.
   - [ ] Verify selection/status announcements with screen readers. Persistent live-region wiring and automated interaction coverage are in place; an NVDA/VoiceOver pass remains.
   - [ ] Complete manual contrast and assistive-technology testing.
 - [x] Correct the initial Undo/Redo state. Both controls now use subscribed store values and are disabled on a blank project.
@@ -81,7 +82,8 @@ This checklist tracks every finding from the initial architecture and first-rele
 - [ ] Manually import representative JPEG, PNG, WebP, HEIC/HEIF, and large real-photo files and confirm crop bounds, corner clipping, transparency, and shadows.
 - [ ] Verify save/open and automatic recovery manually with a large multi-page project.
 - [ ] Test current-page, all-pages, and range export manually at normal and large resolutions.
-- [ ] Profile a production-scale 100-image/25-page project using the representative photo fixture and document timing and memory limits.
+- [x] Run the representative-photo benchmark with 100 distinct imports and 25 populated pages. The 1536×1024 fixture completed in approximately 7.4 seconds for import and 6.3 seconds for export on the review host.
+- [ ] Validate active-page decoded-image memory with realistic high-resolution originals (for example, ten 24-megapixel photos). The current benchmark verifies workflow scale and sequential decoding/export, but not this worst-case pixel capacity.
 - [ ] Complete keyboard-only, screen-reader, contrast, zoom, and reduced-motion release audits.
 
 ## Repeatable checks
@@ -99,5 +101,7 @@ On 2026-09-04, Chromium 151.0.7922.34 on Windows 10.0.26200 (Intel Core i5-13600
 ## Current browser notes
 
 The core editor targets current Chrome, Edge, Firefox, and Safari. Save uses the native File System Access picker when available so `.collage` and `.collage.json` appear as separate file types. Other browsers use an in-app format dialog and download fallback. PNG and JPEG exports remain download-based.
+
+The first release is desktop-only and supports viewports at least 960 CSS pixels wide. Mobile, narrow-screen, and touch-first interaction support is not currently claimed or included in release validation.
 
 On the current Windows test host, Firefox content processes require the one-run `MOZ_DISABLE_CONTENT_SANDBOX=1` diagnostic override because the host blocks Firefox's child-process sandbox. The project configuration does not disable browser sandboxing.

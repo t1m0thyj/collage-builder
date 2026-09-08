@@ -65,6 +65,9 @@ export function attachAppLifecycle(host: AppLifecycleHost): () => void {
       host.redo()
       return
     }
+    // Tab widgets own their keyboard interaction. In particular, do not let
+    // Enter or an unhandled arrow key affect the canvas while a tab has focus.
+    if (target?.closest('[role="tablist"]')) return
     const selectedSlotId = host.selectedSlotId()
     if ((event.key === 'Delete' || event.key === 'Backspace') && selectedSlotId) {
       host.clearSelectedSlot()

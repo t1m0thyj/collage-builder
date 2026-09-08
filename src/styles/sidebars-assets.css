@@ -26,6 +26,17 @@
   min-height: 0;
   overflow-y: auto;
 }
+.sidebar-tab-panel {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.sidebar-tab-panel[hidden] {
+  display: none;
+}
+.sidebar-tab-panel > .panel-body {
+  width: 100%;
+}
 .left-panel .panel-body.image-panel {
   display: flex;
   flex-direction: column;
