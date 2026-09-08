@@ -262,20 +262,34 @@ async function chooseTwoColumnLayout(page: BrowserPage) {
   await page.locator('[data-layout-id="layout-2-001"]').click()
 }
 
-async function twoColumnFrameCenters(page: BrowserPage) {
+async function canvasDocumentPoint(page: BrowserPage, point: { x: number; y: number }) {
   const host = page.getByRole('region', { name: 'Collage canvas' })
   const box = await host.boundingBox()
   expect(box).not.toBeNull()
-  const scale = Math.min((box!.width - 48) / 3840, (box!.height - 48) / 2880, 1)
-  const stageX = Math.max(0, (box!.width - 3840 * scale) / 2)
-  const stageY = Math.max(0, (box!.height - 2880 * scale) / 2)
+  const scale = Number(await host.getAttribute('data-fit-scale'))
+  const stageX = Number(await host.getAttribute('data-stage-x'))
+  const stageY = Number(await host.getAttribute('data-stage-y'))
+  const scroll = await host.evaluate((element) => ({
+    left: element.scrollLeft,
+    top: element.scrollTop,
+  }))
+  expect(scale).toBeGreaterThan(0)
+  return {
+    x: box!.x - scroll.left + stageX + point.x * scale,
+    y: box!.y - scroll.top + stageY + point.y * scale,
+  }
+}
+
+async function twoColumnFrameCenters(page: BrowserPage) {
   const frameWidth = (3840 - 30 * 2 - 30) / 2
   const frameHeight = 2880 - 30 * 2
-  const y = box!.y + stageY + (30 + frameHeight / 2) * scale
-  return [
-    { x: box!.x + stageX + (30 + frameWidth / 2) * scale, y },
-    { x: box!.x + stageX + (30 + frameWidth + 30 + frameWidth / 2) * scale, y },
-  ]
+  return Promise.all([
+    canvasDocumentPoint(page, { x: 30 + frameWidth / 2, y: 30 + frameHeight / 2 }),
+    canvasDocumentPoint(page, {
+      x: 30 + frameWidth + 30 + frameWidth / 2,
+      y: 30 + frameHeight / 2,
+    }),
+  ])
 }
 
 async function assignSidebarImage(
@@ -746,54 +760,44 @@ test('dragging crop edges changes zoom', async ({ page }) => {
 
   const cropZoom = page.getByRole('spinbutton', { name: 'Crop zoom value' })
   await expect(cropZoom).toHaveValue('1.00')
-  const cropCanvas = page.locator('canvas').last()
-  await expect
-    .poll(async () =>
-      cropCanvas.evaluate((canvas) => {
-        const pixels = canvas
-          .getContext('2d', { willReadFrequently: true })!
-          .getImageData(0, 0, canvas.width, canvas.height).data
-        for (let index = 0; index < pixels.length; index += 4)
-          if (pixels[index] < 8 && pixels[index + 1] > 245 && pixels[index + 2] < 8) return true
-        return false
-      }),
-    )
-    .toBe(true)
-  const edge = await cropCanvas.evaluate((canvas) => {
-    const context = canvas.getContext('2d', { willReadFrequently: true })!
-    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data
-    let minX = canvas.width
-    let minY = canvas.height
-    let maxX = 0
-    let maxY = 0
-    for (let index = 0; index < pixels.length; index += 4) {
-      if (pixels[index] < 8 && pixels[index + 1] > 245 && pixels[index + 2] < 8) {
-        const pixel = index / 4
-        const x = pixel % canvas.width
-        const y = Math.floor(pixel / canvas.width)
+  const canvases = page.locator('canvas')
+  let cropEdge: { x: number; y: number; scaleX: number; scaleY: number } | undefined
+  for (let index = 0; index < (await canvases.count()); index += 1) {
+    const canvas = canvases.nth(index)
+    const edge = await canvas.evaluate((element) => {
+      const pixels = element
+        .getContext('2d', { willReadFrequently: true })!
+        .getImageData(0, 0, element.width, element.height).data
+      let minX = element.width
+      let minY = element.height
+      let maxX = 0
+      let maxY = 0
+      for (let pixel = 0; pixel < pixels.length; pixel += 4) {
+        if (pixels[pixel] >= 8 || pixels[pixel + 1] <= 245 || pixels[pixel + 2] >= 8) continue
+        const x = (pixel / 4) % element.width
+        const y = Math.floor(pixel / 4 / element.width)
         minX = Math.min(minX, x)
         minY = Math.min(minY, y)
         maxX = Math.max(maxX, x)
         maxY = Math.max(maxY, y)
       }
+      return minX === element.width ? undefined : { x: (minX + maxX) / 2, y: minY }
+    })
+    if (!edge) continue
+    const box = await canvas.boundingBox()
+    expect(box).not.toBeNull()
+    cropEdge = {
+      x: box!.x + edge.x * (box!.width / (await canvas.evaluate((element) => element.width))),
+      y: box!.y + edge.y * (box!.height / (await canvas.evaluate((element) => element.height))),
+      scaleX: box!.width / (await canvas.evaluate((element) => element.width)),
+      scaleY: box!.height / (await canvas.evaluate((element) => element.height)),
     }
-    if (minX === canvas.width) throw new Error('Crop outline was not drawn')
-    return {
-      x: (minX + maxX) / 2,
-      y: minY,
-      scaleX: canvas.clientWidth / canvas.width,
-      scaleY: canvas.clientHeight / canvas.height,
-    }
-  })
-  const canvasBox = await cropCanvas.boundingBox()
-  expect(canvasBox).not.toBeNull()
-  await page.mouse.move(canvasBox!.x + edge.x * edge.scaleX, canvasBox!.y + edge.y * edge.scaleY)
+    break
+  }
+  expect(cropEdge).toBeDefined()
+  await page.mouse.move(cropEdge!.x, cropEdge!.y)
   await page.mouse.down()
-  await page.mouse.move(
-    canvasBox!.x + edge.x * edge.scaleX,
-    canvasBox!.y + (edge.y - 36) * edge.scaleY,
-    { steps: 8 },
-  )
+  await page.mouse.move(cropEdge!.x, cropEdge!.y - 36 * cropEdge!.scaleY, { steps: 8 })
   await page.mouse.up()
   await expect(cropZoom).not.toHaveValue('1.00')
 })
