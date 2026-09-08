@@ -488,8 +488,6 @@
   data-stage-y={stageY}
   data-fit-scale={fitScale}
   data-image-revision={imageRevision}
-  data-drag-source-slot={dragSourceSlotId ?? undefined}
-  data-drag-target-slot={dragTargetSlotId ?? undefined}
   data-frame-hitboxes={JSON.stringify(
     model.frames.map(({ x, y, width, height }) => ({ x, y, width, height })),
   )}

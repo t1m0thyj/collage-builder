@@ -1,7 +1,6 @@
 <script lang="ts">
   import { Circle, Group, Image, Layer, Line, Rect, Text } from 'svelte-konva'
-  import type { Context, SceneContext } from 'konva/lib/Context'
-  import type { Shape } from 'konva/lib/Shape'
+  import type { SceneContext } from 'konva/lib/Context'
   import { resolveCoverPlacement } from '../../domain/crop'
   import { resolveDividers } from '../../domain/geometry'
   import { createPageRenderModel } from '../../render/pageRenderer'
@@ -67,13 +66,6 @@
     cursor: string,
   ) => void
   export let commitDivider: (event: PositionEvent, divider: Divider) => void
-
-  function frameHitArea(context: Context, shape: Shape) {
-    context.beginPath()
-    context.rect(0, 0, shape.width(), shape.height())
-    context.closePath()
-    context.fillStrokeShape(shape)
-  }
 </script>
 
 <Layer>
@@ -157,7 +149,7 @@
               width={frame.width}
               height={frame.height}
               cornerRadius={model.cornerRadius}
-              hitFunc={frameHitArea}
+              fill="rgba(49,92,156,0.01)"
               draggable
               dragBoundFunc={() => ({ x: frame.x, y: frame.y })}
               onpointerclick={() => selectOrCropFrame(frame.slotId)}
