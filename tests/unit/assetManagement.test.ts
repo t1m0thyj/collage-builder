@@ -49,20 +49,64 @@ describe('asset operation lifecycle guards', () => {
     } as FileList
     const isCurrent = () => project.isCurrentProject(version)
 
-    const importing = importProjectAssets(
-      files,
-      version.document,
-      registry,
-      project,
-      vi.fn(),
-      isCurrent,
-    )
+    const importing = importProjectAssets(files, version.document, registry, project, isCurrent)
     await vi.waitFor(() => expect(registry.register).toHaveBeenCalled())
     project.replaceDocument(replacement)
     finishRegistration?.()
 
-    expect(await importing).toBe(0)
+    expect(await importing).toMatchObject({ added: 0, processed: 1 })
     expect(project.snapshot().projectId).toBe(replacement.projectId)
     expect(project.snapshot().assets).toEqual({})
+  })
+
+  it('returns one batch summary with successful files and named failures', async () => {
+    const document = createProject('Batch summary')
+    const project = new ProjectStore(document)
+    const asset = {
+      id: '22222222-2222-4222-8222-222222222222',
+      originalName: 'good.png',
+      mediaType: 'image/png' as const,
+      byteLength: 4,
+      width: 1,
+      height: 1,
+      sha256: 'b'.repeat(64),
+      storage: { kind: 'embedded' as const, archivePath: 'assets/good.png' },
+    }
+    imageValidation.validate
+      .mockResolvedValueOnce({
+        asset,
+        file: new File(['good'], 'good.png', { type: 'image/png' }),
+        displayBlob: undefined,
+      })
+      .mockRejectedValueOnce(new Error('Unsupported image format'))
+    const registry = {
+      register: vi.fn(async () => true),
+      release: vi.fn(),
+    } as unknown as AssetRegistry
+    const selected = [
+      new File(['good'], 'good.png', { type: 'image/png' }),
+      new File(['bad'], 'bad.txt', { type: 'text/plain' }),
+    ]
+    const files = {
+      length: selected.length,
+      *[Symbol.iterator]() {
+        yield* selected
+      },
+    } as FileList
+    const progress = vi.fn()
+
+    const result = await importProjectAssets(
+      files,
+      document,
+      registry,
+      project,
+      () => true,
+      progress,
+    )
+
+    expect(result).toMatchObject({ phase: 'complete', total: 2, added: 1, skipped: 1 })
+    expect(result.issues).toEqual([{ fileName: 'bad.txt', message: 'Unsupported image format' }])
+    expect(result.importedAssetIds).toEqual([asset.id])
+    expect(progress.mock.calls.at(-1)?.[0]).toMatchObject({ processed: 2, added: 1, skipped: 1 })
   })
 })

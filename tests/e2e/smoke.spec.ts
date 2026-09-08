@@ -478,6 +478,28 @@ test('imports JPEG, PNG, and WebP images', async ({ page }) => {
   await expect(page.getByText('modern.webp', { exact: true })).toBeVisible()
 })
 
+test('an import opens Images and keeps one batch summary with file errors', async ({ page }) => {
+  await page.goto('/')
+  await page
+    .locator(
+      'input[type="file"][accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"]',
+    )
+    .first()
+    .setInputFiles([
+      { name: 'good.png', mimeType: 'image/png', buffer: redPng },
+      { name: 'bad.txt', mimeType: 'text/plain', buffer: Buffer.from('not an image') },
+    ])
+
+  await expect(page.getByRole('tab', { name: 'Images' })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByText('good.png', { exact: true })).toBeVisible()
+  await expect(page.getByText('1 added · 1 skipped', { exact: true })).toBeVisible()
+  await page.getByText('Review 1 import issue', { exact: true }).click()
+  await expect(page.getByText('bad.txt', { exact: true })).toBeVisible()
+  await expect(page.getByText(/use a PNG, JPEG, WebP, HEIC, or HEIF image/)).toBeVisible()
+  await page.getByRole('button', { name: 'Dismiss import summary' }).click()
+  await expect(page.getByText('1 added · 1 skipped', { exact: true })).toHaveCount(0)
+})
+
 test('gives conversion guidance when a HEIC image cannot be decoded', async ({ page }) => {
   await page.goto('/')
   await importImage(page, 'damaged.heic', Buffer.from('not a valid HEIC image'), 'image/heic')

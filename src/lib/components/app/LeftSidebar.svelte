@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { AssetRecordV1, LayoutPresetDefinition, PageV1 } from '../../domain/types'
-  import type { AssetFilter, AssetSort } from '../../app/assetManagement'
+  import type { AssetFilter, AssetSort, ImportBatchStatus } from '../../app/assetManagement'
   import type { AssetRegistry } from '../../render/assetRegistry'
   import AssetPanel from './AssetPanel.svelte'
   import LayoutPanel from './LayoutPanel.svelte'
@@ -29,6 +29,8 @@
   export let onmanageimages: () => void
   export let assetUsage: (assetId: string) => number
   export let formatBytes: (bytes: number) => string
+  export let importStatus: ImportBatchStatus | null
+  export let ondismissimport: () => void
 </script>
 
 <aside class="sidebar left-panel" aria-label="Layouts and images">
@@ -71,6 +73,8 @@
       {onmanageimages}
       {assetUsage}
       {formatBytes}
+      {importStatus}
+      {ondismissimport}
     ></AssetPanel>
   {/if}
 </aside>

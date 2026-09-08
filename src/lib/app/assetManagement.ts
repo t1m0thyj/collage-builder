@@ -8,6 +8,21 @@ import type { ProjectPersistenceController } from './projectPersistence'
 export type AssetFilter = 'all' | 'used' | 'unused' | 'missing'
 export type AssetSort = 'import' | 'name' | 'size' | 'usage'
 
+export interface ImportIssue {
+  fileName: string
+  message: string
+}
+
+export interface ImportBatchStatus {
+  phase: 'running' | 'complete'
+  total: number
+  processed: number
+  added: number
+  skipped: number
+  issues: ImportIssue[]
+  importedAssetIds: string[]
+}
+
 export function assetUsage(document: CollageDocumentV1, assetId: string): number {
   return document.pages
     .flatMap((page) => Object.values(page.slots))
@@ -60,22 +75,48 @@ export async function importProjectAssets(
   document: CollageDocumentV1,
   registry: AssetRegistry,
   project: ProjectStore,
-  onerror: (message: string) => void,
   isCurrent: () => boolean = () => true,
-  onProgress: (message: string) => void = () => undefined,
-): Promise<number> {
-  if (!files?.length) return 0
+  onProgress: (status: ImportBatchStatus) => void = () => undefined,
+): Promise<ImportBatchStatus> {
+  const selectedFiles = files ? [...files] : []
+  const status: ImportBatchStatus = {
+    phase: 'running',
+    total: selectedFiles.length,
+    processed: 0,
+    added: 0,
+    skipped: 0,
+    issues: [],
+    importedAssetIds: [],
+  }
+  const snapshot = (phase: ImportBatchStatus['phase'] = status.phase): ImportBatchStatus => ({
+    ...status,
+    phase,
+    issues: [...status.issues],
+    importedAssetIds: [...status.importedAssetIds],
+  })
+  if (!selectedFiles.length) return snapshot('complete')
   const existingBytes = Object.values(document.assets).reduce(
     (total, asset) => total + asset.byteLength,
     0,
   )
-  if (existingBytes + [...files].reduce((total, file) => total + file.size, 0) > maxProjectBytes)
-    throw new Error('This import would exceed the 1 GB project asset limit.')
+  if (
+    existingBytes + selectedFiles.reduce((total, file) => total + file.size, 0) >
+    maxProjectBytes
+  ) {
+    status.processed = status.total
+    status.skipped = status.total
+    status.issues.push({
+      fileName: 'Selected files',
+      message: 'This import would exceed the 1 GB project asset limit.',
+    })
+    const result = snapshot('complete')
+    onProgress(result)
+    return result
+  }
 
-  let added = 0
-  for (const [index, file] of [...files].entries()) {
+  onProgress(snapshot())
+  for (const file of selectedFiles) {
     if (!isCurrent()) break
-    onProgress(`Importing image ${index + 1} of ${files.length}…`)
     try {
       const { asset, file: normalizedFile, displayBlob } = await validateImportedImage(file)
       if (!isCurrent()) break
@@ -94,12 +135,22 @@ export async function importProjectAssets(
         registry.release(asset.id)
         throw error
       }
-      added += 1
+      status.added += 1
+      status.importedAssetIds.push(asset.id)
     } catch (error) {
-      onerror(error instanceof Error ? error.message : 'Unable to import image')
+      status.skipped += 1
+      const message = error instanceof Error ? error.message : 'Unable to import image'
+      const filePrefix = `${file.name}: `
+      status.issues.push({
+        fileName: file.name,
+        message: message.startsWith(filePrefix) ? message.slice(filePrefix.length) : message,
+      })
+    } finally {
+      status.processed += 1
+      if (isCurrent()) onProgress(snapshot())
     }
   }
-  return added
+  return snapshot('complete')
 }
 
 export async function replaceProjectAsset(
@@ -192,6 +243,8 @@ interface AssetWorkflowHost {
   setPendingRemovalAssetIds: (assetIds: string[] | null) => void
   chooseReplacement: () => void
   chooseRelink: () => void
+  showImageLibrary: () => void
+  setImportStatus: (status: ImportBatchStatus | null) => void
   setOperationProgress: (message: string | null) => void
   announce: (message: string) => void
 }
@@ -355,6 +408,7 @@ export class AssetWorkflowController {
 
   import = (files: FileList | null): Promise<void> => {
     if (!files?.length) return Promise.resolve()
+    this.host.showImageLibrary()
     const version = this.host.project.versionedSnapshot()
     const registry = this.host.registry()
     const isCurrent = () =>
@@ -362,19 +416,41 @@ export class AssetWorkflowController {
     const run = async () => {
       if (!isCurrent()) return
       try {
-        const added = await importProjectAssets(
+        const result = await importProjectAssets(
           files,
           this.host.document(),
           registry,
           this.host.project,
-          this.host.announce,
           isCurrent,
-          (message) => this.host.setOperationProgress(message),
+          (status) => {
+            this.host.setImportStatus(status)
+            this.host.setOperationProgress(
+              `Importing image ${Math.min(status.processed + 1, status.total)} of ${status.total}…`,
+            )
+            if (status.importedAssetIds.length)
+              this.host.setSelectedAssetIds(status.importedAssetIds)
+          },
         )
-        if (added && isCurrent())
-          this.host.announce(`${added} image${added === 1 ? '' : 's'} added to this project.`)
+        if (isCurrent()) {
+          this.host.setImportStatus(result)
+          if (result.importedAssetIds.length) this.host.setSelectedAssetIds(result.importedAssetIds)
+        }
       } catch (error) {
-        this.host.announce(error instanceof Error ? error.message : 'Unable to import image')
+        if (isCurrent())
+          this.host.setImportStatus({
+            phase: 'complete',
+            total: files.length,
+            processed: files.length,
+            added: 0,
+            skipped: files.length,
+            issues: [
+              {
+                fileName: 'Selected files',
+                message: error instanceof Error ? error.message : 'Unable to import images',
+              },
+            ],
+            importedAssetIds: [],
+          })
       } finally {
         this.host.setOperationProgress(null)
       }

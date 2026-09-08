@@ -23,6 +23,7 @@
     formatBytes,
     type AssetFilter,
     type AssetSort,
+    type ImportBatchStatus,
   } from './lib/app/assetManagement'
   import type { ProjectSaveFormat } from './lib/app/projectIO'
   import { ProjectPersistenceController } from './lib/app/projectPersistence'
@@ -131,6 +132,7 @@
     message: 'Local autosave starting…',
   }
   let operationProgress: string | null = null
+  let importStatus: ImportBatchStatus | null = null
   let toast = ''
   let projectTitle = document.title
 
@@ -184,6 +186,13 @@
     setPendingRemovalAssetIds: (assetIds) => (pendingRemovalAssetIds = assetIds),
     chooseReplacement: () => projectFiles.chooseReplacement(),
     chooseRelink: () => projectFiles.chooseRelink(),
+    showImageLibrary: () => {
+      activeTab = 'images'
+      assetFilter = 'all'
+      assetQuery = ''
+      assetSort = 'import'
+    },
+    setImportStatus: (status) => (importStatus = status),
     setOperationProgress: (message) => (operationProgress = message),
     announce,
   })
@@ -307,7 +316,12 @@
     return installed
   }
 
+  let subscribedProjectId = document.projectId
   project.document.subscribe((value) => {
+    if (value.projectId !== subscribedProjectId) {
+      subscribedProjectId = value.projectId
+      importStatus = null
+    }
     document = value
     // Retained blobs and Undo snapshots have one shared budget. Evict the
     // corresponding oldest history state before dropping any required bytes.
@@ -526,6 +540,8 @@
       onmanageimages={() => (isImageManagerOpen = true)}
       assetUsage={assetWorkflow.usage}
       {formatBytes}
+      {importStatus}
+      ondismissimport={() => (importStatus = null)}
     ></LeftSidebar>
     <SidebarResizer
       side="left"

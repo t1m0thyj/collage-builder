@@ -260,6 +260,21 @@
     border-color: #414141;
     background: #222222;
   }
+  .import-summary,
+  .import-summary.import-complete,
+  .import-summary.import-has-errors {
+    border-color: #49627e;
+    background: #1d2b3c;
+    color: #dceaff;
+  }
+  .import-summary.import-has-errors {
+    border-color: #80683d;
+    background: #332a1a;
+  }
+  .import-summary li span,
+  .import-success {
+    color: #c2c2c2;
+  }
   .layout-card:hover,
   .layout-card.selected,
   .asset-row.selected-asset,

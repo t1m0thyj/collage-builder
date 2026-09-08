@@ -9,6 +9,7 @@
     Trash2,
   } from '@lucide/svelte'
   import type { AssetRecordV1 } from '../../domain/types'
+  import type { ImportBatchStatus } from '../../app/assetManagement'
   import type { AssetRegistry } from '../../render/assetRegistry'
   import * as DropdownMenu from '../ui/dropdown-menu'
   import Input from '../ui/input/input.svelte'
@@ -34,6 +35,8 @@
   export let onmanageimages: () => void
   export let assetUsage: (assetId: string) => number
   export let formatBytes: (bytes: number) => string
+  export let importStatus: ImportBatchStatus | null
+  export let ondismissimport: () => void
 
   let listOverflows = false
 
@@ -67,6 +70,51 @@
   {ondrop}
 >
   <p class="eyebrow">Project collection</p>
+  {#if importStatus}
+    <section
+      class:import-complete={importStatus.phase === 'complete'}
+      class:import-has-errors={importStatus.issues.length > 0}
+      class="import-summary"
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      <div class="import-summary-heading">
+        <strong>
+          {#if importStatus.phase === 'running'}
+            Importing {importStatus.processed} of {importStatus.total}
+          {:else}
+            {importStatus.added} added · {importStatus.skipped} skipped
+          {/if}
+        </strong>
+        {#if importStatus.phase === 'complete'}
+          <button
+            class="import-dismiss"
+            aria-label="Dismiss import summary"
+            onclick={ondismissimport}>×</button
+          >
+        {/if}
+      </div>
+      {#if importStatus.phase === 'running'}
+        <progress max={importStatus.total} value={importStatus.processed}
+          >{importStatus.processed} of {importStatus.total}</progress
+        >
+      {:else if importStatus.issues.length}
+        <details>
+          <summary>
+            Review {importStatus.issues.length} import
+            {importStatus.issues.length === 1 ? 'issue' : 'issues'}
+          </summary>
+          <ul>
+            {#each importStatus.issues as issue, index (index)}
+              <li><strong>{issue.fileName}</strong><span>{issue.message}</span></li>
+            {/each}
+          </ul>
+        </details>
+      {:else}
+        <span class="import-success">Ready to add to a frame.</span>
+      {/if}
+    </section>
+  {/if}
   {#if libraryTargetSlotId}<p class="library-target">
       Choose an image for the selected frame.
     </p>{/if}
