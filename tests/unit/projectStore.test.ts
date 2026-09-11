@@ -97,6 +97,41 @@ describe('project history', () => {
     })
   })
 
+  it('adds several imported assets as one undoable command', () => {
+    const store = new ProjectStore(createProject('Batch import'))
+    const assets = ['first', 'second'].map((id) => ({
+      id,
+      originalName: `${id}.png`,
+      mediaType: 'image/png' as const,
+      byteLength: 1,
+      width: 1,
+      height: 1,
+      sha256: id,
+      storage: { kind: 'embedded' as const, archivePath: `assets/${id}.png` },
+    }))
+
+    store.addAssets(assets)
+
+    expect(Object.keys(store.snapshot().assets)).toEqual(['first', 'second'])
+    expect(store.historySnapshots()).toHaveLength(1)
+    store.undo()
+    expect(store.snapshot().assets).toEqual({})
+  })
+
+  it('reorders pages by insertion point as one undoable command', () => {
+    const document = createProject('Page order')
+    const store = new ProjectStore(document)
+    store.addPage(document.pages[0].id)
+    store.addPage(store.snapshot().pages[1].id)
+    const before = store.snapshot().pages.map((page) => page.id)
+
+    store.reorderPage(before[0], 3)
+
+    expect(store.snapshot().pages.map((page) => page.id)).toEqual([before[1], before[2], before[0]])
+    store.undo()
+    expect(store.snapshot().pages.map((page) => page.id)).toEqual(before)
+  })
+
   it('moves or swaps complete frame content in one undoable command', () => {
     const project = createProject('Swap')
     const store = new ProjectStore(project)

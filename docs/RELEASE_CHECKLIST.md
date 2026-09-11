@@ -32,6 +32,8 @@ This checklist tracks every finding from the initial architecture and first-rele
   - [x] Add multi-tab locking or conflict detection.
 - [x] Eliminate linked-project stale-reference risk. Cached linked-file matches are invalidated after replacement/relinking and are rechecked against current byte length and SHA-256 before save.
 - [x] Make asset removal reliably undoable at the supported project size and make bulk removal one history entry. Retained bytes and history eviction share the 1 GB project limit.
+- [x] Make multi-file import one undoable command. Files are validated and registered independently, then all successful imports are committed together; switching projects during the operation discards staged resources.
+- [x] Add batch recovery for missing photos. Users can select several candidate files; exact SHA-256 matches are applied first, metadata suggestions require confirmation, and all accepted matches commit as one undoable command.
 - [x] Separate project I/O, persistence, recovery, export, asset, image-session, editor-session, page workflow, preferences, lifecycle, toolbar, file input, sidebar, dialogs, properties, layouts, and editor-shell responsibilities. `App.svelte` remains the composition boundary for cross-feature coordination. Reassess ownership and cohesion when a feature changes instead of using file-length targets as an architectural measure.
 - [x] Load noncritical layout definitions and editor workflows on demand. Default two- and three-frame layouts and the canvas editor remain eager for first-paint usability; layout groups 4–11 share one deferred 4.94 kB gzip catalog warmed on layout-control hover or focus. Archive, linked-project, recovery, and export implementations also load on demand. Konva remains eager in a separately cacheable chunk. The larger HEIC decoder is isolated in its own optional chunk and loads only when a HEIC/HEIF asset needs decoding.
 - [x] Add offline support without installability. A generated service worker precaches the complete production application bundle, including lazy chunks and public assets, and supports root or subdirectory deployments. Project data remains local; no web app manifest or install prompt is included.
@@ -56,6 +58,7 @@ This checklist tracks every finding from the initial architecture and first-rele
   - [ ] Complete manual contrast and assistive-technology testing.
 - [x] Correct the initial Undo/Redo state. Both controls now use subscribed store values and are disabled on a blank project.
 - [x] Coalesce continuous padding, gap, radius, and shadow adjustments into one undo entry per interaction rather than one snapshot per input event.
+- [x] Support direct page-tab reordering by drag and drop while retaining Move left/Move right as the keyboard-accessible equivalent.
 - [x] Add export cancellation and resolution-quality warnings. Multi-page rendering can be cancelled between pages, and exports warn when placed images will be enlarged beyond their source resolution.
 - [ ] **Partially complete:** Establish editor/export visual parity testing.
   - [x] Verify exact exported frame colors and configured gap pixels.
@@ -66,7 +69,7 @@ This checklist tracks every finding from the initial architecture and first-rele
 - [x] Add JPEG export with a user-controlled 1–100 quality setting. PNG remains available, and JPEG exports flatten transparent areas to white with an explicit warning.
 - [ ] Add fast population tools such as fill-empty-frames, shuffle, or optional automatic assignment after multi-image import.
 - [ ] Add practical page presets for square, portrait, landscape, print, and common social-media formats, with DPI guidance where relevant.
-- [ ] Add usage navigation from an image to the pages and frames where it appears; the image manager currently reports only a usage count.
+- [x] Keep per-photo usage counts, but leave “Show usages” and jump-to-frame navigation out of scope for v1. The added navigation surface is not justified by the first-release workflows.
 - [ ] **Partially complete:** Resolve scope drift before adding more advanced layout features.
   - [x] Add first-run onboarding with direct import/open actions and a persistent way to reopen it.
   - [x] Add explicit startup recovery choices: restore, retain and start blank, or review local copies.
@@ -85,6 +88,8 @@ This checklist tracks every finding from the initial architecture and first-rele
 - [x] Run the representative-photo benchmark with 100 distinct imports and 25 populated pages. The 1536×1024 fixture completed in approximately 7.4 seconds for import and 6.3 seconds for export on the review host.
 - [ ] Validate active-page decoded-image memory with realistic high-resolution originals (for example, ten 24-megapixel photos). The current benchmark verifies workflow scale and sequential decoding/export, but not this worst-case pixel capacity.
 - [ ] Complete keyboard-only, screen-reader, contrast, zoom, and reduced-motion release audits.
+- [ ] Manually verify native Save/Save As handle reuse and permission prompts in current Chrome and Edge; fallback downloads are covered by the cross-browser suite.
+- [ ] Profile large archive open/save, repeated page switching, and high-resolution export with representative originals.
 
 ## Repeatable checks
 
@@ -101,6 +106,8 @@ On 2026-09-04, Chromium 151.0.7922.34 on Windows 10.0.26200 (Intel Core i5-13600
 ## Current browser notes
 
 The core editor targets current Chrome, Edge, Firefox, and Safari. Save uses the native File System Access picker when available so `.collage` and `.collage.json` appear as separate file types. Other browsers use an in-app format dialog and download fallback. PNG and JPEG exports remain download-based.
+
+Derived thumbnails are regenerated from verified original bytes and cached only for the active session. File handles are also session-only and capability-gated. Persisting either in IndexedDB is intentionally out of scope: it would duplicate recoverable thumbnail data and create unreliable expectations around browser handle permissions.
 
 The first release is desktop-only and supports viewports at least 960 CSS pixels wide. Mobile, narrow-screen, and touch-first interaction support is not currently claimed or included in release validation.
 

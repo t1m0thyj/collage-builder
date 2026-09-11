@@ -2,11 +2,13 @@
   export let onimport: (files: FileList | null) => void | Promise<void>
   export let onreplace: (file: File | undefined) => void | Promise<void>
   export let onrelink: (file: File | undefined) => void | Promise<void>
+  export let onrelinkmany: (files: FileList | null) => void | Promise<void>
   export let onopen: (file: File | undefined) => void | Promise<void>
 
   let uploadInput: HTMLInputElement
   let replaceInput: HTMLInputElement
   let relinkInput: HTMLInputElement
+  let relinkManyInput: HTMLInputElement
   let projectInput: HTMLInputElement
   let linkedFolderInput: HTMLInputElement
   let linkedFolderResolver: ((files: FileList | null) => void) | null = null
@@ -21,6 +23,10 @@
 
   export function chooseRelink() {
     relinkInput.click()
+  }
+
+  export function chooseRelinkMany() {
+    relinkManyInput.click()
   }
 
   export function chooseProject() {
@@ -66,6 +72,15 @@
     }
   }
 
+  async function relinkFiles(event: Event & { currentTarget: HTMLInputElement }) {
+    const input = event.currentTarget
+    try {
+      await onrelinkmany(input.files)
+    } finally {
+      input.value = ''
+    }
+  }
+
   async function openProject(event: Event & { currentTarget: HTMLInputElement }) {
     const input = event.currentTarget
     try {
@@ -103,6 +118,16 @@
   type="file"
   accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
   onchange={relinkFile}
+/>
+<input
+  class="sr-only"
+  tabindex="-1"
+  aria-hidden="true"
+  bind:this={relinkManyInput}
+  type="file"
+  accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
+  multiple
+  onchange={relinkFiles}
 />
 <input
   class="sr-only"

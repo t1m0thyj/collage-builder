@@ -171,7 +171,7 @@
             class="asset-row"
             title={`${asset.originalName} · ${asset.width} × ${asset.height} · ${
               missingAssetIds.has(asset.id)
-                ? 'Missing — relink required'
+                ? `Missing — relink required · ${formatBytes(asset.byteLength)} · ${assetUsage(asset.id)} use${assetUsage(asset.id) === 1 ? '' : 's'}`
                 : `${formatBytes(asset.byteLength)} · ${assetUsage(asset.id)} use${assetUsage(asset.id) === 1 ? '' : 's'}`
             }`}
             ondragstart={(event) => onstartdrag(event, asset.id)}
@@ -186,7 +186,7 @@
                 class:asset-missing={missingAssetIds.has(asset.id)}>{asset.originalName}</strong
               ><small
                 >{missingAssetIds.has(asset.id)
-                  ? 'Missing — relink required'
+                  ? `Missing — ${asset.width} × ${asset.height} · ${assetUsage(asset.id)} use${assetUsage(asset.id) === 1 ? '' : 's'}`
                   : `${asset.width} × ${asset.height} · ${assetUsage(asset.id)} use${assetUsage(asset.id) === 1 ? '' : 's'}`}</small
               ></span
             ></button

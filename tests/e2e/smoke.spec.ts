@@ -150,6 +150,29 @@ function visualParityArchive() {
   })
 }
 
+function missingPhotoArchive() {
+  const document = createProject('Missing photo')
+  const assetId = '11111111-1111-4111-8111-111111111111'
+  document.assets[assetId] = {
+    id: assetId,
+    originalName: 'red.png',
+    mediaType: 'image/png',
+    byteLength: redPng.byteLength,
+    width: 96,
+    height: 64,
+    sha256: createHash('sha256').update(redPng).digest('hex'),
+    storage: { kind: 'embedded', archivePath: `assets/${assetId}` },
+  }
+  document.pages[0].slots[Object.keys(document.pages[0].slots)[0]] = {
+    assetId,
+    placement: { zoom: 1, positionX: 0.5, positionY: 0.5 },
+  }
+  return zipSync({
+    mimetype: strToU8(collageMimeType),
+    'document.json': strToU8(JSON.stringify(document)),
+  })
+}
+
 async function importImage(
   page: BrowserPage,
   name: string,
@@ -487,6 +510,18 @@ test('page actions rename and duplicate without accidental deletion', async ({ p
   await page.getByRole('button', { name: 'Page actions' }).click()
   await page.getByRole('menuitem', { name: 'Duplicate' }).click()
   await expect(page.getByRole('button', { name: /Cover/ })).toHaveCount(2)
+})
+
+test('page tabs can be reordered by dragging', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Add page' }).click()
+  await page.getByRole('button', { name: 'Add page' }).click()
+
+  const first = page.getByRole('button', { name: 'Page 1', exact: true })
+  const third = page.getByRole('button', { name: 'Page 3', exact: true })
+  await first.dragTo(third, { targetPosition: { x: 80, y: 16 } })
+
+  await expect(page.locator('.page-tab')).toHaveText(['Page 2', 'Page 3', 'Page 1'])
 })
 
 test('many pages use the compact chooser and working previous/next controls', async ({ page }) => {
@@ -1627,6 +1662,37 @@ test('a complete multi-page project survives embedded save, fresh-context reopen
   } finally {
     await reopenedContext.close()
   }
+})
+
+test('missing photos can be matched from several files and undone', async ({ page }) => {
+  await page.goto('/')
+  await page.locator('input[type="file"][accept*=".collage.json"]').setInputFiles({
+    name: 'missing-photo.collage',
+    mimeType: collageMimeType,
+    buffer: Buffer.from(missingPhotoArchive()),
+  })
+  await expect(page.getByRole('status')).toContainText('Project opened with 1 photo to locate')
+
+  await page.getByRole('tab', { name: 'Images' }).click()
+  await page.getByRole('button', { name: 'Manage photos' }).click()
+  const manager = page.getByRole('dialog', { name: 'Photo library' })
+  const locateMissing = manager.getByRole('button', { name: 'Locate missing photos' })
+  await expect(locateMissing).toBeVisible()
+  page.once('dialog', (dialog) => dialog.accept())
+  await page
+    .locator('input[type="file"][multiple][accept*="image/jpeg"]')
+    .nth(1)
+    .setInputFiles([
+      { name: 'other.png', mimeType: 'image/png', buffer: onePixelPng },
+      { name: 'red.png', mimeType: 'image/png', buffer: bluePng },
+    ])
+  await expect(locateMissing).toBeHidden()
+
+  await manager.getByRole('button', { name: 'Done' }).click()
+  await page.getByRole('button', { name: 'Undo' }).click()
+  await page.getByRole('button', { name: 'Manage photos' }).click()
+  await expect(manager).toBeVisible()
+  await expect(manager.getByRole('button', { name: 'Locate missing photos' })).toBeVisible()
 })
 
 test('Save retains the current format while Save As offers both project extensions', async ({

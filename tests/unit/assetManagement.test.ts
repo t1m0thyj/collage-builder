@@ -11,6 +11,7 @@ vi.mock('../../src/lib/domain/importImage', () => ({
 
 import {
   importProjectAssets,
+  relinkMissingProjectAssets,
   relinkProjectAsset,
   replaceProjectAsset,
 } from '../../src/lib/app/assetManagement'
@@ -112,6 +113,169 @@ describe('asset operation lifecycle guards', () => {
     expect(result.issues).toEqual([{ fileName: 'bad.txt', message: 'Unsupported image format' }])
     expect(result.importedAssetIds).toEqual([asset.id])
     expect(progress.mock.calls.at(-1)?.[0]).toMatchObject({ processed: 2, added: 1, skipped: 1 })
+  })
+
+  it('commits a successful multi-file import as one undo entry', async () => {
+    const document = createProject('Batch history')
+    const project = new ProjectStore(document)
+    const selected = ['one', 'two'].map(
+      (name) => new File([name], `${name}.png`, { type: 'image/png' }),
+    )
+    imageValidation.validate.mockImplementation(async (file: File) => ({
+      asset: {
+        id: file.name,
+        originalName: file.name,
+        mediaType: 'image/png' as const,
+        byteLength: file.size,
+        width: 1,
+        height: 1,
+        sha256: file.name,
+        storage: { kind: 'embedded' as const, archivePath: `assets/${file.name}` },
+      },
+      file,
+      displayBlob: undefined,
+    }))
+    const registry = {
+      register: vi.fn(async () => true),
+      release: vi.fn(),
+    } as unknown as AssetRegistry
+    const files = {
+      length: selected.length,
+      *[Symbol.iterator]() {
+        yield* selected
+      },
+    } as FileList
+
+    await importProjectAssets(files, document, registry, project)
+
+    expect(Object.keys(project.snapshot().assets)).toHaveLength(2)
+    expect(project.historySnapshots()).toHaveLength(1)
+    project.undo()
+    expect(project.snapshot().assets).toEqual({})
+  })
+
+  it('bulk relinks exact matches first and confirms metadata suggestions', async () => {
+    const document = createProject('Missing photos')
+    const exactId = '11111111-1111-4111-8111-111111111111'
+    const suggestedId = '22222222-2222-4222-8222-222222222222'
+    document.assets[exactId] = {
+      id: exactId,
+      originalName: 'exact.png',
+      mediaType: 'image/png',
+      byteLength: 5,
+      width: 10,
+      height: 20,
+      sha256: 'exact-hash',
+      storage: { kind: 'embedded', archivePath: `assets/${exactId}.png` },
+    }
+    document.assets[suggestedId] = {
+      id: suggestedId,
+      originalName: 'suggested.png',
+      mediaType: 'image/png',
+      byteLength: 9,
+      width: 30,
+      height: 40,
+      sha256: 'old-hash',
+      storage: { kind: 'embedded', archivePath: `assets/${suggestedId}.png` },
+    }
+    const exactFile = new File(['exact'], 'renamed.png', { type: 'image/png' })
+    const suggestedFile = new File(['different'], 'suggested.png', { type: 'image/png' })
+    imageValidation.validate
+      .mockResolvedValueOnce({
+        asset: { ...document.assets[exactId], id: 'candidate-exact' },
+        file: exactFile,
+        displayBlob: undefined,
+      })
+      .mockResolvedValueOnce({
+        asset: {
+          ...document.assets[suggestedId],
+          id: 'candidate-suggested',
+          sha256: 'new-hash',
+        },
+        file: suggestedFile,
+        displayBlob: undefined,
+      })
+    const registry = {
+      register: vi.fn(async () => true),
+      release: vi.fn(),
+    } as unknown as AssetRegistry
+    const files = {
+      length: 2,
+      *[Symbol.iterator]() {
+        yield exactFile
+        yield suggestedFile
+      },
+    } as FileList
+    const confirmSuggestion = vi.fn(() => true)
+    const project = new ProjectStore(document)
+
+    const result = await relinkMissingProjectAssets(
+      files,
+      [exactId, suggestedId],
+      document,
+      registry,
+      project,
+      confirmSuggestion,
+    )
+
+    expect(result).toEqual({
+      relinkedAssetIds: [exactId, suggestedId],
+      unmatchedAssetIds: [],
+      issues: [],
+    })
+    expect(confirmSuggestion).toHaveBeenCalledOnce()
+    expect(project.snapshot().assets[suggestedId].sha256).toBe('new-hash')
+    expect(project.historySnapshots()).toHaveLength(1)
+    project.undo()
+    expect(project.snapshot().assets[suggestedId].sha256).toBe('old-hash')
+  })
+
+  it('does not commit a bulk relink when candidate registration fails', async () => {
+    const document = createProject('Failed relink')
+    const assetIds = ['first', 'second']
+    assetIds.forEach((id) => {
+      document.assets[id] = {
+        id,
+        originalName: `${id}.png`,
+        mediaType: 'image/png',
+        byteLength: 1,
+        width: 1,
+        height: 1,
+        sha256: `${id}-hash`,
+        storage: { kind: 'embedded', archivePath: `assets/${id}.png` },
+      }
+    })
+    const selected = assetIds.map((id) => new File([id], `${id}.png`, { type: 'image/png' }))
+    imageValidation.validate.mockImplementation(async (file: File) => {
+      const id = file.name.replace('.png', '')
+      return {
+        asset: { ...document.assets[id], id: `candidate-${id}` },
+        file,
+        displayBlob: undefined,
+      }
+    })
+    const registry = {
+      register: vi
+        .fn()
+        .mockResolvedValueOnce(true)
+        .mockRejectedValueOnce(new Error('decode failed')),
+      release: vi.fn(),
+    } as unknown as AssetRegistry
+    const files = {
+      length: selected.length,
+      *[Symbol.iterator]() {
+        yield* selected
+      },
+    } as FileList
+    const project = new ProjectStore(document)
+
+    await expect(
+      relinkMissingProjectAssets(files, assetIds, document, registry, project, () => false),
+    ).rejects.toThrow('decode failed')
+
+    expect(registry.release).toHaveBeenCalledWith('first')
+    expect(project.historySnapshots()).toHaveLength(0)
+    expect(project.snapshot().assets).toEqual(document.assets)
   })
 
   it.each(['replacement', 'relinking'] as const)(

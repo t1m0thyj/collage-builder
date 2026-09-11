@@ -40,6 +40,12 @@
   border-bottom: 1px solid #fff;
   box-shadow: 0 -2px 5px rgba(49, 92, 156, 0.08);
 }
+.page-tab.page-drag-before {
+  box-shadow: inset 3px 0 #315c9c;
+}
+.page-tab.page-drag-after {
+  box-shadow: inset -3px 0 #315c9c;
+}
 .page-tab-with-actions,
 .page-picker-with-actions {
   display: flex;

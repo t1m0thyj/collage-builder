@@ -366,15 +366,19 @@
     assetRegistry.reconcileRetainedHistory(project.historySnapshots())
     while (assetRegistry.isOverRetainedLimit && project.discardOldestUndo())
       assetRegistry.reconcileRetainedHistory(project.historySnapshots())
+    const unresolvedAssetIds: string[] = []
     for (const asset of Object.values(value.assets)) {
       if (assetRegistry.hasRetained(asset.id, asset.sha256))
         void assetRegistry
           .restoreRetained(asset.id, asset.sha256, asset)
           .then(() => preparePageImages(activePage, assetRegistry))
-          .catch((error) =>
-            announce(error instanceof Error ? error.message : 'Unable to restore a project image'),
-          )
+          .catch((error) => {
+            missingAssetIds = new Set([...missingAssetIds, asset.id])
+            announce(error instanceof Error ? error.message : 'Unable to restore a project image')
+          })
+      else if (!assetRegistry.hasActive(asset.id, asset.sha256)) unresolvedAssetIds.push(asset.id)
     }
+    missingAssetIds = new Set(unresolvedAssetIds)
     recovery.schedule(value)
   })
   project.isDirty.subscribe((value) => (isDirty = value))
@@ -520,6 +524,7 @@
     onimport={assetWorkflow.import}
     onreplace={assetWorkflow.replace}
     onrelink={assetWorkflow.relink}
+    onrelinkmany={assetWorkflow.relinkMany}
     onopen={projectWorkflow.open}
   ></ProjectFileInputs>
   <TopToolbar
@@ -626,6 +631,7 @@
       onrenamepage={pageActions.rename}
       onduplicatepage={() => project.duplicatePage(activePageId)}
       onmovepage={(direction) => project.movePage(activePageId, direction)}
+      onreorderpage={(pageId, targetIndex) => project.reorderPage(pageId, targetIndex)}
       onclearpage={() => project.clearPage(activePageId)}
       ondeletepage={pageActions.delete}
     ></EditorShell>
@@ -686,6 +692,7 @@
     onstartdrag={assetWorkflow.startDrag}
     onreplace={assetWorkflow.chooseReplacementFor}
     onrelink={assetWorkflow.chooseRelinkFor}
+    onrelinkmissing={() => projectFiles.chooseRelinkMany()}
     onremove={assetWorkflow.requestRemoval}
     assetUsage={assetWorkflow.usage}
     {formatBytes}

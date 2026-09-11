@@ -23,6 +23,14 @@ export interface ImportBatchStatus {
   importedAssetIds: string[]
 }
 
+export interface RelinkBatchResult {
+  relinkedAssetIds: string[]
+  unmatchedAssetIds: string[]
+  issues: ImportIssue[]
+}
+
+type ValidatedImage = Awaited<ReturnType<typeof validateImportedImage>>
+
 export function assetUsage(document: CollageDocumentV1, assetId: string): number {
   return document.pages
     .flatMap((page) => Object.values(page.slots))
@@ -115,11 +123,16 @@ export async function importProjectAssets(
   }
 
   onProgress(snapshot())
+  const staged: ValidatedImage[] = []
+  const knownHashes = new Set(Object.values(document.assets).map((asset) => asset.sha256))
   for (const file of selectedFiles) {
     if (!isCurrent()) break
     try {
-      const { asset, file: normalizedFile, displayBlob } = await validateImportedImage(file)
+      const validated = await validateImportedImage(file)
+      const { asset, file: normalizedFile, displayBlob } = validated
       if (!isCurrent()) break
+      if (knownHashes.has(asset.sha256))
+        throw new Error('This exact image is already in the project')
       const registered = await registry.register(
         asset.id,
         normalizedFile,
@@ -129,12 +142,8 @@ export async function importProjectAssets(
         isCurrent,
       )
       if (!registered || !isCurrent()) break
-      try {
-        project.addAsset(asset)
-      } catch (error) {
-        registry.release(asset.id)
-        throw error
-      }
+      staged.push(validated)
+      knownHashes.add(asset.sha256)
       status.added += 1
       status.importedAssetIds.push(asset.id)
     } catch (error) {
@@ -150,7 +159,33 @@ export async function importProjectAssets(
       if (isCurrent()) onProgress(snapshot())
     }
   }
+  if (!isCurrent()) {
+    staged.forEach(({ asset }) => registry.release(asset.id))
+    status.added = 0
+    status.importedAssetIds = []
+    return snapshot('complete')
+  }
+  try {
+    project.addAssets(staged.map(({ asset }) => asset))
+  } catch (error) {
+    staged.forEach(({ asset }) => registry.release(asset.id))
+    throw error
+  }
   return snapshot('complete')
+}
+
+function embeddedReplacement(asset: AssetRecordV1, target: string): AssetRecordV1 {
+  return {
+    ...asset,
+    id: target,
+    storage: {
+      kind: 'embedded',
+      archivePath:
+        asset.storage.kind === 'embedded'
+          ? asset.storage.archivePath.replace(asset.id, target)
+          : asset.storage.displayHint,
+    },
+  }
 }
 
 export async function replaceProjectAsset(
@@ -173,17 +208,7 @@ export async function replaceProjectAsset(
     isCurrent,
   )
   if (!registered || !isCurrent()) return false
-  project.replaceAsset(target, {
-    ...asset,
-    id: target,
-    storage: {
-      kind: 'embedded',
-      archivePath:
-        asset.storage.kind === 'embedded'
-          ? asset.storage.archivePath.replace(asset.id, target)
-          : asset.storage.displayHint,
-    },
-  })
+  project.replaceAsset(target, embeddedReplacement(asset, target))
   return true
 }
 
@@ -209,18 +234,103 @@ export async function relinkProjectAsset(
     isCurrent,
   )
   if (!registered || !isCurrent()) return false
-  project.replaceAsset(target, {
-    ...asset,
-    id: target,
-    storage: {
-      kind: 'embedded',
-      archivePath:
-        asset.storage.kind === 'embedded'
-          ? asset.storage.archivePath.replace(asset.id, target)
-          : asset.storage.displayHint,
-    },
-  })
+  project.replaceAsset(target, embeddedReplacement(asset, target))
   return true
+}
+
+function candidateScore(original: AssetRecordV1, candidate: ValidatedImage): number {
+  let score = 0
+  if (candidate.file.name.toLocaleLowerCase() === original.originalName.toLocaleLowerCase())
+    score += 4
+  if (candidate.asset.width === original.width && candidate.asset.height === original.height)
+    score += 2
+  if (candidate.asset.byteLength === original.byteLength) score += 1
+  return score
+}
+
+export async function relinkMissingProjectAssets(
+  files: FileList | null,
+  missingAssetIds: Iterable<string>,
+  document: CollageDocumentV1,
+  registry: AssetRegistry,
+  project: ProjectStore,
+  confirmSuggestion: (original: AssetRecordV1, candidate: File) => boolean,
+  isCurrent: () => boolean = () => true,
+): Promise<RelinkBatchResult> {
+  const targetIds = [...new Set(missingAssetIds)].filter((id) => document.assets[id])
+  const candidates: ValidatedImage[] = []
+  const issues: ImportIssue[] = []
+  for (const file of files ? [...files] : []) {
+    if (!isCurrent()) break
+    try {
+      candidates.push(await validateImportedImage(file))
+    } catch (error) {
+      issues.push({
+        fileName: file.name,
+        message: error instanceof Error ? error.message : 'Unable to read image',
+      })
+    }
+  }
+  if (!isCurrent()) return { relinkedAssetIds: [], unmatchedAssetIds: targetIds, issues }
+
+  const matches = new Map<string, ValidatedImage>()
+  const usedCandidates = new Set<ValidatedImage>()
+  for (const targetId of targetIds) {
+    const original = document.assets[targetId]
+    const exact = candidates.find(
+      (candidate) => !usedCandidates.has(candidate) && candidate.asset.sha256 === original.sha256,
+    )
+    if (exact) {
+      matches.set(targetId, exact)
+      usedCandidates.add(exact)
+    }
+  }
+  for (const targetId of targetIds) {
+    if (matches.has(targetId)) continue
+    const original = document.assets[targetId]
+    const suggestion = candidates
+      .filter((candidate) => !usedCandidates.has(candidate))
+      .map((candidate) => ({ candidate, score: candidateScore(original, candidate) }))
+      .filter(({ score }) => score >= 3)
+      .sort((left, right) => right.score - left.score)[0]?.candidate
+    if (suggestion && confirmSuggestion(original, suggestion.file)) {
+      matches.set(targetId, suggestion)
+      usedCandidates.add(suggestion)
+    }
+  }
+
+  const registeredIds: string[] = []
+  try {
+    for (const [targetId, candidate] of matches) {
+      const registered = await registry.register(
+        targetId,
+        candidate.file,
+        candidate.asset.sha256,
+        candidate.asset,
+        candidate.displayBlob,
+        isCurrent,
+      )
+      if (!registered || !isCurrent()) {
+        registeredIds.forEach((id) => registry.release(id))
+        return { relinkedAssetIds: [], unmatchedAssetIds: targetIds, issues }
+      }
+      registeredIds.push(targetId)
+    }
+    project.replaceAssets(
+      [...matches].map(([assetId, candidate]) => ({
+        assetId,
+        replacement: embeddedReplacement(candidate.asset, assetId),
+      })),
+    )
+  } catch (error) {
+    registeredIds.forEach((id) => registry.release(id))
+    throw error
+  }
+  return {
+    relinkedAssetIds: [...matches.keys()],
+    unmatchedAssetIds: targetIds.filter((id) => !matches.has(id)),
+    issues,
+  }
 }
 
 interface AssetWorkflowHost {
@@ -397,6 +507,48 @@ export class AssetWorkflowController {
       this.host.announce('Image relinked everywhere it is used.')
     } catch (error) {
       this.host.announce(error instanceof Error ? error.message : 'Unable to relink image')
+    } finally {
+      if (operation === this.assetMutationSequence) this.host.setOperationProgress(null)
+    }
+  }
+
+  relinkMany = async (files: FileList | null) => {
+    if (!files?.length || !this.host.missingAssetIds().size) return
+    const operation = ++this.assetMutationSequence
+    const version = this.host.project.versionedSnapshot()
+    const registry = this.host.registry()
+    const isCurrent = () =>
+      operation === this.assetMutationSequence &&
+      registry === this.host.registry() &&
+      this.host.project.isCurrentProject(version)
+    try {
+      this.host.setOperationProgress('Matching missing photos…')
+      const result = await relinkMissingProjectAssets(
+        files,
+        this.host.missingAssetIds(),
+        version.document,
+        registry,
+        this.host.project,
+        (original, candidate) =>
+          globalThis.confirm(
+            `${candidate.name} appears to match ${original.originalName} by name, dimensions, or size, but its contents differ. Use it anyway?`,
+          ),
+        isCurrent,
+      )
+      if (!isCurrent()) return
+      result.relinkedAssetIds.forEach((assetId) =>
+        this.host.persistence.invalidateLinkedMatch(assetId),
+      )
+      this.host.setMissingAssetIds(new Set(result.unmatchedAssetIds))
+      const invalid = result.issues.length
+        ? ` ${result.issues.length} selected file${result.issues.length === 1 ? '' : 's'} could not be read.`
+        : ''
+      this.host.announce(
+        `${result.relinkedAssetIds.length} missing photo${result.relinkedAssetIds.length === 1 ? '' : 's'} relinked; ${result.unmatchedAssetIds.length} still missing.${invalid}`,
+      )
+    } catch (error) {
+      if (isCurrent())
+        this.host.announce(error instanceof Error ? error.message : 'Unable to relink photos')
     } finally {
       if (operation === this.assetMutationSequence) this.host.setOperationProgress(null)
     }

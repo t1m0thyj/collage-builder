@@ -179,10 +179,18 @@ export class ProjectStore {
   }
 
   addAsset(asset: AssetRecordV1): void {
+    this.addAssets([asset])
+  }
+
+  addAssets(assets: AssetRecordV1[]): void {
+    if (!assets.length) return
     this.commit((draft) => {
-      if (Object.values(draft.assets).some((candidate) => candidate.sha256 === asset.sha256))
-        throw new Error('This exact image is already in the project')
-      draft.assets[asset.id] = clone(asset)
+      const hashes = new Set(Object.values(draft.assets).map((candidate) => candidate.sha256))
+      for (const asset of assets) {
+        if (hashes.has(asset.sha256)) throw new Error('This exact image is already in the project')
+        hashes.add(asset.sha256)
+        draft.assets[asset.id] = clone(asset)
+      }
     })
   }
 
@@ -272,9 +280,16 @@ export class ProjectStore {
   }
 
   replaceAsset(assetId: string, replacement: AssetRecordV1): void {
+    this.replaceAssets([{ assetId, replacement }])
+  }
+
+  replaceAssets(replacements: Array<{ assetId: string; replacement: AssetRecordV1 }>): void {
+    if (!replacements.length) return
     this.commit((draft) => {
-      if (!draft.assets[assetId]) throw new Error(`Unknown asset: ${assetId}`)
-      draft.assets[assetId] = { ...clone(replacement), id: assetId }
+      for (const { assetId } of replacements)
+        if (!draft.assets[assetId]) throw new Error(`Unknown asset: ${assetId}`)
+      for (const { assetId, replacement } of replacements)
+        draft.assets[assetId] = { ...clone(replacement), id: assetId }
     })
   }
 
@@ -340,6 +355,19 @@ export class ProjectStore {
       const target = index + direction
       if (target < 0 || target >= draft.pages.length) return
       ;[draft.pages[index], draft.pages[target]] = [draft.pages[target], draft.pages[index]]
+    })
+  }
+
+  reorderPage(pageId: string, insertionIndex: number): void {
+    const pages = this.snapshot().pages
+    const sourceIndex = pages.findIndex((page) => page.id === pageId)
+    if (sourceIndex < 0) throw new Error(`Unknown page: ${pageId}`)
+    const boundary = Math.min(pages.length, Math.max(0, Math.round(insertionIndex)))
+    const targetIndex = sourceIndex < boundary ? boundary - 1 : boundary
+    if (targetIndex === sourceIndex) return
+    this.commit((draft) => {
+      const [page] = draft.pages.splice(sourceIndex, 1)
+      draft.pages.splice(targetIndex, 0, page)
     })
   }
 

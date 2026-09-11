@@ -43,10 +43,13 @@
   export let onrenamepage: () => void
   export let onduplicatepage: () => void
   export let onmovepage: (direction: -1 | 1) => void
+  export let onreorderpage: (pageId: string, targetIndex: number) => void
   export let onclearpage: () => void
   export let ondeletepage: () => void
 
   let isPageMenuOpen = false
+  let draggedPageId: string | null = null
+  let pageDropTarget: { pageId: string; edge: 'before' | 'after' } | null = null
 
   function selectPage(pageId: string) {
     onactivepagechange(pageId)
@@ -61,6 +64,38 @@
   function nextPage() {
     const index = document.pages.findIndex((page) => page.id === activePageId)
     if (index < document.pages.length - 1) selectPage(document.pages[index + 1].id)
+  }
+
+  function startPageDrag(event: DragEvent, pageId: string) {
+    draggedPageId = pageId
+    event.dataTransfer?.setData('application/x-collage-page', pageId)
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
+  }
+
+  function updatePageDropTarget(event: DragEvent, pageId: string) {
+    if (!draggedPageId || draggedPageId === pageId) return
+    event.preventDefault()
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+    const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect()
+    pageDropTarget = {
+      pageId,
+      edge: event.clientX < bounds.left + bounds.width / 2 ? 'before' : 'after',
+    }
+  }
+
+  function finishPageDrop(event: DragEvent, pageId: string) {
+    event.preventDefault()
+    const sourceId = draggedPageId ?? event.dataTransfer?.getData('application/x-collage-page')
+    const targetIndex = document.pages.findIndex((page) => page.id === pageId)
+    const boundary = targetIndex + (pageDropTarget?.edge === 'after' ? 1 : 0)
+    if (sourceId && targetIndex >= 0) onreorderpage(sourceId, boundary)
+    draggedPageId = null
+    pageDropTarget = null
+  }
+
+  function finishPageDrag() {
+    draggedPageId = null
+    pageDropTarget = null
   }
 </script>
 
@@ -125,8 +160,17 @@
           </div>
           <button
             class:active={page.id === activePageId}
+            class:page-drag-before={pageDropTarget?.pageId === page.id &&
+              pageDropTarget.edge === 'before'}
+            class:page-drag-after={pageDropTarget?.pageId === page.id &&
+              pageDropTarget.edge === 'after'}
             class="page-tab"
+            draggable="true"
             aria-current={page.id === activePageId ? 'page' : undefined}
+            ondragstart={(event) => startPageDrag(event, page.id)}
+            ondragover={(event) => updatePageDropTarget(event, page.id)}
+            ondrop={(event) => finishPageDrop(event, page.id)}
+            ondragend={finishPageDrag}
             onclick={() => selectPage(page.id)}>{page.name}</button
           >
           {#if page.id === activePageId}

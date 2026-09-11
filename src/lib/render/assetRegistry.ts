@@ -193,6 +193,9 @@ export class AssetRegistry {
   getThumbnailUrl(assetId: AssetId): string | undefined {
     return this.thumbnailUrls.get(assetId)
   }
+  hasActive(assetId: AssetId, sha256: string): boolean {
+    return this.activeHashes.get(assetId) === sha256
+  }
   hasRetained(assetId: AssetId, sha256: string): boolean {
     return this.retained.has(`${assetId}:${sha256}`)
   }

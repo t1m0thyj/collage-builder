@@ -36,6 +36,7 @@
   export let onstartdrag: (event: DragEvent, assetId: string) => void
   export let onreplace: (assetId: string) => void
   export let onrelink: (assetId: string) => void
+  export let onrelinkmissing: () => void
   export let onremove: (assetIds: string[]) => void
   export let assetUsage: (assetId: string) => number
   export let formatBytes: (bytes: number) => string
@@ -164,7 +165,7 @@
                     >{asset.originalName}</strong
                   ><small class:asset-missing={missingAssetIds.has(asset.id)}
                     >{missingAssetIds.has(asset.id)
-                      ? 'Missing — relink required'
+                      ? `Missing — relink required · ${asset.width} × ${asset.height} · ${formatBytes(asset.byteLength)} · ${assetUsage(asset.id)} use${assetUsage(asset.id) === 1 ? '' : 's'}`
                       : `${asset.width} × ${asset.height} · ${formatBytes(asset.byteLength)} · ${assetUsage(asset.id)} use${assetUsage(asset.id) === 1 ? '' : 's'}`}</small
                   ></span
                 ></button
@@ -202,7 +203,9 @@
         class="text-button danger"
         disabled={unusedAssetIds.length === 0}
         onclick={() => onremove(unusedAssetIds)}>Remove unused photos</button
-      ><button class="button" onclick={() => (open = false)}>Done</button>
+      >{#if missingAssetIds.size}<button class="button" onclick={onrelinkmissing}
+          ><FolderOpen size={14}></FolderOpen> Locate missing photos</button
+        >{/if}<button class="button" onclick={() => (open = false)}>Done</button>
     </div>
   </Dialog.Content>
 </Dialog.Root>
