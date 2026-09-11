@@ -1260,25 +1260,41 @@ test('canvas can scroll horizontally and vertically when zoomed in', async ({ pa
   await page.goto('/')
   await page.getByRole('button', { name: 'Canvas zoom: Fit' }).click()
   await page.getByRole('menuitem', { name: '200%' }).click()
+  await expect(page.getByRole('button', { name: 'Canvas zoom: 200%' })).toBeVisible()
 
   const canvas = page.getByRole('region', { name: 'Collage canvas' })
   await expect
-    .poll(() =>
-      canvas.evaluate(
-        (element) =>
-          element.scrollWidth > element.clientWidth && element.scrollHeight > element.clientHeight,
-      ),
+    .poll(
+      () =>
+        canvas.evaluate(
+          (element) =>
+            element.scrollWidth > element.clientWidth &&
+            element.scrollHeight > element.clientHeight,
+        ),
+      { timeout: 15_000 },
     )
     .toBe(true)
 
+  await canvas.evaluate(
+    (element) =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => {
+          element.scrollLeft = element.scrollWidth - element.clientWidth
+          element.scrollTop = element.scrollHeight - element.clientHeight
+          requestAnimationFrame(() => resolve())
+        }),
+      ),
+  )
   await expect
-    .poll(() =>
-      canvas.evaluate((element) => {
-        element.scrollTo(element.scrollWidth, element.scrollHeight)
-        return element.scrollLeft > 0 && element.scrollTop > 0
-      }),
+    .poll(
+      () =>
+        canvas.evaluate((element) => ({
+          horizontal: element.scrollLeft > 0,
+          vertical: element.scrollTop > 0,
+        })),
+      { timeout: 15_000 },
     )
-    .toBe(true)
+    .toEqual({ horizontal: true, vertical: true })
 })
 
 test('page-range export validates input and downloads the requested pages', async ({
