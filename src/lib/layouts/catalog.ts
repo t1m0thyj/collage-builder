@@ -10,6 +10,11 @@ import {
   layout9Presets,
   layout10Presets,
   layout11Presets,
+  layout12Presets,
+  layout13Presets,
+  layout14Presets,
+  layout15Presets,
+  layout16Presets,
 } from './definitions'
 import { validatePreset } from './validatePreset'
 
@@ -25,6 +30,11 @@ export const layoutCatalog: LayoutPresetDefinition[] = [
   ...layout9Presets,
   ...layout10Presets,
   ...layout11Presets,
+  ...layout12Presets,
+  ...layout13Presets,
+  ...layout14Presets,
+  ...layout15Presets,
+  ...layout16Presets,
 ]
 layoutCatalog.forEach(validatePreset)
 if (new Set(layoutCatalog.map((preset) => preset.id)).size !== layoutCatalog.length)

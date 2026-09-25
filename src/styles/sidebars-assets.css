@@ -148,6 +148,13 @@ h2 {
   border-radius: 999px;
   background: #9fb3cc;
 }
+.layout-count-heading {
+  grid-column: 1 / -1;
+  margin: 5px 0 0;
+  color: var(--app-text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
 .layout-card {
   aspect-ratio: 1;
   display: grid;

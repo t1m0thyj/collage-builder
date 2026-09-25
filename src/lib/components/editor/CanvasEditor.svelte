@@ -21,7 +21,11 @@
   type Divider = ReturnType<typeof resolveDividers>[number]
   type DividerPointerEvent = {
     evt?: { altKey?: boolean; shiftKey?: boolean }
-    target: { getStage(): { getPointerPosition(): { x: number; y: number } | null } | null }
+    target: {
+      x(): number
+      y(): number
+      getStage(): { getPointerPosition(): { x: number; y: number } | null } | null
+    }
   }
 
   export let page: PageV1
@@ -77,6 +81,7 @@
     previewPage: PageV1
     snapTarget: DividerSnapTarget | null
   } | null = null
+  let dividerPointerOrigin: { key: string; coordinate: number } | null = null
 
   function commitPan(
     event: { target: { x(): number; y(): number } },
@@ -252,12 +257,31 @@
     }
   }
 
+  function prepareDividerDrag(event: DividerPointerEvent, divider: Divider) {
+    const pointer = documentPointer(event)
+    if (!pointer) return
+    dividerPointerOrigin = {
+      key: dividerKey(divider),
+      coordinate: divider.axis === 'x' ? pointer.x : pointer.y,
+    }
+  }
+
+  function cancelPreparedDividerDrag() {
+    dividerPointerOrigin = null
+  }
+
   function beginDividerDrag(event: DividerPointerEvent, divider: Divider) {
     const pointer = documentPointer(event)
     if (!pointer) return
     const startCoordinate = dividerCenter(divider)
-    const pointerCoordinate = divider.axis === 'x' ? pointer.x : pointer.y
+    const pointerCoordinate =
+      dividerPointerOrigin?.key === dividerKey(divider)
+        ? dividerPointerOrigin.coordinate
+        : divider.axis === 'x'
+          ? pointer.x
+          : pointer.y
     const pointerPerpendicularCoordinate = divider.axis === 'x' ? pointer.y : pointer.x
+    dividerPointerOrigin = null
     dividerDrag = {
       divider: structuredClone(divider),
       startPointerCoordinate: pointerCoordinate,
@@ -342,7 +366,10 @@
 
   function setDividerPercent(divider: (typeof dividers)[number], percent: number) {
     const position = Math.min(95, Math.max(5, percent))
-    ondividerchange([{ path: divider.path, index: divider.index, position: position / 100 }])
+    const start = divider.axis === 'x' ? divider.parentX : divider.parentY
+    const length = divider.axis === 'x' ? divider.parentWidth : divider.parentHeight
+    const coordinate = start + (length * position) / 100
+    ondividerchange([dividerChangeForCoordinate(page, divider, coordinate)])
     onannounce(`${dividerName(divider)} set to ${position} percent.`)
   }
 
@@ -609,6 +636,8 @@
       equalSizeAvailable={Boolean(
         dividerDrag?.targets.some((target) => target.kind === 'equal-size'),
       )}
+      {prepareDividerDrag}
+      {cancelPreparedDividerDrag}
       {beginDividerDrag}
       {previewDividerDrag}
       {commitDividerDrag}

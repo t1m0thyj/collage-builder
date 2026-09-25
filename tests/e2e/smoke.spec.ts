@@ -293,7 +293,7 @@ async function exportCurrentPng(page: BrowserPage, width: number) {
 async function chooseTwoColumnLayout(page: BrowserPage) {
   await page.getByRole('tab', { name: 'Layouts' }).click()
   await page.getByRole('tab', { name: '2', exact: true }).click()
-  await page.locator('[data-layout-id="layout-2-001"]').click()
+  await page.locator('[data-layout-id="generated-2-ta31c7d0995c75a09"]').click()
   await expect(page.locator('.canvas-frame-controls button')).toHaveCount(2)
 }
 
@@ -438,14 +438,14 @@ test('layout count tabs stay compact and follow the active page', async ({ page 
 
   await photoCounts.getByRole('tab', { name: '2', exact: true }).click()
   await expect(page.locator('.layout-card')).toHaveCount(2)
-  await page.locator('[data-layout-id="layout-2-002"]').click()
+  await page.locator('[data-layout-id="generated-2-t44b67f0379bd3d39"]').click()
   await expect(page.getByRole('status')).toContainText('Layout selected: 2 landscapes')
 
   const firstCard = page.locator('.layout-card').first()
   const widthWithoutOverflow = (await firstCard.boundingBox())?.width
   expect(widthWithoutOverflow).toBeDefined()
   await photoCounts.getByRole('tab', { name: '8', exact: true }).click()
-  await expect(page.locator('.layout-card')).toHaveCount(29)
+  await expect(page.locator('.layout-card')).toHaveCount(32)
   await expect
     .poll(() =>
       page
@@ -455,6 +455,18 @@ test('layout count tabs stay compact and follow the active page', async ({ page 
     .toBe(true)
   const widthWithOverflow = (await firstCard.boundingBox())?.width
   expect(widthWithOverflow).toBeCloseTo(widthWithoutOverflow!, 3)
+
+  await photoCounts.getByRole('tab', { name: '11 or more photos' }).click()
+  await expect(page.locator('.layout-card')).toHaveCount(23)
+  await expect(page.locator('.layout-count-heading')).toHaveText([
+    '11 photos',
+    '12 photos',
+    '13 photos',
+    '14 photos',
+    '15 photos',
+    '16 photos',
+  ])
+  await expect(page.getByRole('button', { name: /^16-photo layout/ }).first()).toBeVisible()
 
   await photoCounts.getByRole('tab', { name: '4', exact: true }).click()
   await page.getByRole('button', { name: 'Add page' }).click()
@@ -497,7 +509,7 @@ test('sidebar and layout tabs support keyboard navigation and identify their pan
   await page.keyboard.press('Home')
   await expect(photoCounts.getByRole('tab', { name: '2', exact: true })).toBeFocused()
   await page.keyboard.press('End')
-  await expect(photoCounts.getByRole('tab', { name: '11+' })).toBeFocused()
+  await expect(photoCounts.getByRole('tab', { name: '11 or more photos' })).toBeFocused()
 })
 
 test('page actions rename and duplicate without accidental deletion', async ({ page }) => {
@@ -769,7 +781,7 @@ test('Escape cancels an in-progress normal-mode frame swap', async ({ page }) =>
 test('dragging a layout splitter re-renders the page', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('tab', { name: '4', exact: true }).click()
-  await page.locator('[data-layout-id="layout-4-002"]').click()
+  await page.locator('[data-layout-id="generated-4-t059320da1280c0bb"]').click()
   const host = page.getByRole('region', { name: 'Collage canvas' })
   const stageContainer = page.locator('.konvajs-content').first()
   const box = await host.boundingBox()
@@ -798,19 +810,86 @@ test('dragging a layout splitter re-renders the page', async ({ page }) => {
   await expect.poll(() => canvas.evaluate((element) => element.toDataURL())).not.toBe(before)
 })
 
+test('divider snapping aligns edges, offers equality, and allows an Alt bypass', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await page.getByRole('tab', { name: '4', exact: true }).click()
+  await page.locator('[data-layout-id="generated-4-t00c550498a9d89bb"]').click()
+  const host = page.getByRole('region', { name: 'Collage canvas' })
+  const box = await host.boundingBox()
+  expect(box).not.toBeNull()
+  const scale = Number(await host.getAttribute('data-fit-scale'))
+  const stageX = Number(await host.getAttribute('data-stage-x'))
+  const stageY = Number(await host.getAttribute('data-stage-y'))
+  const frames = JSON.parse((await host.getAttribute('data-frame-hitboxes')) ?? '[]') as Array<{
+    x: number
+    y: number
+    width: number
+    height: number
+  }>
+  const dividers = JSON.parse((await host.getAttribute('data-divider-hitboxes')) ?? '[]') as Array<{
+    axis: 'x' | 'y'
+    x: number
+    y: number
+    width: number
+    height: number
+  }>
+  const point = (x: number, y: number) => ({
+    x: box!.x + stageX + x * scale,
+    y: box!.y + stageY + y * scale,
+  })
+  const topLeft = [...frames].sort((left, right) => left.y - right.y || left.x - right.x)[0]
+  await page.mouse.click(...Object.values(point(topLeft.x + topLeft.width / 2, topLeft.y + 10)))
+
+  const horizontalDividers = dividers
+    .filter((divider) => divider.axis === 'y')
+    .sort((left, right) => left.x - right.x)
+  expect(horizontalDividers).toHaveLength(2)
+  const [leftDivider, rightDivider] = horizontalDividers
+  const start = point(leftDivider.x + leftDivider.width / 2, leftDivider.y + leftDivider.height / 2)
+  const edgeTarget = point(
+    leftDivider.x + leftDivider.width / 2,
+    rightDivider.y + rightDivider.height / 2,
+  )
+  const pageTop = Math.min(...frames.map((frame) => frame.y))
+  const pageBottom = Math.max(...frames.map((frame) => frame.y + frame.height))
+  const equalTarget = point(leftDivider.x + leftDivider.width / 2, (pageTop + pageBottom) / 2)
+
+  await page.mouse.move(start.x, start.y)
+  await page.mouse.down()
+  try {
+    await page.mouse.move(edgeTarget.x, edgeTarget.y, { steps: 8 })
+    await expect(host).toHaveAttribute('data-snap-target', 'edge')
+
+    await page.keyboard.down('Alt')
+    await page.mouse.move(edgeTarget.x, edgeTarget.y + 1)
+    await expect(host).not.toHaveAttribute('data-snap-target')
+    await page.keyboard.up('Alt')
+
+    await page.keyboard.down('Shift')
+    await page.mouse.move(equalTarget.x, equalTarget.y, { steps: 8 })
+    await expect(host).toHaveAttribute('data-snap-target', 'equal-size')
+  } finally {
+    await page.mouse.up()
+    await page.keyboard.up('Alt')
+    await page.keyboard.up('Shift')
+  }
+})
+
 test('layout dividers have keyboard slider controls', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('tab', { name: '4', exact: true }).click()
-  await page.locator('[data-layout-id="layout-4-002"]').click()
+  await page.locator('[data-layout-id="generated-4-t059320da1280c0bb"]').click()
 
-  const divider = page.getByRole('slider', { name: 'Vertical divider 1' })
+  const divider = page.getByRole('slider', { name: /Vertical divider/ }).first()
+  const dividerName = await divider.getAttribute('aria-label')
+  expect(dividerName).not.toBeNull()
   const before = Number(await divider.getAttribute('aria-valuenow'))
   await divider.focus()
   await page.keyboard.press('ArrowRight')
   await expect(divider).toHaveAttribute('aria-valuenow', String(before + 1))
-  await expect(page.locator('.toast')).toHaveText(
-    `Vertical divider 1 set to ${before + 1} percent.`,
-  )
+  await expect(page.locator('.toast')).toHaveText(`${dividerName} set to ${before + 1} percent.`)
 })
 
 test('dragging crop edges changes zoom', async ({ page }) => {
@@ -1615,9 +1694,12 @@ test('a complete multi-page project survives embedded save, fresh-context reopen
   expect(savedDocument).toMatchObject({
     title: 'Saved family album',
     pages: [
-      { layout: { presetId: 'layout-2-001' }, style: { backgroundColor: '#2507B3FF' } },
       {
-        layout: { presetId: 'layout-2-001' },
+        layout: { presetId: 'generated-2-ta31c7d0995c75a09' },
+        style: { backgroundColor: '#2507B3FF' },
+      },
+      {
+        layout: { presetId: 'generated-2-ta31c7d0995c75a09' },
         style: { backgroundColor: '#67BA24FF' },
       },
     ],

@@ -24,10 +24,10 @@ describe('project history', () => {
     const pageId = project.pages[0].id
     store.renameProject('Updated')
     store.changeLayout(pageId, layout4Presets[0])
-    expect(get(store.document).pages[0].layout.presetId).toBe('layout-4-001')
+    expect(get(store.document).pages[0].layout.presetId).toBe(layout4Presets[0].id)
     expect(get(store.canUndo)).toBe(true)
     store.undo()
-    expect(get(store.document).pages[0].layout.presetId).toBe('layout-3-001')
+    expect(get(store.document).pages[0].layout.presetId).toBe(project.pages[0].layout.presetId)
     store.redo()
     expect(get(store.document).title).toBe('Updated')
   })

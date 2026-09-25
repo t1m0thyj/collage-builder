@@ -65,6 +65,20 @@ export function instantiatePreset(preset: LayoutPresetDefinition): {
 
 const defaultPresets = [...layout2Presets, ...layout3Presets]
 
+const twoPhotoDefault = layout2Presets.find(
+  (preset) => preset.root.kind === 'split' && preset.root.axis === 'y',
+)
+const threePhotoDefault = layout3Presets.find(
+  (preset) =>
+    preset.root.kind === 'split' &&
+    preset.root.axis === 'y' &&
+    preset.root.children.length === 3 &&
+    preset.root.children.every((child) => child.kind === 'leaf'),
+)
+if (!twoPhotoDefault || !threePhotoDefault) throw new Error('Default photo layouts are missing')
+export const defaultTwoPhotoPreset: LayoutPresetDefinition = twoPhotoDefault
+export const defaultThreePhotoPreset: LayoutPresetDefinition = threePhotoDefault
+
 export function instantiateDefaultLayout(presetId: string): {
   layout: LayoutSnapshotV1
   slots: PageV1['slots']
@@ -76,7 +90,7 @@ export function instantiateDefaultLayout(presetId: string): {
 
 export function createPage(
   name = 'Page 1',
-  preset: string | LayoutPresetDefinition = 'layout-3-001',
+  preset: string | LayoutPresetDefinition = defaultThreePhotoPreset,
 ): PageV1 {
   const instance =
     typeof preset === 'string' ? instantiateDefaultLayout(preset) : instantiatePreset(preset)

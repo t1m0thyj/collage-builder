@@ -1,6 +1,11 @@
 import { derived, get, readonly, writable, type Readable, type Writable } from 'svelte/store'
 import { assertDocumentInvariants } from '../domain/invariants'
-import { createPage, defaultPlacement, instantiatePreset } from '../domain/factories'
+import {
+  createPage,
+  defaultPlacement,
+  defaultTwoPhotoPreset,
+  instantiatePreset,
+} from '../domain/factories'
 import { resolveLayout } from '../domain/geometry'
 import type {
   AssetRecordV1,
@@ -311,7 +316,7 @@ export class ProjectStore {
       const source = sourcePageId
         ? this.findPage(draft, sourcePageId)
         : draft.pages[draft.pages.length - 1]
-      const page = createPage(`Page ${draft.pages.length + 1}`, 'layout-2-001')
+      const page = createPage(`Page ${draft.pages.length + 1}`, defaultTwoPhotoPreset)
       page.width = source.width
       page.height = source.height
       page.style = clone(source.style)

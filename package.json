@@ -23,6 +23,7 @@
     "test:e2e": "playwright test",
     "test:offline": "vite build --base=/offline-test/ && playwright test tests/e2e/offline.spec.ts --config=playwright.offline.config.ts --project=chromium --workers=1",
     "test:benchmark": "playwright test tests/e2e/benchmark.spec.ts --project=chromium --workers=1",
+    "generate:layouts": "node scripts/generate-layout-presets.ts",
     "verify": "npm run format && npm run verify:code",
     "verify:code": "npm run check && npm run lint && npm test && npm run build",
     "lint": "eslint .",

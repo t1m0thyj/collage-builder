@@ -98,21 +98,44 @@ function sourceAtDivider(
   gap: number,
   selectedSlotId: SlotId | null,
   pointerPerpendicularCoordinate: number,
-): { frame: ResolvedFrame; edge: FrameEdge } | undefined {
+): { frame: ResolvedFrame; edge: FrameEdge; isSelected: boolean } | undefined {
   const selected = selectedSlotId
     ? frames.find((frame) => frame.slotId === selectedSlotId)
     : undefined
   const center = dividerCenter(divider)
   if (selected) {
     if (Math.abs(frameMax(selected, divider.axis) - (center - gap / 2)) < 1)
-      return { frame: selected, edge: 'max' }
+      return { frame: selected, edge: 'max', isSelected: true }
     if (Math.abs(frameMin(selected, divider.axis) - (center + gap / 2)) < 1)
-      return { frame: selected, edge: 'min' }
+      return { frame: selected, edge: 'min', isSelected: true }
   }
   const leading = frameAtDividerSide(frames, divider, gap, 'max', pointerPerpendicularCoordinate)
-  if (leading) return { frame: leading, edge: 'max' }
+  if (leading) return { frame: leading, edge: 'max', isSelected: false }
   const trailing = frameAtDividerSide(frames, divider, gap, 'min', pointerPerpendicularCoordinate)
-  return trailing ? { frame: trailing, edge: 'min' } : undefined
+  return trailing ? { frame: trailing, edge: 'min', isSelected: false } : undefined
+}
+
+function targetIsReachable(page: PageV1, divider: ResolvedDivider, target: DividerSnapTarget) {
+  const next = applyDividerChange(
+    page,
+    dividerChangeForCoordinate(page, divider, target.coordinate),
+  )
+  const frames = resolveLayout(next)
+  const source = frames.find((frame) => frame.slotId === target.sourceSlotId)
+  const adjacent = frames.find((frame) => frame.slotId === target.targetSlotId)
+  if (!source || !adjacent) return false
+  if (target.kind === 'equal-size') {
+    const sourceSize = divider.axis === 'x' ? source.width : source.height
+    const adjacentSize = divider.axis === 'x' ? adjacent.width : adjacent.height
+    return Math.abs(sourceSize - adjacentSize) < 0.01
+  }
+  const sourceCoordinate =
+    target.sourceEdge === 'min' ? frameMin(source, divider.axis) : frameMax(source, divider.axis)
+  const targetCoordinate =
+    target.targetEdge === 'min'
+      ? frameMin(adjacent, divider.axis)
+      : frameMax(adjacent, divider.axis)
+  return Math.abs(sourceCoordinate - targetCoordinate) < 0.01
 }
 
 function oppositeFrames(
@@ -190,32 +213,34 @@ export function findDividerSnapTargets(
     }
   }
 
-  for (const adjacent of oppositeFrames(
-    frames,
-    divider,
-    source.frame,
-    source.edge,
-    page.style.gap,
-  )) {
-    const coordinate =
-      source.edge === 'max'
-        ? (frameMin(source.frame, divider.axis) + frameMax(adjacent, divider.axis)) / 2
-        : (frameMin(adjacent, divider.axis) + frameMax(source.frame, divider.axis)) / 2
-    targets.push({
-      id: `equal:${source.frame.slotId}:${adjacent.slotId}`,
-      kind: 'equal-size',
-      coordinate,
-      sourceSlotId: source.frame.slotId,
-      targetSlotId: adjacent.slotId,
-      sourceEdge: source.edge,
-      targetEdge: source.edge === 'max' ? 'min' : 'max',
-      label: divider.axis === 'x' ? 'Equal width' : 'Equal height',
-    })
+  if (source.isSelected) {
+    for (const adjacent of oppositeFrames(
+      frames,
+      divider,
+      source.frame,
+      source.edge,
+      page.style.gap,
+    )) {
+      const coordinate =
+        source.edge === 'max'
+          ? (frameMin(source.frame, divider.axis) + frameMax(adjacent, divider.axis)) / 2
+          : (frameMin(adjacent, divider.axis) + frameMax(source.frame, divider.axis)) / 2
+      targets.push({
+        id: `equal:${source.frame.slotId}:${adjacent.slotId}`,
+        kind: 'equal-size',
+        coordinate,
+        sourceSlotId: source.frame.slotId,
+        targetSlotId: adjacent.slotId,
+        sourceEdge: source.edge,
+        targetEdge: source.edge === 'max' ? 'min' : 'max',
+        label: divider.axis === 'x' ? 'Equal width' : 'Equal height',
+      })
+    }
   }
 
-  return targets.filter(
-    (target, index) => targets.findIndex(({ id }) => id === target.id) === index,
-  )
+  return targets
+    .filter((target, index) => targets.findIndex(({ id }) => id === target.id) === index)
+    .filter((target) => targetIsReachable(page, divider, target))
 }
 
 export function dividerChangeForCoordinate(

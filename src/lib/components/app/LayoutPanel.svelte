@@ -1,6 +1,11 @@
 <script lang="ts">
   import type { LayoutPresetDefinition, PageV1 } from '../../domain/types'
-  import { loadLayouts, layoutFrameCounts, preloadOptionalLayouts } from '../../layouts/loader'
+  import {
+    loadLayouts,
+    layoutFrameCounts,
+    layoutGroupForFrameCount,
+    preloadOptionalLayouts,
+  } from '../../layouts/loader'
   import { layoutShapeSummary } from '../../layouts/displayName'
   import { previewFrames, previewFrameStyle } from '../../layouts/preview'
 
@@ -8,7 +13,7 @@
   export let onselect: (preset: LayoutPresetDefinition) => void
   export let onerror: (message: string) => void
 
-  let expandedFrameCount = Math.min(Object.keys(page.slots).length, 11)
+  let expandedFrameCount = layoutGroupForFrameCount(Object.keys(page.slots).length)
   let syncedPageId = ''
   let presets: LayoutPresetDefinition[] = []
   let loading = false
@@ -54,10 +59,10 @@
   function syncPageGroup(pageId: string, frameCount: number) {
     if (pageId === syncedPageId) return
     syncedPageId = pageId
-    void selectGroup(frameCount)
+    void selectGroup(layoutGroupForFrameCount(frameCount))
   }
 
-  $: syncPageGroup(page.id, Math.min(Object.keys(page.slots).length, 11))
+  $: syncPageGroup(page.id, Object.keys(page.slots).length)
 </script>
 
 <div class="panel-body layout-panel">
@@ -75,6 +80,7 @@
         onpointerenter={preloadOptionalLayouts}
         onfocus={preloadOptionalLayouts}
         onkeydown={(event) => handleCountKeydown(event, index)}
+        aria-label={frameCount === 11 ? '11 or more photos' : undefined}
         onclick={() => selectGroup(frameCount)}>{frameCount === 11 ? '11+' : frameCount}</button
       >
     {/each}
@@ -90,6 +96,9 @@
       <p class="loading-note" role="status">Loading layouts…</p>
     {:else}
       {#each presets as preset, index (preset.id)}
+        {#if expandedFrameCount === 11 && (index === 0 || presets[index - 1].frameCount !== preset.frameCount)}
+          <p class="layout-count-heading">{preset.frameCount} photos</p>
+        {/if}
         {@const frames = previewFrames(preset, 80, 80)}
         {@const summary = layoutShapeSummary(preset)}
         <button

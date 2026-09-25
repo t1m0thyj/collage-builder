@@ -10,41 +10,40 @@ function loadOptionalLayouts() {
   return optionalLayouts
 }
 
-const loaders: Record<number, () => Promise<LayoutPresetDefinition[]>> = {
-  // These are required to create the initial page, so pretending they are lazy only
-  // adds an extra request before the editor can become useful.
-  2: async () => layout2Presets,
-  3: async () => layout3Presets,
-  4: () => loadOptionalLayouts().then((layouts) => layouts[4]),
-  5: () => loadOptionalLayouts().then((layouts) => layouts[5]),
-  6: () => loadOptionalLayouts().then((layouts) => layouts[6]),
-  7: () => loadOptionalLayouts().then((layouts) => layouts[7]),
-  8: () => loadOptionalLayouts().then((layouts) => layouts[8]),
-  9: () => loadOptionalLayouts().then((layouts) => layouts[9]),
-  10: () => loadOptionalLayouts().then((layouts) => layouts[10]),
-  11: () => loadOptionalLayouts().then((layouts) => layouts[11]),
-}
-
 const cache = new Map<number, Promise<LayoutPresetDefinition[]>>()
 
-export const layoutFrameCounts = Object.freeze(Object.keys(loaders).map(Number))
+export const layoutFrameCounts = Object.freeze(Array.from({ length: 10 }, (_, index) => index + 2))
+
+export function layoutGroupForFrameCount(frameCount: number): number {
+  return frameCount >= 11 ? 11 : frameCount
+}
 
 export function preloadOptionalLayouts(): void {
   void loadOptionalLayouts()
 }
 
 export function loadLayouts(frameCount: number): Promise<LayoutPresetDefinition[]> {
-  const loader = loaders[frameCount]
-  if (!loader) return Promise.reject(new Error(`Unsupported layout frame count: ${frameCount}`))
-  let pending = cache.get(frameCount)
+  const group = layoutGroupForFrameCount(frameCount)
+  const counts = group === 11 ? [11, 12, 13, 14, 15, 16] : [group]
+  if (counts.some((count) => count < 2 || count > 16))
+    return Promise.reject(new Error(`Unsupported layout frame count: ${frameCount}`))
+  let pending = cache.get(group)
   if (!pending) {
-    pending = loader().then((presets) => {
+    pending = (
+      group === 2
+        ? Promise.resolve(layout2Presets)
+        : group === 3
+          ? Promise.resolve(layout3Presets)
+          : loadOptionalLayouts().then((layouts) => counts.flatMap((count) => layouts[count]))
+    ).then((presets) => {
       presets.forEach(validatePreset)
       if (new Set(presets.map((preset) => preset.id)).size !== presets.length)
-        throw new Error(`Layout preset IDs for ${frameCount} frames must be unique`)
+        throw new Error(
+          `Layout preset IDs for the ${group === 11 ? '11+' : group} group must be unique`,
+        )
       return presets
     })
-    cache.set(frameCount, pending)
+    cache.set(group, pending)
   }
   return pending
 }

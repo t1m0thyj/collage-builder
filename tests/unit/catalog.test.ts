@@ -5,7 +5,7 @@ import { validatePreset } from '../../src/lib/layouts/validatePreset'
 describe('layout catalog', () => {
   it('groups definitions by their derived frame count', () => {
     expect(presetsForFrameCount(3)).toHaveLength(6)
-    expect(layoutCatalog).toHaveLength(211)
+    expect(layoutCatalog).toHaveLength(240)
   })
 
   it('rejects a declared frame count that does not match leaves', () => {

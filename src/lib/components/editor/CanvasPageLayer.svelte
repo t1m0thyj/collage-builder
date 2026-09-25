@@ -16,7 +16,11 @@
   type PositionEvent = { target: { x(): number; y(): number } }
   type DividerPointerEvent = {
     evt?: { altKey?: boolean; shiftKey?: boolean }
-    target: { getStage(): { getPointerPosition(): { x: number; y: number } | null } | null }
+    target: {
+      x(): number
+      y(): number
+      getStage(): { getPointerPosition(): { x: number; y: number } | null } | null
+    }
   }
 
   export let viewportWidth: number
@@ -72,6 +76,8 @@
     cursor: string,
   ) => void
   export let beginDividerDrag: (event: DividerPointerEvent, divider: Divider) => void
+  export let prepareDividerDrag: (event: DividerPointerEvent, divider: Divider) => void
+  export let cancelPreparedDividerDrag: () => void
   export let previewDividerDrag: (event: DividerPointerEvent) => void
   export let commitDividerDrag: (event: DividerPointerEvent, divider: Divider) => void
 
@@ -380,6 +386,9 @@
         fill="rgba(49,92,156,0.01)"
         listening={!cropSlotId}
         draggable={!cropSlotId}
+        onpointerdown={(event) => prepareDividerDrag(event, divider)}
+        onpointerup={cancelPreparedDividerDrag}
+        onpointercancel={cancelPreparedDividerDrag}
         onpointerenter={(event) => {
           hoveredDividerKey = key
           setCursor(event, divider.axis === 'x' ? 'col-resize' : 'row-resize')
