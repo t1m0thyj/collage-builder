@@ -3,11 +3,26 @@
   import { Stage } from 'svelte-konva'
   import type { SceneContext } from 'konva/lib/Context'
   import { panPlacement, resolveCoverPlacement, zoomPlacement } from '../../domain/crop'
+  import {
+    applyDividerChange,
+    dividerCenter,
+    dividerChangeForCoordinate,
+    dividerKey,
+    findDividerSnapTargets,
+    type DividerChange,
+    type DividerSnapTarget,
+  } from '../../domain/dividerSnapping'
   import { resolveDividers } from '../../domain/geometry'
   import { createPageRenderModel } from '../../render/pageRenderer'
   import type { AssetId, AssetRecordV1, PageV1, SlotContentV1, SlotId } from '../../domain/types'
   import CropOverlay from './CropOverlay.svelte'
   import CanvasPageLayer from './CanvasPageLayer.svelte'
+
+  type Divider = ReturnType<typeof resolveDividers>[number]
+  type DividerPointerEvent = {
+    evt?: { altKey?: boolean; shiftKey?: boolean }
+    target: { getStage(): { getPointerPosition(): { x: number; y: number } | null } | null }
+  }
 
   export let page: PageV1
   export let selectedSlotId: SlotId | null = null
@@ -52,6 +67,15 @@
     dimension: number
     placement: SlotContentV1['placement']
     dimensions: ReturnType<typeof resolveCoverPlacement>
+  } | null = null
+  let dividerDrag: {
+    divider: Divider
+    startPointerCoordinate: number
+    startCoordinate: number
+    targets: DividerSnapTarget[]
+    change: DividerChange
+    previewPage: PageV1
+    snapTarget: DividerSnapTarget | null
   } | null = null
 
   function commitPan(
@@ -219,33 +243,88 @@
     )
   }
 
-  function commitDivider(
-    event: { target: { x(): number; y(): number } },
-    divider: (typeof dividers)[number],
-  ) {
-    const coordinate =
-      divider.axis === 'x'
-        ? event.target.x() + divider.width / 2
-        : event.target.y() + divider.height / 2
-    const linked = linkedDividers(divider)
-    ondividerchange(
-      linked.map((candidate) => ({
-        path: candidate.path,
-        index: candidate.index,
-        position: Math.min(
-          0.95,
-          Math.max(
-            0.05,
-            (coordinate - (candidate.axis === 'x' ? candidate.parentX : candidate.parentY)) /
-              (candidate.axis === 'x' ? candidate.parentWidth : candidate.parentHeight),
-          ),
-        ),
-      })),
-    )
+  function documentPointer(event: DividerPointerEvent) {
+    const pointer = event.target.getStage()?.getPointerPosition()
+    if (!pointer) return undefined
+    return {
+      x: (pointer.x - stageX) / fitScale,
+      y: (pointer.y - stageY) / fitScale,
+    }
   }
 
-  function dividerKey(divider: (typeof dividers)[number]) {
-    return `${divider.path.join('.')}-${divider.index}`
+  function beginDividerDrag(event: DividerPointerEvent, divider: Divider) {
+    const pointer = documentPointer(event)
+    if (!pointer) return
+    const startCoordinate = dividerCenter(divider)
+    const pointerCoordinate = divider.axis === 'x' ? pointer.x : pointer.y
+    const pointerPerpendicularCoordinate = divider.axis === 'x' ? pointer.y : pointer.x
+    dividerDrag = {
+      divider: structuredClone(divider),
+      startPointerCoordinate: pointerCoordinate,
+      startCoordinate,
+      targets: findDividerSnapTargets(
+        page,
+        divider,
+        selectedSlotId,
+        pointerPerpendicularCoordinate,
+      ),
+      change: dividerChangeForCoordinate(page, divider, startCoordinate),
+      previewPage: page,
+      snapTarget: null,
+    }
+  }
+
+  function previewDividerDrag(event: DividerPointerEvent) {
+    if (!dividerDrag) return
+    const pointer = documentPointer(event)
+    if (!pointer) return
+    const pointerCoordinate = dividerDrag.divider.axis === 'x' ? pointer.x : pointer.y
+    const rawCoordinate =
+      dividerDrag.startCoordinate + pointerCoordinate - dividerDrag.startPointerCoordinate
+    const allowEqualSize = Boolean(event.evt?.shiftKey)
+    const allowSnap = !event.evt?.altKey
+    const availableTargets = allowSnap
+      ? dividerDrag.targets.filter((target) => target.kind === 'edge' || allowEqualSize)
+      : []
+    const retainedTarget = dividerDrag.snapTarget
+      ? availableTargets.find((target) => target.id === dividerDrag?.snapTarget?.id)
+      : undefined
+    const retainedDistance = retainedTarget
+      ? Math.abs(retainedTarget.coordinate - rawCoordinate) * fitScale
+      : Number.POSITIVE_INFINITY
+    const nearbyTargets = availableTargets
+      .filter((target) => Math.abs(target.coordinate - rawCoordinate) * fitScale <= 4)
+      .sort((left, right) => {
+        const distance =
+          Math.abs(left.coordinate - rawCoordinate) - Math.abs(right.coordinate - rawCoordinate)
+        if (Math.abs(distance) > 0.001) return distance
+        if (allowEqualSize && left.kind !== right.kind) return left.kind === 'equal-size' ? -1 : 1
+        return left.id.localeCompare(right.id)
+      })
+    const snapTarget = retainedDistance <= 8 ? retainedTarget! : (nearbyTargets[0] ?? null)
+    const effectiveCoordinate = snapTarget?.coordinate ?? rawCoordinate
+    const change = dividerChangeForCoordinate(page, dividerDrag.divider, effectiveCoordinate)
+    dividerDrag = {
+      ...dividerDrag,
+      change,
+      previewPage: applyDividerChange(page, change),
+      snapTarget,
+    }
+    if (snapTarget?.id !== retainedTarget?.id && snapTarget)
+      onannounce(
+        snapTarget.kind === 'equal-size'
+          ? `${snapTarget.label}.`
+          : 'Aligned with an adjacent frame edge.',
+      )
+  }
+
+  function commitDividerDrag(event: DividerPointerEvent, divider: Divider) {
+    previewDividerDrag(event)
+    const drag = dividerDrag
+    if (!drag || dividerKey(drag.divider) !== dividerKey(divider)) return
+    const initial = dividerChangeForCoordinate(page, drag.divider, drag.startCoordinate)
+    if (Math.abs(drag.change.position - initial.position) > 0.000001) ondividerchange([drag.change])
+    dividerDrag = null
   }
 
   function dividerPercent(divider: (typeof dividers)[number]) {
@@ -263,13 +342,7 @@
 
   function setDividerPercent(divider: (typeof dividers)[number], percent: number) {
     const position = Math.min(95, Math.max(5, percent))
-    ondividerchange(
-      linkedDividers(divider).map((candidate) => ({
-        path: candidate.path,
-        index: candidate.index,
-        position: position / 100,
-      })),
-    )
+    ondividerchange([{ path: divider.path, index: divider.index, position: position / 100 }])
     onannounce(`${dividerName(divider)} set to ${position} percent.`)
   }
 
@@ -318,22 +391,6 @@
     event.stopPropagation()
   }
 
-  function linkedDividers(divider: (typeof dividers)[number]) {
-    const center = (candidate: typeof divider) =>
-      candidate.axis === 'x'
-        ? candidate.x + candidate.width / 2
-        : candidate.y + candidate.height / 2
-    const axisLength = (candidate: typeof divider) =>
-      candidate.axis === 'x' ? candidate.parentWidth : candidate.parentHeight
-    return dividers.filter(
-      (candidate) =>
-        candidate.axis === divider.axis &&
-        (Math.abs(center(candidate) - center(divider)) < 1 ||
-          (candidate.index === divider.index &&
-            candidate.path.length === divider.path.length &&
-            Math.abs(axisLength(candidate) - axisLength(divider)) < 1)),
-    )
-  }
   function setCursor(
     event: { target: { getStage(): { container(): HTMLDivElement } | null } },
     cursor: string,
@@ -415,19 +472,13 @@
     if (target) onframeswap(sourceSlotId, target)
   }
 
-  $: model = createPageRenderModel(page)
-  $: dividers = resolveDividers(page)
+  $: canvasPage = dividerDrag?.previewPage ?? page
+  $: model = createPageRenderModel(canvasPage)
+  $: dividers = resolveDividers(canvasPage)
   $: displayDividers = [...dividers].sort((left, right) =>
     left.axis === right.axis ? 0 : left.axis === 'x' ? 1 : -1,
   )
-  $: keyboardDividers = dividers.filter(
-    (divider, index) =>
-      !dividers
-        .slice(0, index)
-        .some((candidate) =>
-          linkedDividers(divider).some((linked) => dividerKey(linked) === dividerKey(candidate)),
-        ),
-  )
+  $: keyboardDividers = dividers
   $: cropFrame = cropSlotId ? model.frames.find((frame) => frame.slotId === cropSlotId) : undefined
   $: cropContent = cropFrame ? page.slots[cropFrame.slotId] : null
   $: cropAsset = cropContent ? assets[cropContent.assetId] : undefined
@@ -464,6 +515,14 @@
     resizeObserver.observe(host)
     resize()
     const cancelDrag = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && dividerDrag) {
+        dividerDrag = null
+        activeDividerKey = null
+        hoveredDividerKey = null
+        onannounce('Divider resize cancelled.')
+        event.preventDefault()
+        return
+      }
       if (event.key === 'Escape' && dragSourceSlotId) {
         frameDragCancelled = true
         dragSourceSlotId = null
@@ -488,6 +547,8 @@
   data-stage-y={stageY}
   data-fit-scale={fitScale}
   data-image-revision={imageRevision}
+  data-divider-dragging={dividerDrag ? 'true' : undefined}
+  data-snap-target={dividerDrag?.snapTarget?.kind}
   data-frame-hitboxes={JSON.stringify(
     model.frames.map(({ x, y, width, height }) => ({ x, y, width, height })),
   )}
@@ -519,7 +580,7 @@
       {stageX}
       {stageY}
       {fitScale}
-      {page}
+      page={canvasPage}
       {model}
       {assets}
       {imageRevision}
@@ -543,9 +604,14 @@
       {previewFrameDrag}
       {endFrameDrag}
       {dividerKey}
-      {linkedDividers}
       {setCursor}
-      {commitDivider}
+      snapTarget={dividerDrag?.snapTarget ?? null}
+      equalSizeAvailable={Boolean(
+        dividerDrag?.targets.some((target) => target.kind === 'equal-size'),
+      )}
+      {beginDividerDrag}
+      {previewDividerDrag}
+      {commitDividerDrag}
     ></CanvasPageLayer>
     {#if cropFrame && cropContent && cropImage && cropPlacement}
       <CropOverlay

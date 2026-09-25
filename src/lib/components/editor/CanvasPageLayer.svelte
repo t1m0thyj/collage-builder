@@ -2,6 +2,7 @@
   import { Circle, Group, Image, Layer, Line, Rect, Text } from 'svelte-konva'
   import type { SceneContext } from 'konva/lib/Context'
   import { resolveCoverPlacement } from '../../domain/crop'
+  import { dividerCenter, type DividerSnapTarget } from '../../domain/dividerSnapping'
   import { resolveDividers } from '../../domain/geometry'
   import { createPageRenderModel } from '../../render/pageRenderer'
   import type { AssetId, AssetRecordV1, PageV1, SlotContentV1, SlotId } from '../../domain/types'
@@ -13,6 +14,10 @@
     target: { getStage(): { getPointerPosition(): { x: number; y: number } | null } | null }
   }
   type PositionEvent = { target: { x(): number; y(): number } }
+  type DividerPointerEvent = {
+    evt?: { altKey?: boolean; shiftKey?: boolean }
+    target: { getStage(): { getPointerPosition(): { x: number; y: number } | null } | null }
+  }
 
   export let viewportWidth: number
   export let viewportHeight: number
@@ -31,6 +36,8 @@
   export let dividers: Divider[]
   export let hoveredDividerKey: string | null
   export let activeDividerKey: string | null
+  export let snapTarget: DividerSnapTarget | null
+  export let equalSizeAvailable: boolean
   export let getImage: (assetId: AssetId, revision?: number) => HTMLImageElement | undefined
   export let onexitcrop: () => void
   export let onselect: (slotId: SlotId) => void
@@ -60,12 +67,47 @@
   export let previewFrameDrag: (event: StagePointerEvent, sourceSlotId: SlotId) => void
   export let endFrameDrag: (event: StagePointerEvent, sourceSlotId: SlotId) => void
   export let dividerKey: (divider: Divider) => string
-  export let linkedDividers: (divider: Divider) => Divider[]
   export let setCursor: (
     event: { target: { getStage(): { container(): HTMLDivElement } | null } },
     cursor: string,
   ) => void
-  export let commitDivider: (event: PositionEvent, divider: Divider) => void
+  export let beginDividerDrag: (event: DividerPointerEvent, divider: Divider) => void
+  export let previewDividerDrag: (event: DividerPointerEvent) => void
+  export let commitDividerDrag: (event: DividerPointerEvent, divider: Divider) => void
+
+  function frameEdge(frame: Frame, axis: Divider['axis'], edge: DividerSnapTarget['sourceEdge']) {
+    if (axis === 'x') return edge === 'min' ? frame.x : frame.x + frame.width
+    return edge === 'min' ? frame.y : frame.y + frame.height
+  }
+
+  function edgeLinePoints(
+    frame: Frame,
+    axis: Divider['axis'],
+    edge: DividerSnapTarget['sourceEdge'],
+  ) {
+    const coordinate = frameEdge(frame, axis, edge)
+    return axis === 'x'
+      ? [coordinate, frame.y, coordinate, frame.y + frame.height]
+      : [frame.x, coordinate, frame.x + frame.width, coordinate]
+  }
+
+  function bridgeLinePoints(
+    source: Frame,
+    target: Frame,
+    axis: Divider['axis'],
+    coordinate: number,
+  ) {
+    if (axis === 'x') {
+      const start =
+        source.y + source.height <= target.y ? source.y + source.height : target.y + target.height
+      const end = source.y + source.height <= target.y ? target.y : source.y
+      return [coordinate, start, coordinate, end]
+    }
+    const start =
+      source.x + source.width <= target.x ? source.x + source.width : target.x + target.width
+    const end = source.x + source.width <= target.x ? target.x : source.x
+    return [start, coordinate, end, coordinate]
+  }
 </script>
 
 <Layer>
@@ -228,15 +270,108 @@
         {/if}
       </Group>
     {/each}
+    {@const snapSource = snapTarget
+      ? model.frames.find((frame) => frame.slotId === snapTarget?.sourceSlotId)
+      : undefined}
+    {@const snapDestination = snapTarget
+      ? model.frames.find((frame) => frame.slotId === snapTarget?.targetSlotId)
+      : undefined}
+    {@const draggedDivider = activeDividerKey
+      ? dividers.find((divider) => dividerKey(divider) === activeDividerKey)
+      : undefined}
+    {#if snapTarget && snapSource && snapDestination && draggedDivider}
+      {#if snapTarget.kind === 'edge'}
+        {@const sourceCoordinate = frameEdge(
+          snapSource,
+          draggedDivider.axis,
+          snapTarget.sourceEdge,
+        )}
+        <Line
+          points={edgeLinePoints(snapSource, draggedDivider.axis, snapTarget.sourceEdge)}
+          stroke="#61A16A"
+          strokeWidth={4}
+          listening={false}
+        />
+        <Line
+          points={edgeLinePoints(snapDestination, draggedDivider.axis, snapTarget.targetEdge)}
+          stroke="#61A16A"
+          strokeWidth={4}
+          listening={false}
+        />
+        <Line
+          points={bridgeLinePoints(
+            snapSource,
+            snapDestination,
+            draggedDivider.axis,
+            sourceCoordinate,
+          )}
+          stroke="#61A16A"
+          strokeWidth={4}
+          dash={[7, 5]}
+          listening={false}
+        />
+        <Text
+          x={draggedDivider.axis === 'x'
+            ? sourceCoordinate + 10
+            : Math.min(snapSource.x, snapDestination.x)}
+          y={draggedDivider.axis === 'x'
+            ? Math.min(snapSource.y, snapDestination.y) + 12
+            : sourceCoordinate - 29}
+          text={snapTarget.label}
+          fill="#315C9C"
+          fontStyle="bold"
+          fontSize={15}
+          listening={false}
+        />
+      {:else}
+        <Line
+          points={draggedDivider.axis === 'x'
+            ? [
+                dividerCenter(draggedDivider),
+                draggedDivider.y,
+                dividerCenter(draggedDivider),
+                draggedDivider.y + draggedDivider.height,
+              ]
+            : [
+                draggedDivider.x,
+                dividerCenter(draggedDivider),
+                draggedDivider.x + draggedDivider.width,
+                dividerCenter(draggedDivider),
+              ]}
+          stroke="#61A16A"
+          strokeWidth={4}
+          dash={[7, 5]}
+          listening={false}
+        />
+        <Text
+          x={draggedDivider.axis === 'x'
+            ? dividerCenter(draggedDivider) + 10
+            : draggedDivider.x + 12}
+          y={draggedDivider.axis === 'x'
+            ? draggedDivider.y + 12
+            : dividerCenter(draggedDivider) - 29}
+          text={snapTarget.label}
+          fill="#315C9C"
+          fontStyle="bold"
+          fontSize={15}
+          listening={false}
+        />
+      {/if}
+    {/if}
+    {#if equalSizeAvailable && !snapTarget && draggedDivider}
+      <Text
+        x={draggedDivider.axis === 'x' ? dividerCenter(draggedDivider) + 10 : draggedDivider.x + 12}
+        y={draggedDivider.axis === 'x' ? draggedDivider.y + 12 : dividerCenter(draggedDivider) - 29}
+        text="Hold Shift to equalize"
+        fill="#315C9C"
+        opacity={0.8}
+        fontSize={14}
+        listening={false}
+      />
+    {/if}
     {#each displayDividers as divider (dividerKey(divider))}
       {@const key = dividerKey(divider)}
-      {@const activeKey = activeDividerKey ?? hoveredDividerKey}
-      {@const activeDivider = activeKey
-        ? dividers.find((candidate) => dividerKey(candidate) === activeKey)
-        : undefined}
-      {@const linked = activeDivider ? linkedDividers(activeDivider) : []}
-      {@const active = linked.some((candidate) => dividerKey(candidate) === key)}
-      {@const lead = linked[0]}
+      {@const active = (activeDividerKey ?? hoveredDividerKey) === key}
       <Rect
         x={divider.x}
         y={divider.y}
@@ -256,29 +391,21 @@
         ondragstart={(event) => {
           activeDividerKey = key
           hoveredDividerKey = key
+          beginDividerDrag(event, divider)
           setCursor(event, divider.axis === 'x' ? 'col-resize' : 'row-resize')
         }}
+        ondragmove={(event) => previewDividerDrag(event)}
         ondragend={(event) => {
-          commitDivider(event, divider)
+          commitDividerDrag(event, divider)
           activeDividerKey = null
           setCursor(event, 'default')
         }}
       />
-      {#if active && lead && key === dividerKey(lead)}<Rect
-          x={divider.axis === 'x'
-            ? divider.x + divider.width / 2 - 2
-            : Math.min(...linked.map((candidate) => candidate.x))}
-          y={divider.axis === 'x'
-            ? Math.min(...linked.map((candidate) => candidate.y))
-            : divider.y + divider.height / 2 - 2}
-          width={divider.axis === 'x'
-            ? 4
-            : Math.max(...linked.map((candidate) => candidate.x + candidate.width)) -
-              Math.min(...linked.map((candidate) => candidate.x))}
-          height={divider.axis === 'x'
-            ? Math.max(...linked.map((candidate) => candidate.y + candidate.height)) -
-              Math.min(...linked.map((candidate) => candidate.y))
-            : 4}
+      {#if active}<Rect
+          x={divider.axis === 'x' ? divider.x + divider.width / 2 - 2 : divider.x}
+          y={divider.axis === 'x' ? divider.y : divider.y + divider.height / 2 - 2}
+          width={divider.axis === 'x' ? 4 : divider.width}
+          height={divider.axis === 'x' ? divider.height : 4}
           fill="#315C9C"
           opacity={0.85}
           listening={false}
