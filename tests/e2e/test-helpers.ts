@@ -180,10 +180,14 @@ export async function importImage(
       buffer,
     })
   const summary = page.locator('.import-summary')
-  await expect(summary).toHaveClass(/import-complete/)
-  await expect(summary).toContainText(expectedSummary)
-  if (expectedSummary.startsWith('1 added'))
+  if (expectedSummary.startsWith('1 added')) {
+    await expect(page.locator('.toast')).toHaveText('1 photo added.')
+    await expect(summary).toHaveCount(0)
     await expect(page.getByText(name, { exact: true })).toBeAttached()
+  } else {
+    await expect(summary).toHaveClass(/import-has-errors/)
+    await expect(summary).toContainText(expectedSummary)
+  }
 }
 export async function encodedRaster(
   page: BrowserPage,

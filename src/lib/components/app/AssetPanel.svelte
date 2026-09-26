@@ -72,7 +72,6 @@
   <p class="eyebrow">Photo library</p>
   {#if importStatus}
     <section
-      class:import-complete={importStatus.phase === 'complete'}
       class:import-has-errors={importStatus.issues.length > 0}
       class="import-summary"
       aria-live="polite"
@@ -110,8 +109,6 @@
             {/each}
           </ul>
         </details>
-      {:else}
-        <span class="import-success">Ready to add to a frame.</span>
       {/if}
     </section>
   {/if}
@@ -217,8 +214,11 @@
       >{/if}
   {:else}
     <div class="empty-library">
-      <div class="image-icon" aria-hidden="true"><ImageIcon size={30}></ImageIcon></div>
-      <p>Add photos to use them across every page in this project.</p>
+      <div class="empty-library-icon" aria-hidden="true"><ImageIcon size={18}></ImageIcon></div>
+      <div class="empty-library-copy">
+        <strong>No photos yet</strong>
+        <p>Photos you add will be available on every page.</p>
+      </div>
     </div>
   {/if}
   <div class="image-panel-actions">

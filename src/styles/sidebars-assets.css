@@ -192,22 +192,35 @@ h2 {
   background: #6798ce;
 }
 .empty-library {
-  margin: 22px 0 16px;
-  padding: 18px 12px;
-  text-align: center;
-  background: #f6f5f1;
-  border: 1px dashed #d8d4cb;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  margin: 16px 0;
+  padding: 14px;
+  background: #f6f8fc;
+  border: 1px dashed #cbd7e7;
   border-radius: 10px;
 }
-.empty-library p {
-  margin: 9px 0 15px;
+.empty-library-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #e6eef9;
+  color: #587fb1;
+}
+.empty-library-copy strong {
+  display: block;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.empty-library-copy p {
+  margin: 4px 0 0;
   color: #716d64;
   font-size: 12px;
   line-height: 1.45;
-}
-.image-icon {
-  font-size: 30px;
-  color: #7896bb;
 }
 .import-summary {
   margin: 8px 0 2px;
@@ -217,10 +230,6 @@ h2 {
   background: #edf5ff;
   color: #354a64;
   font-size: 11px;
-}
-.import-summary.import-complete {
-  border-color: #b8d7be;
-  background: #f1f9f2;
 }
 .import-summary.import-has-errors {
   border-color: #e2c590;
@@ -271,8 +280,7 @@ h2 {
   list-style: none;
 }
 .import-summary li strong,
-.import-summary li span,
-.import-success {
+.import-summary li span {
   display: block;
 }
 .import-summary li strong {
@@ -280,8 +288,7 @@ h2 {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.import-summary li span,
-.import-success {
+.import-summary li span {
   margin-top: 2px;
   color: #68635c;
   line-height: 1.35;

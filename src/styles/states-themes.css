@@ -223,8 +223,11 @@
     border-color: #414141;
     background: #222222;
   }
+  .empty-library-icon {
+    background: #29394f;
+    color: #a9cdfc;
+  }
   .import-summary,
-  .import-summary.import-complete,
   .import-summary.import-has-errors {
     border-color: #49627e;
     background: #1d2b3c;
@@ -234,8 +237,7 @@
     border-color: #80683d;
     background: #332a1a;
   }
-  .import-summary li span,
-  .import-success {
+  .import-summary li span {
     color: #c2c2c2;
   }
   .layout-card:hover,
@@ -368,7 +370,7 @@
     color: #e0e0e0;
   }
   .upload-well span,
-  .empty-library p,
+  .empty-library-copy p,
   .crop-hint,
   .property-note p {
     color: #b5b5b5;

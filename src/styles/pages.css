@@ -19,8 +19,9 @@
 }
 .page-tab-viewport {
   display: flex;
-  flex: 1;
+  flex: 0 1 auto;
   align-items: flex-end;
+  width: max-content;
   min-width: 0;
   height: 40px;
   overflow-x: auto;
@@ -35,7 +36,7 @@
   margin-bottom: 3px;
 }
 .page-tab {
-  height: 32px;
+  height: 36px;
   min-width: 84px;
   max-width: 180px;
   padding: 0 12px;
@@ -50,7 +51,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   transition:
-    height 120ms ease,
     background-color 120ms ease,
     color 120ms ease;
 }
@@ -59,14 +59,12 @@
   color: #315c9c;
 }
 .page-tab.active {
-  height: 36px;
   border-color: #9aaccc;
   background: #fff;
   color: #315c9c;
   font-weight: 750;
   position: relative;
   z-index: 1;
-  margin-bottom: -1px;
   border-bottom: 1px solid #fff;
   box-shadow: 0 -2px 5px rgba(49, 92, 156, 0.08);
 }
@@ -263,7 +261,6 @@
   height: 36px;
   min-width: 28px;
   padding: 0;
-  margin-bottom: -1px;
   border: 1px solid #9aaccc;
   border-left: 0;
   border-bottom: 0;
@@ -307,6 +304,7 @@
 }
 .add-page {
   display: grid;
+  flex: 0 0 28px;
   place-items: center;
   width: 28px;
   height: 28px;

@@ -139,6 +139,7 @@
   let operationProgress: string | null = null
   let importStatus: ImportBatchStatus | null = null
   let toast = ''
+  let toastTimeout: number | undefined
   let projectTitle = document.title
 
   function confirmRelink(message: string): Promise<boolean> {
@@ -446,9 +447,11 @@
   )
 
   function announce(message: string) {
+    globalThis.clearTimeout(toastTimeout)
     toast = message
-    globalThis.setTimeout(() => {
-      if (toast === message) toast = ''
+    toastTimeout = globalThis.setTimeout(() => {
+      toast = ''
+      toastTimeout = undefined
     }, 3200)
   }
 

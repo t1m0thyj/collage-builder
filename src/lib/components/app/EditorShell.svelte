@@ -320,6 +320,9 @@
         </div>
       {/each}
     </div>
+    <button class="add-page" onclick={onaddpage} aria-label="Add page"
+      ><Plus size={16}></Plus></button
+    >
     {#if hasOverflow}
       <button
         class="icon-button page-scroll-button"
@@ -328,9 +331,6 @@
         onclick={() => scrollTabs(1)}><ChevronRight size={17}></ChevronRight></button
       >
     {/if}
-    <button class="add-page" onclick={onaddpage} aria-label="Add page"
-      ><Plus size={16}></Plus></button
-    >
     {#if previewPage}
       <div class="page-tab-preview visible" role="tooltip" style:left={`${previewLeft}px`}>
         <strong>{previewPage.name}</strong>

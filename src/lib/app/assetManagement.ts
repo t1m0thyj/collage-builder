@@ -586,8 +586,10 @@ export class AssetWorkflowController {
           },
         )
         if (isCurrent()) {
-          this.host.setImportStatus(result)
+          this.host.setImportStatus(result.issues.length ? result : null)
           if (result.importedAssetIds.length) this.host.setSelectedAssetIds(result.importedAssetIds)
+          if (!result.issues.length && result.added)
+            this.host.announce(`${result.added} photo${result.added === 1 ? '' : 's'} added.`)
         }
       } catch (error) {
         if (isCurrent())

@@ -14,6 +14,15 @@ import {
   collageMimeType,
 } from './test-helpers'
 
+test('successful photo imports show a brief toast instead of a sidebar summary', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await importImage(page, 'photo.png')
+  await expect(page.locator('.toast')).toHaveText('')
+  await expect(page.locator('.import-summary')).toHaveCount(0)
+})
+
 test('imports and removes an image from the project collection', async ({ page }) => {
   await page.goto('/')
   await page

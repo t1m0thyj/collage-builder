@@ -64,13 +64,42 @@ test('page tabs remain visible while they fit and gain scroll arrows when space 
     await page.getByRole('button', { name: 'Add page' }).click()
 
   const tabs = page.locator('.page-tab-viewport > .page-tab-with-actions > .page-tab')
+  const addPage = page.getByRole('button', { name: 'Add page' })
   await expect(tabs).toHaveText(['Page 1', 'Page 2', 'Page 3', 'Page 4', 'Page 5', 'Page 6'])
   await expect(page.getByRole('button', { name: 'Scroll tabs left' })).toHaveCount(0)
+  await expect
+    .poll(async () => {
+      const tabBounds = await tabs.evaluateAll((elements) =>
+        elements.map((element) => element.getBoundingClientRect().toJSON()),
+      )
+      const lastTab = await page
+        .locator('.page-tab-viewport > .page-tab-with-actions')
+        .last()
+        .boundingBox()
+      const addButton = await addPage.boundingBox()
+      return (
+        tabBounds.every((bounds) => bounds.y === tabBounds[0].y && bounds.height === 36) &&
+        lastTab !== null &&
+        addButton !== null &&
+        addButton.x >= lastTab.x + lastTab.width &&
+        addButton.x - (lastTab.x + lastTab.width) <= 8
+      )
+    })
+    .toBe(true)
 
   await page.setViewportSize({ width: 1000, height: 900 })
   await expect(page.getByRole('button', { name: 'Scroll tabs left' })).toBeVisible()
+  await expect(addPage).toBeVisible()
+  const rightArrow = page.getByRole('button', { name: 'Scroll tabs right' })
+  await expect
+    .poll(async () => {
+      const addButton = await addPage.boundingBox()
+      const arrow = await rightArrow.boundingBox()
+      return addButton !== null && arrow !== null && addButton.x + addButton.width <= arrow.x
+    })
+    .toBe(true)
   await expect(tabs).toHaveCount(6)
-  await expect(page.getByRole('button', { name: 'Scroll tabs right' })).toBeDisabled()
+  await expect(rightArrow).toBeDisabled()
   await page.setViewportSize({ width: 1800, height: 900 })
   await expect(page.getByRole('button', { name: 'Scroll tabs left' })).toHaveCount(0)
   await expect(tabs).toHaveCount(6)
