@@ -13,6 +13,7 @@
   export let selectedAssetIds: string[]
   export let missingAssetIds: Set<string>
   export let assetRegistry: AssetRegistry
+  export let imageRevision: number
   export let assetQuery: string
   export let assetSort: AssetSort
   export let assetFilter: AssetFilter
@@ -103,6 +104,7 @@
         bind:selectedAssetIds
         {missingAssetIds}
         {assetRegistry}
+        {imageRevision}
         bind:assetQuery
         bind:assetSort
         bind:assetFilter

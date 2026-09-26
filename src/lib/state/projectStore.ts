@@ -17,9 +17,11 @@ import type {
   SlotId,
 } from '../domain/types'
 import { createId } from '../utils/ids'
+import { maxProjectAssetCount } from '../persistence/limits'
 import { History } from './history'
 
 const clone = <T>(value: T): T => structuredClone(value)
+const maxNameLength = 200
 
 export interface ProjectVersion {
   generation: number
@@ -107,6 +109,8 @@ export class ProjectStore {
   renameProject(title: string): void {
     const normalized = title.trim()
     if (!normalized) throw new Error('Project title cannot be blank')
+    if (normalized.length > maxNameLength)
+      throw new Error('Project title must be 200 characters or fewer')
     if (normalized === get(this.state).title) return
     this.commit((draft) => {
       draft.title = normalized
@@ -191,6 +195,8 @@ export class ProjectStore {
   addAssets(assets: AssetRecordV1[]): void {
     if (!assets.length) return
     this.commit((draft) => {
+      if (Object.keys(draft.assets).length + assets.length > maxProjectAssetCount)
+        throw new Error(`Projects can contain no more than ${maxProjectAssetCount} photos`)
       const hashes = new Set(Object.values(draft.assets).map((candidate) => candidate.sha256))
       for (const asset of assets) {
         if (hashes.has(asset.sha256)) throw new Error('This exact image is already in the project')
@@ -330,7 +336,7 @@ export class ProjectStore {
       const source = this.findPage(draft, pageId)
       const duplicate = clone(source)
       duplicate.id = createId()
-      duplicate.name = `${source.name} copy`
+      duplicate.name = `${source.name.slice(0, maxNameLength - ' copy'.length)} copy`
       draft.pages.splice(draft.pages.indexOf(source) + 1, 0, duplicate)
     })
   }
@@ -350,8 +356,11 @@ export class ProjectStore {
   }
 
   renamePage(pageId: string, name: string): void {
+    const normalized = name.trim() || 'Untitled page'
+    if (normalized.length > maxNameLength)
+      throw new Error('Page name must be 200 characters or fewer')
     this.commit((draft) => {
-      this.findPage(draft, pageId).name = name.trim() || 'Untitled page'
+      this.findPage(draft, pageId).name = normalized
     })
   }
 

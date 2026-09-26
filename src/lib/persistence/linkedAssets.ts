@@ -88,7 +88,7 @@ export function createLinkedProject(
   document: CollageDocumentV1,
   matches: Map<string, LinkedAssetMatch>,
 ): Blob {
-  const savedDocument = linkedDocument(document, matches)
+  const savedDocument = migrateDocument(linkedDocument(document, matches))
   return new Blob([JSON.stringify(savedDocument, null, 2)], { type: linkedProjectMimeType })
 }
 

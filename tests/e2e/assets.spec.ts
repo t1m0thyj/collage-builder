@@ -11,8 +11,54 @@ import {
   twoColumnFrameCenters,
   assignSidebarImage,
   sampleStageColor,
+  sampleDownloadedPng,
+  exportCurrentPng,
   collageMimeType,
 } from './test-helpers'
+
+test('undoing photo removal restores its original bytes', async ({ page }) => {
+  await page.goto('/')
+  await chooseTwoColumnLayout(page)
+  await importImage(page, 'original.png', redPng)
+  await page.getByRole('button', { name: 'Actions for original.png' }).click()
+  await page.getByRole('menuitem', { name: 'Remove from project' }).click()
+  await expect(page.getByText('No photos yet')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Undo', exact: true }).click()
+
+  await expect(page.getByText('original.png', { exact: true })).toBeVisible()
+  await expect(page.locator('.asset-row')).not.toContainText('Missing')
+  await expect(page.locator('.asset-row img')).toHaveCount(1)
+  await assignSidebarImage(page, 'original.png', 1)
+  const [pixel] = await sampleDownloadedPng(page, await exportCurrentPng(page, 400), [
+    { x: 100, y: 150 },
+  ])
+  expect(pixel.slice(0, 3)).toEqual([238, 45, 54])
+})
+
+test('undoing original replacement restores the previous photo bytes', async ({ page }) => {
+  await page.goto('/')
+  await chooseTwoColumnLayout(page)
+  await importImage(page, 'original.png', redPng)
+  await page.getByRole('button', { name: 'Actions for original.png' }).click()
+  await page.getByRole('menuitem', { name: 'Replace original' }).click()
+  await page.locator('input[type="file"]').nth(1).setInputFiles({
+    name: 'replacement.png',
+    mimeType: 'image/png',
+    buffer: bluePng,
+  })
+  await expect(page.getByText('replacement.png', { exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Undo', exact: true }).click()
+
+  await expect(page.getByText('original.png', { exact: true })).toBeVisible()
+  await expect(page.locator('.asset-row')).not.toContainText('Missing')
+  await assignSidebarImage(page, 'original.png', 1)
+  const [pixel] = await sampleDownloadedPng(page, await exportCurrentPng(page, 400), [
+    { x: 100, y: 150 },
+  ])
+  expect(pixel.slice(0, 3)).toEqual([238, 45, 54])
+})
 
 test('successful photo imports show a brief toast instead of a sidebar summary', async ({
   page,

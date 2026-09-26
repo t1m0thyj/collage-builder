@@ -17,6 +17,20 @@ describe('project history', () => {
     expect(get(store.canUndo)).toBe(false)
   })
 
+  it('keeps project and page names within the format limit', () => {
+    const store = new ProjectStore(createProject())
+    const pageId = store.snapshot().pages[0].id
+
+    expect(() => store.renameProject('a'.repeat(201))).toThrow('200 characters')
+    expect(() => store.renamePage(pageId, 'b'.repeat(201))).toThrow('200 characters')
+    store.renameProject('a'.repeat(200))
+    store.renamePage(pageId, 'b'.repeat(200))
+    store.duplicatePage(pageId)
+
+    expect(store.snapshot().title).toHaveLength(200)
+    expect(store.snapshot().pages[1].name).toHaveLength(200)
+  })
+
   it('only marks the exact saved revision clean', () => {
     const store = new ProjectStore(createProject('Revision guard'))
     store.renameProject('First edit')

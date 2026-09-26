@@ -27,6 +27,22 @@ describe('decoded image cache', () => {
     expect(registry.decodedImageBytes).toBe(64 * 1024 * 1024)
   })
 
+  it('bounds decoded images on a crowded active page and falls back to thumbnails', () => {
+    const registry = new AssetRegistry()
+    const images = Reflect.get(registry, 'images') as Map<string, HTMLImageElement>
+    const thumbnails = Reflect.get(registry, 'thumbnailImages') as Map<string, HTMLImageElement>
+    for (let index = 0; index < 16; index += 1) {
+      const id = String(index)
+      images.set(id, { naturalWidth: 6000, naturalHeight: 4000 } as HTMLImageElement)
+      thumbnails.set(id, { naturalWidth: 256, naturalHeight: 171 } as HTMLImageElement)
+    }
+
+    registry.retainDecodedForPage(images.keys())
+
+    expect(registry.decodedImageBytes).toBeLessThanOrEqual(decodedImageBudgetForDevice())
+    expect(registry.getImage('0')).toBe(thumbnails.get('0'))
+  })
+
   it('reports each decoded image before the rest of the page finishes', async () => {
     const registry = new AssetRegistry()
     let finishFirst: (() => void) | undefined

@@ -21,6 +21,7 @@
   export let selectedAssetIds: string[]
   export let missingAssetIds: Set<string>
   export let assetRegistry: AssetRegistry
+  export let imageRevision: number
   export let assetQuery: string
   export let assetSort: 'import' | 'name' | 'size' | 'usage'
   export let assetFilter: 'all' | 'used' | 'unused' | 'missing'
@@ -173,9 +174,9 @@
             }`}
             ondragstart={(event) => onstartdrag(event, asset.id)}
             onclick={(event) => onselectasset(asset.id, event.ctrlKey || event.metaKey)}
-            >{#if assetRegistry.getThumbnailUrl(asset.id)}<img
+            >{#if assetRegistry.getThumbnailUrl(asset.id, imageRevision)}<img
                 class="asset-thumb"
-                src={assetRegistry.getThumbnailUrl(asset.id)}
+                src={assetRegistry.getThumbnailUrl(asset.id, imageRevision)}
                 alt=""
               />{:else}<span class="asset-thumb"><ImageIcon size={20}></ImageIcon></span>{/if}<span
               ><strong

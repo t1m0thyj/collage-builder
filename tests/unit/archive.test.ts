@@ -3,6 +3,7 @@ import { createProject } from '../../src/lib/domain/factories'
 import { createArchive, openArchive } from '../../src/lib/persistence/archive'
 import { createLinkedProject, openLinkedProject } from '../../src/lib/persistence/linkedAssets'
 import { zipSync, strToU8 } from 'fflate'
+import { createHash, randomUUID } from 'node:crypto'
 
 async function sha256(blob: Blob): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer())
@@ -16,6 +17,31 @@ describe('collage archive', () => {
     const opened = await openArchive(archive)
     expect(opened.document.title).toBe('Archive test')
     expect(opened.document.projectId).toBe(document.projectId)
+  })
+
+  it('reopens an archive with 499 distinct photos', async () => {
+    const document = createProject('Large collection')
+    const blobs = new Map<string, Blob>()
+    for (let index = 0; index < 499; index += 1) {
+      const id = randomUUID()
+      const bytes = new Uint8Array([index & 255, index >> 8])
+      blobs.set(id, new Blob([bytes], { type: 'image/png' }))
+      document.assets[id] = {
+        id,
+        originalName: `${index}.png`,
+        mediaType: 'image/png',
+        byteLength: bytes.length,
+        width: 1,
+        height: 1,
+        sha256: createHash('sha256').update(bytes).digest('hex'),
+        storage: { kind: 'embedded', archivePath: `assets/${id}` },
+      }
+    }
+
+    const archive = await createArchive(document, { get: (id) => blobs.get(id) })
+    const reopened = await openArchive(archive)
+    expect(reopened.assets.size).toBe(499)
+    expect(reopened.missingAssetIds).toEqual([])
   })
 
   it('keeps original HEIC bytes and media type in an embedded project', async () => {

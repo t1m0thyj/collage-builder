@@ -1,6 +1,6 @@
 import { validateImportedImage } from '../domain/importImage'
 import type { AssetRecordV1, CollageDocumentV1 } from '../domain/types'
-import { maxProjectBytes } from '../persistence/limits'
+import { maxProjectAssetCount, maxProjectBytes } from '../persistence/limits'
 import type { AssetRegistry } from '../render/assetRegistry'
 import type { ProjectStore } from '../state/projectStore'
 import type { ProjectPersistenceController } from './projectPersistence'
@@ -133,6 +133,8 @@ export async function importProjectAssets(
       if (!isCurrent()) break
       if (knownHashes.has(asset.sha256))
         throw new Error('This exact image is already in the project')
+      if (Object.keys(document.assets).length + staged.length >= maxProjectAssetCount)
+        throw new Error(`Projects can contain no more than ${maxProjectAssetCount} photos`)
       const registered = await registry.register(
         asset.id,
         normalizedFile,

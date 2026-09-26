@@ -24,6 +24,7 @@ export class AssetRegistry {
   private retainedBytes = 0
   private readonly retainedLimit = maxProjectBytes
   private readonly thumbnailEdge = 256
+  private readonly previewEdge = 2048
   // Thumbnails provide a quick canvas preview without keeping every full-size photo decoded.
   private readonly decodedThumbnailLimit = 128
   private readonly decodedImageBudget = decodedImageBudgetForDevice(
@@ -40,13 +41,13 @@ export class AssetRegistry {
     displayBlob?: Blob,
     isCurrent: () => boolean = () => true,
   ): Promise<boolean> {
-    const { renderableBlob, thumbnail } = await this.createRenderableThumbnail(
+    const { renderableBlob, preview, thumbnail } = await this.createRenderableThumbnail(
       blob,
       dimensions,
       displayBlob,
     )
     if (!isCurrent()) return false
-    const objectUrl = URL.createObjectURL(renderableBlob)
+    const objectUrl = URL.createObjectURL(preview)
     const thumbnailUrl = URL.createObjectURL(thumbnail)
     try {
       if (!isCurrent()) return false
@@ -73,19 +74,27 @@ export class AssetRegistry {
     blob: Blob,
     dimensions?: { width: number; height: number },
     displayBlob?: Blob,
-  ): Promise<{ renderableBlob: Blob; thumbnail: Blob }> {
+  ): Promise<{ renderableBlob: Blob; preview: Blob; thumbnail: Blob }> {
     const renderableBlob = displayBlob ?? blob
     try {
       return {
         renderableBlob,
-        thumbnail: await this.createThumbnail(renderableBlob, dimensions),
+        preview:
+          dimensions && Math.max(dimensions.width, dimensions.height) <= this.previewEdge
+            ? renderableBlob
+            : await this.createThumbnail(renderableBlob, dimensions, this.previewEdge),
+        thumbnail: await this.createThumbnail(renderableBlob, dimensions, this.thumbnailEdge),
       }
     } catch (error) {
       if (displayBlob || !isHeicBlob(blob)) throw error
       const fallbackBlob = await convertHeicForDisplay(blob, 'Stored HEIC/HEIF image')
       return {
         renderableBlob: fallbackBlob,
-        thumbnail: await this.createThumbnail(fallbackBlob, dimensions),
+        preview:
+          dimensions && Math.max(dimensions.width, dimensions.height) <= this.previewEdge
+            ? fallbackBlob
+            : await this.createThumbnail(fallbackBlob, dimensions, this.previewEdge),
+        thumbnail: await this.createThumbnail(fallbackBlob, dimensions, this.thumbnailEdge),
       }
     }
   }
@@ -93,11 +102,12 @@ export class AssetRegistry {
   private async createThumbnail(
     blob: Blob,
     dimensions?: { width: number; height: number },
+    edge = this.thumbnailEdge,
   ): Promise<Blob> {
-    const bitmap = await createImageBitmap(blob, this.thumbnailOptions(dimensions))
+    const bitmap = await createImageBitmap(blob, this.thumbnailOptions(dimensions, edge))
     try {
       const canvas = document.createElement('canvas')
-      const scale = Math.min(1, this.thumbnailEdge / Math.max(bitmap.width, bitmap.height))
+      const scale = Math.min(1, edge / Math.max(bitmap.width, bitmap.height))
       canvas.width = Math.max(1, Math.round(bitmap.width * scale))
       canvas.height = Math.max(1, Math.round(bitmap.height * scale))
       const context = canvas.getContext('2d')
@@ -119,9 +129,12 @@ export class AssetRegistry {
     }
   }
 
-  private thumbnailOptions(dimensions?: { width: number; height: number }): ImageBitmapOptions {
+  private thumbnailOptions(
+    dimensions?: { width: number; height: number },
+    edge = this.thumbnailEdge,
+  ): ImageBitmapOptions {
     if (!dimensions) return {}
-    const scale = Math.min(1, this.thumbnailEdge / Math.max(dimensions.width, dimensions.height))
+    const scale = Math.min(1, edge / Math.max(dimensions.width, dimensions.height))
     return {
       resizeWidth: Math.max(1, Math.round(dimensions.width * scale)),
       resizeHeight: Math.max(1, Math.round(dimensions.height * scale)),
@@ -234,7 +247,10 @@ export class AssetRegistry {
     for (const assetId of missingAssetIds) {
       if (!isCurrent()) break
       await this.ensureImage(assetId)
-      if (isCurrent()) onImageReady()
+      if (isCurrent()) {
+        this.retainDecodedForPage(uniqueAssetIds)
+        onImageReady()
+      }
     }
     return missingAssetIds.length > 0
   }
@@ -254,6 +270,11 @@ export class AssetRegistry {
       this.images.delete(assetId)
       bytes -= image.naturalWidth * image.naturalHeight * 4
     }
+    for (const [assetId, image] of this.images) {
+      if (bytes <= this.decodedImageBudget) break
+      this.images.delete(assetId)
+      bytes -= image.naturalWidth * image.naturalHeight * 4
+    }
   }
 
   getImage(assetId: AssetId): HTMLImageElement | undefined {
@@ -268,7 +289,8 @@ export class AssetRegistry {
   getObjectUrl(assetId: AssetId): string | undefined {
     return this.objectUrls.get(assetId)
   }
-  getThumbnailUrl(assetId: AssetId): string | undefined {
+  getThumbnailUrl(assetId: AssetId, _revision?: number): string | undefined {
+    void _revision
     return this.thumbnailUrls.get(assetId)
   }
   hasActive(assetId: AssetId, sha256: string): boolean {
@@ -307,14 +329,15 @@ export class AssetRegistry {
     assetId: AssetId,
     sha256: string,
     dimensions?: { width: number; height: number },
+    isCurrent: () => boolean = () => true,
   ): Promise<boolean> {
+    if (!isCurrent()) return false
     if (this.activeHashes.get(assetId) === sha256) return true
     const blob = this.retained.get(`${assetId}:${sha256}`)
     if (!blob) return false
     const activeHash = this.activeHashes.get(assetId)
     if (activeHash) this.retain(assetId, activeHash)
-    await this.register(assetId, blob, sha256, dimensions)
-    return true
+    return this.register(assetId, blob, sha256, dimensions, undefined, isCurrent)
   }
 
   release(assetId: AssetId): void {

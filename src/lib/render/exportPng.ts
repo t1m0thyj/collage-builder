@@ -1,6 +1,7 @@
 import type { AssetRecordV1, PageV1 } from '../domain/types'
+import { resolveLayout } from '../domain/geometry'
 import { zipBlobs } from '../persistence/zipStreams'
-import { drawExportPage } from './exportCanvas'
+import { drawExportFrameImage, drawExportPage, prepareExportPage } from './exportCanvas'
 import { renderPageInWorker, supportsWorkerExport } from './exportWorkerClient'
 
 export { resolveExportRange } from './exportQuality'
@@ -60,6 +61,7 @@ async function renderPageImageOnMainThread(
   page: PageV1,
   assets: Record<string, AssetRecordV1>,
   getImage: (assetId: string) => HTMLImageElement | undefined,
+  getRenderableBlob: ((assetId: string) => Blob | undefined) | undefined,
   width: number,
   height: number,
   format: ExportFormat,
@@ -71,7 +73,24 @@ async function renderPageImageOnMainThread(
   try {
     const context = canvas.getContext('2d')
     if (!context) throw new Error('Canvas rendering is unavailable')
-    drawExportPage(context, page, assets, getImage, width, format)
+    if (getRenderableBlob && typeof createImageBitmap === 'function') {
+      prepareExportPage(context, page, width, format)
+      for (const frame of resolveLayout(page)) {
+        const content = page.slots[frame.slotId]
+        if (!content) continue
+        const asset = assets[content.assetId]
+        const source = getRenderableBlob(content.assetId)
+        if (!asset || !source) throw new Error('An image is not available for export')
+        const bitmap = await createImageBitmap(source)
+        try {
+          drawExportFrameImage(context, page, frame, asset, bitmap)
+        } finally {
+          bitmap.close()
+        }
+      }
+    } else {
+      drawExportPage(context, page, assets, getImage, width, format)
+    }
     const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png'
     const outputQuality = format === 'jpeg' ? jpegQuality(quality) : undefined
     return await new Promise((resolve, reject) =>
@@ -136,7 +155,16 @@ export async function renderPageImageMeasured(
 
   if (!blob) {
     await ensureImages?.(pageAssetIds(page))
-    blob = await renderPageImageOnMainThread(page, assets, getImage, width, height, format, quality)
+    blob = await renderPageImageOnMainThread(
+      page,
+      assets,
+      getImage,
+      getRenderableBlob,
+      width,
+      height,
+      format,
+      quality,
+    )
   }
   const measurement: ExportRenderMeasurement = {
     durationMs: performance.now() - startedAt,

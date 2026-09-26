@@ -391,20 +391,29 @@
     document = value
     // Retained blobs and Undo snapshots have one shared budget. Evict the
     // corresponding oldest history state before dropping any required bytes.
-    assetRegistry.reconcileRetainedHistory(project.historySnapshots())
+    assetRegistry.reconcileRetainedHistory([value, ...project.historySnapshots()])
     while (assetRegistry.isOverRetainedLimit && project.discardOldestUndo())
-      assetRegistry.reconcileRetainedHistory(project.historySnapshots())
+      assetRegistry.reconcileRetainedHistory([value, ...project.historySnapshots()])
     const unresolvedAssetIds: string[] = []
     for (const asset of Object.values(value.assets)) {
-      if (assetRegistry.hasRetained(asset.id, asset.sha256))
+      if (assetRegistry.hasRetained(asset.id, asset.sha256)) {
+        const registry = assetRegistry
+        const isCurrent = () =>
+          registry === assetRegistry && document.assets[asset.id]?.sha256 === asset.sha256
         void assetRegistry
-          .restoreRetained(asset.id, asset.sha256, asset)
-          .then(() => preparePageImages(activePage, assetRegistry))
+          .restoreRetained(asset.id, asset.sha256, asset, isCurrent)
+          .then((restored) => {
+            if (restored && isCurrent()) {
+              imageRevision += 1
+              void preparePageImages(activePage, registry)
+            }
+          })
           .catch((error) => {
+            if (!isCurrent()) return
             missingAssetIds = new Set([...missingAssetIds, asset.id])
             announce(error instanceof Error ? error.message : 'Unable to restore a project image')
           })
-      else if (!assetRegistry.hasActive(asset.id, asset.sha256)) unresolvedAssetIds.push(asset.id)
+      } else if (!assetRegistry.hasActive(asset.id, asset.sha256)) unresolvedAssetIds.push(asset.id)
     }
     missingAssetIds = new Set(unresolvedAssetIds)
     recovery.schedule(value)
@@ -517,7 +526,11 @@
   }
 
   function renameProject() {
-    project.renameProject(projectTitle)
+    try {
+      project.renameProject(projectTitle)
+    } catch (error) {
+      announce(error instanceof Error ? error.message : 'Unable to rename project')
+    }
     projectTitle = document.title
   }
 
@@ -612,6 +625,7 @@
       bind:selectedAssetIds
       {missingAssetIds}
       {assetRegistry}
+      {imageRevision}
       bind:assetQuery
       bind:assetSort
       bind:assetFilter
@@ -727,6 +741,7 @@
     {missingAssetIds}
     {assetLibraryBytes}
     {assetRegistry}
+    {imageRevision}
     bind:assetQuery
     bind:assetSort
     bind:assetFilter

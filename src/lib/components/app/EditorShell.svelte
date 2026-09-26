@@ -278,6 +278,7 @@
               bind:value={renameDraft}
               class="page-tab page-tab-rename"
               aria-label="Rename page"
+              maxlength="200"
               onkeydown={(event) => {
                 if (event.key === 'Enter' || event.key === 'Escape') {
                   event.preventDefault()

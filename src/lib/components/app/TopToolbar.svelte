@@ -133,7 +133,7 @@
   </div>
   <label class="project-title">
     <span class="sr-only">Project title</span>
-    <Input bind:value={projectTitle} aria-label="Project title" onblur={onrename} />
+    <Input bind:value={projectTitle} aria-label="Project title" maxlength={200} onblur={onrename} />
   </label>
   <div class="toolbar-group topbar-end">
     <Button

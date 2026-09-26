@@ -8,6 +8,33 @@ import {
 } from './test-helpers'
 import { createProject } from '../../src/lib/domain/factories'
 
+test('a maximum-length project title remains recoverable', async ({ page }) => {
+  await page.goto('/')
+  const title = page.getByRole('textbox', { name: 'Project title' })
+  await title.fill('a'.repeat(201))
+  await title.blur()
+  await expect(title).toHaveValue('a'.repeat(200))
+  await expect(page.getByRole('button', { name: /Saved locally/ })).toBeVisible()
+
+  const savedTitles = await page.evaluate(
+    () =>
+      new Promise<string[]>((resolve, reject) => {
+        const request = indexedDB.open('collage-builder')
+        request.onerror = () => reject(request.error)
+        request.onsuccess = () => {
+          const db = request.result
+          const tx = db.transaction('projects', 'readonly')
+          const query = tx.objectStore('projects').getAll()
+          query.onsuccess = () =>
+            resolve(query.result.map((project: { title: string }) => project.title))
+          query.onerror = () => reject(query.error)
+          tx.oncomplete = () => db.close()
+        }
+      }),
+  )
+  expect(savedTitles).toContain('a'.repeat(200))
+})
+
 test('opens a disk project when local recovery was upgraded to version 2', async ({ page }) => {
   const storedDraft = createProject('Existing local draft')
   await page.route('**/__db-setup', (route) =>

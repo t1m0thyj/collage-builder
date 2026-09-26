@@ -1,7 +1,7 @@
 import { migrateDocument } from '../domain/migrations'
 import type { CollageDocumentV1 } from '../domain/types'
 import { unzipBlobBounded, zipBlobs, type ZipBlobEntry } from './zipStreams'
-import { maxProjectBytes } from './limits'
+import { maxArchiveEntryCount, maxProjectAssetCount, maxProjectBytes } from './limits'
 import { collageMimeType } from './formats'
 
 export { collageMimeType } from './formats'
@@ -15,7 +15,6 @@ export interface OpenedArchive {
   assets: Map<string, Blob>
   missingAssetIds: string[]
 }
-const maxEntries = 500
 const maxEntryBytes = 64 * 1024 * 1024
 const maxDocumentBytes = 16 * 1024 * 1024
 const maxExpandedBytes = maxProjectBytes + maxDocumentBytes
@@ -35,6 +34,8 @@ export async function createArchive(
   document: CollageDocumentV1,
   assets: ArchiveAssets,
 ): Promise<Blob> {
+  if (Object.keys(document.assets).length > maxProjectAssetCount)
+    throw new Error(`Project contains more than ${maxProjectAssetCount} photos`)
   if (
     Object.values(document.assets).reduce((total, asset) => total + asset.byteLength, 0) >
     maxProjectBytes
@@ -44,9 +45,13 @@ export async function createArchive(
   for (const asset of Object.values(savedDocument.assets)) {
     asset.storage = { kind: 'embedded', archivePath: `assets/${asset.id}` }
   }
+  const validDocument = migrateDocument(savedDocument)
+  const documentJson = JSON.stringify(validDocument)
+  if (new TextEncoder().encode(documentJson).byteLength > maxDocumentBytes)
+    throw new Error('Project document exceeds the 16 MB safety limit')
   const files: ZipBlobEntry[] = [
     { name: 'mimetype', blob: new Blob([collageMimeType]) },
-    { name: 'document.json', blob: new Blob([JSON.stringify(savedDocument)]) },
+    { name: 'document.json', blob: new Blob([documentJson]) },
   ]
   for (const asset of Object.values(savedDocument.assets)) {
     const blob = assets.get(asset.id)
@@ -60,7 +65,7 @@ export async function openArchive(file: Blob): Promise<OpenedArchive> {
   if (file.size > maxArchiveFileBytes)
     throw new Error('Project archive exceeds the 1 GB safety limit')
   const entries = await unzipBlobBounded(file, {
-    maxEntries,
+    maxEntries: maxArchiveEntryCount,
     maxEntryBytes,
     maxExpandedBytes,
     validateName: assertSafeEntryName,

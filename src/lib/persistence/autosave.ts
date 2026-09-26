@@ -46,11 +46,12 @@ export async function saveRecovery(
   document: CollageDocumentV1,
   registry: AssetRegistry,
 ): Promise<void> {
+  const savedDocument = migrateDocument(document)
   const db = await database()
   const tx = db.transaction(['projects', 'assetBlobs'], 'readwrite')
   const projects = tx.objectStore('projects')
   const assetBlobs = tx.objectStore('assetBlobs')
-  await projects.put(document, document.projectId)
+  await projects.put(savedDocument, savedDocument.projectId)
   for (const asset of Object.values(document.assets)) {
     const blob = registry.getBlob(asset.id)
     if (blob) {

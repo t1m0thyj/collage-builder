@@ -1,5 +1,5 @@
 import { test, expect } from './test-fixtures'
-import { expectOnTop } from './test-helpers'
+import { assignSidebarImage, expectOnTop, importImage, redPng } from './test-helpers'
 
 test('renders the editor shell and opens the photo library', async ({ page }) => {
   await page.goto('/')
@@ -112,6 +112,17 @@ test('keyboard focus is visible and returns to the image-manager trigger', async
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog', { name: 'Photo library' })).toBeHidden()
   await expect(managerTrigger).toBeFocused()
+})
+
+test('Enter on a toolbar button leaves crop mode unchanged', async ({ page }) => {
+  await page.goto('/')
+  await importImage(page, 'original.png', redPng)
+  await assignSidebarImage(page, 'original.png', 1)
+
+  await page.getByRole('button', { name: 'Zoom in', exact: true }).focus()
+  await page.keyboard.press('Enter')
+
+  await expect(page.getByText('Crop mode is active.', { exact: false })).toHaveCount(0)
 })
 
 test('initial keyboard focus skips hidden file inputs and canvas frames are named', async ({
