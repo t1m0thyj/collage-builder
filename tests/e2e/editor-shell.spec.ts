@@ -140,12 +140,24 @@ test('honors reduced-motion preference', async ({ page }) => {
   expect(Number.parseFloat(duration)).toBeLessThanOrEqual(0.001)
 })
 
+test('shows a settled deployment status in development mode', async ({ page }) => {
+  await page.goto('/')
+  const status = page.getByRole('button', { name: 'Dev mode' })
+  await expect(status).toBeVisible()
+  await expect(status).toHaveAttribute(
+    'title',
+    'Offline support is enabled in the production build.',
+  )
+  await expect(page.getByText('Checking offline support…')).toHaveCount(0)
+})
+
 test('keeps primary editing controls available in a 960 CSS pixel viewport', async ({ page }) => {
   await page.setViewportSize({ width: 960, height: 540 })
   await page.goto('/')
 
   await expect(page.getByRole('button', { name: 'New', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Save As…', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Save options' })).toBeDisabled()
   await expect(page.getByRole('button', { name: 'Show quick start' })).toBeVisible()
   await expect(
     page.getByRole('button', { name: /Manage local copies and browser storage/ }),

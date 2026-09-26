@@ -38,6 +38,14 @@ function watchRegistration(nextRegistration: ServiceWorkerRegistration): void {
 }
 
 export function registerOfflineSupport(): void {
+  if (import.meta.env.DEV) {
+    state.set({
+      status: 'online-only',
+      message: 'Dev mode',
+      detail: 'Offline support is enabled in the production build.',
+    })
+    return
+  }
   if (!('serviceWorker' in navigator)) {
     state.set({ status: 'online-only', message: 'Online only' })
     return
@@ -47,30 +55,46 @@ export function registerOfflineSupport(): void {
     if (reloadForUpdate) globalThis.location.reload()
   })
 
-  globalThis.addEventListener(
-    'load',
-    () => {
-      navigator.serviceWorker
-        .register(`${import.meta.env.BASE_URL}service-worker.js`, {
-          scope: import.meta.env.BASE_URL,
-        })
-        .then(async (nextRegistration) => {
-          watchRegistration(nextRegistration)
-          await navigator.serviceWorker.ready
-          if (!nextRegistration.waiting)
-            state.set({ status: 'offline-ready', message: 'Offline ready' })
-        })
-        .catch((error: unknown) => {
-          state.set({
-            status: 'online-only',
-            message: 'Online only',
-            detail:
-              error instanceof Error ? error.message : 'Offline support could not be enabled.',
-          })
-        })
-    },
-    { once: true },
-  )
+  const startRegistration = () => {
+    navigator.serviceWorker
+      .register(`${import.meta.env.BASE_URL}service-worker.js`, {
+        scope: import.meta.env.BASE_URL,
+      })
+      .then(async (nextRegistration) => {
+        watchRegistration(nextRegistration)
+        let timeoutId: ReturnType<typeof setTimeout> | undefined
+        try {
+          await Promise.race([
+            navigator.serviceWorker.ready,
+            new Promise<never>((_, reject) => {
+              timeoutId = setTimeout(() => reject(new Error('Offline setup timed out.')), 10_000)
+            }),
+          ])
+          state.update((current) =>
+            current.status === 'checking'
+              ? { status: 'offline-ready', message: 'Offline ready' }
+              : current,
+          )
+        } finally {
+          clearTimeout(timeoutId)
+        }
+      })
+      .catch((error: unknown) => {
+        state.update((current) =>
+          current.status === 'checking'
+            ? {
+                status: 'online-only',
+                message: 'Online only',
+                detail:
+                  error instanceof Error ? error.message : 'Offline support could not be enabled.',
+              }
+            : current,
+        )
+      })
+  }
+  if (document.readyState === 'loading')
+    document.addEventListener('DOMContentLoaded', startRegistration, { once: true })
+  else startRegistration()
 }
 
 export async function applyAvailableUpdate(

@@ -107,6 +107,7 @@ export class ProjectStore {
   renameProject(title: string): void {
     const normalized = title.trim()
     if (!normalized) throw new Error('Project title cannot be blank')
+    if (normalized === get(this.state).title) return
     this.commit((draft) => {
       draft.title = normalized
     })

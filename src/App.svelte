@@ -102,6 +102,7 @@
   let pendingNavigation: 'new' | 'open' | null = null
   let pendingLinkedDocument: typeof document | null = null
   let isSaveFormatOpen = false
+  let hasSavedProject = false
   let saveFormatResolver: ((format: ProjectSaveFormat | null) => void) | null = null
   let assetFilter: AssetFilter = 'all'
   let assetQuery = ''
@@ -238,6 +239,7 @@
     setSelectedAssetId: (value) => (selectedAssetId = value),
     setCropModeSlotId: (value) => (cropModeSlotId = value),
     setProjectTitle: (value) => (projectTitle = value),
+    setHasSavedProject: (value) => (hasSavedProject = value),
     incrementImageRevision: () => (imageRevision += 1),
     setOperationProgress: (message) => (operationProgress = message),
     announce,
@@ -525,7 +527,7 @@
 </script>
 
 <svelte:head>
-  <title>{projectTitle} — Collage Builder</title>
+  <title>{projectTitle} | Collage Builder</title>
   <meta name="description" content="A local-first collage editor." />
 </svelte:head>
 
@@ -551,6 +553,7 @@
     {fittedViewportZoom}
     bind:isViewportFit
     {isDirty}
+    {hasSavedProject}
     {recoveredOnly}
     {recoveryState}
     {operationProgress}

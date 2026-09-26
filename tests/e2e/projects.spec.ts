@@ -222,6 +222,8 @@ test('Save retains the current format while Save As offers both project extensio
   })
   await page.goto('/')
 
+  const saveOptions = page.getByRole('button', { name: 'Save options' })
+  await expect(saveOptions).toBeDisabled()
   await page.getByRole('button', { name: 'Save', exact: true }).click()
   const formatDialog = page.getByRole('dialog', { name: 'Choose how to save' })
   await expect(formatDialog).toContainText('Save project with photos')
@@ -229,13 +231,15 @@ test('Save retains the current format while Save As offers both project extensio
   const embeddedDownload = page.waitForEvent('download')
   await formatDialog.getByRole('button', { name: 'Save with photos' }).click()
   expect((await embeddedDownload).suggestedFilename()).toBe('Untitled collage.collage')
+  await expect(saveOptions).toBeEnabled()
 
   const repeatedSave = page.waitForEvent('download')
   await page.keyboard.press('Control+s')
   expect((await repeatedSave).suggestedFilename()).toBe('Untitled collage.collage')
   await expect(formatDialog).toBeHidden()
 
-  await page.getByRole('button', { name: 'Save As…', exact: true }).click()
+  await saveOptions.click()
+  await page.getByRole('menuitem', { name: 'Save As…' }).click()
   await expect(formatDialog).toBeVisible()
   await formatDialog.getByRole('button', { name: 'Cancel', exact: true }).click()
 
@@ -244,6 +248,11 @@ test('Save retains the current format while Save As offers both project extensio
   const linkedDownload = page.waitForEvent('download')
   await formatDialog.getByRole('button', { name: 'Save linked project' }).click()
   expect((await linkedDownload).suggestedFilename()).toBe('Untitled collage.collage.json')
+
+  await page.getByRole('textbox', { name: 'Project title' }).focus()
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: 'Save before continuing?' })).toHaveCount(0)
+  await expect(saveOptions).toBeDisabled()
 })
 
 test('opens a linked project from the .collage.json extension', async ({ page }) => {

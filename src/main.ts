@@ -4,7 +4,7 @@ import './app.css'
 import App from './App.svelte'
 import { registerOfflineSupport } from './lib/app/deployment'
 
-if (import.meta.env.PROD) registerOfflineSupport()
+registerOfflineSupport()
 
 // WebKit can occasionally invalidate a freshly allocated canvas while Konva is
 // probing for canvas-fingerprinting protection. A failed probe must not prevent

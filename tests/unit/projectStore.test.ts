@@ -5,6 +5,17 @@ import { ProjectStore } from '../../src/lib/state/projectStore'
 import { layout4Presets } from '../../src/lib/layouts/definitions/4'
 
 describe('project history', () => {
+  it('does not mark an unchanged project title as a new edit', () => {
+    const store = new ProjectStore(createProject('Already saved'))
+    const saved = store.versionedSnapshot()
+
+    store.renameProject(' Already saved ')
+
+    expect(store.isCurrentVersion(saved)).toBe(true)
+    expect(get(store.isDirty)).toBe(false)
+    expect(get(store.canUndo)).toBe(false)
+  })
+
   it('only marks the exact saved revision clean', () => {
     const store = new ProjectStore(createProject('Revision guard'))
     store.renameProject('First edit')

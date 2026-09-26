@@ -37,6 +37,7 @@ interface ProjectWorkflowHost {
   setSelectedAssetId: (assetId: string | null) => void
   setCropModeSlotId: (slotId: string | null) => void
   setProjectTitle: (title: string) => void
+  setHasSavedProject: (saved: boolean) => void
   incrementImageRevision: () => void
   setOperationProgress: (message: string | null) => void
   announce: (message: string) => void
@@ -57,6 +58,7 @@ export class ProjectWorkflowController {
     this.host.setMissingAssetIds(new Set())
     this.host.setPendingLinkedDocument(null)
     this.host.persistence.reset()
+    this.host.setHasSavedProject(false)
     this.host.setRecoveredOnly(false)
     this.host.project.replaceDocument(next)
     this.host.setProjectTitle(next.title)
@@ -101,6 +103,7 @@ export class ProjectWorkflowController {
         isCurrent,
       })
       if (!format || !isCurrent()) return false
+      this.host.setHasSavedProject(true)
       if (!this.host.project.markClean(snapshot)) return false
       this.host.setRecoveredOnly(false)
       this.host.announce(
@@ -183,6 +186,7 @@ export class ProjectWorkflowController {
         return
       const linkedIds = format === 'linked' ? Object.keys(opened.document.assets) : []
       this.host.persistence.reset(format)
+      this.host.setHasSavedProject(false)
       this.host.setMissingAssetIds(new Set([...opened.missingAssetIds, ...linkedIds]))
       this.host.setPendingLinkedDocument(linkedIds.length ? opened.document : null)
       this.host.setRecoveredOnly(false)

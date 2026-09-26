@@ -22,6 +22,7 @@
   export let fittedViewportZoom: number
   export let isViewportFit: boolean
   export let isDirty: boolean
+  export let hasSavedProject: boolean
   export let recoveredOnly: boolean
   export let recoveryState: RecoveryState
   export let operationProgress: string | null
@@ -56,14 +57,22 @@
   <div class="toolbar-group">
     <Button class="button button-primary" onclick={onnew}>New</Button>
     <Button class="button" variant="outline" onclick={onopen}>Open</Button>
-    <Button class="button" variant="outline" title="Save (Ctrl/Cmd+S)" onclick={onsave}>Save</Button
-    >
-    <Button
-      class="button save-as-button"
-      variant="outline"
-      title="Save As (Ctrl/Cmd+Shift+S)"
-      onclick={onsaveas}>Save As…</Button
-    >
+    <DropdownMenu.Root>
+      <div class="save-menu">
+        <Button
+          class="button save-main"
+          variant="outline"
+          title="Save (Ctrl/Cmd+S)"
+          onclick={onsave}>Save</Button
+        ><DropdownMenu.Trigger
+          class="button save-caret"
+          aria-label="Save options"
+          disabled={!hasSavedProject}><ChevronDown size={14}></ChevronDown></DropdownMenu.Trigger
+        ><DropdownMenu.Content class="save-menu-popover" align="end"
+          ><DropdownMenu.Item onclick={onsaveas}>Save As…</DropdownMenu.Item></DropdownMenu.Content
+        >
+      </div>
+    </DropdownMenu.Root>
   </div>
   <div class="toolbar-group history-controls" aria-label="History">
     <Button
