@@ -22,7 +22,7 @@ test('layout count tabs stay compact and follow the active page', async ({ page 
   await photoCounts.getByRole('tab', { name: '2', exact: true }).click()
   await expect(page.locator('.layout-card')).toHaveCount(2)
   await page.locator('[data-layout-id="generated-2-t44b67f0379bd3d39"]').click()
-  await expect(page.getByRole('status')).toContainText('Layout selected: 2 landscapes')
+  await expect(page.locator('.toast')).toContainText('Layout selected: 2 landscapes')
 
   const firstCard = page.locator('.layout-card').first()
   const widthWithoutOverflow = (await firstCard.boundingBox())?.width

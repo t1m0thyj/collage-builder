@@ -376,7 +376,7 @@ test('frame selection announces its current state', async ({ page }) => {
   await page.getByText('announced.png', { exact: true }).click()
   await page.getByRole('button', { name: 'Frame 1, announced.png' }).focus()
   await page.keyboard.press('Enter')
-  await expect(page.getByRole('status')).toHaveText('Frame 1 selected, announced.png.')
+  await expect(page.locator('.toast')).toHaveText('Frame 1 selected, announced.png.')
 })
 
 test('shadow opacity increases directly with the displayed percentage', async ({ page }) => {

@@ -231,7 +231,7 @@ test('missing photos can be matched from several files and undone', async ({ pag
     mimeType: collageMimeType,
     buffer: Buffer.from(missingPhotoArchive()),
   })
-  await expect(page.getByRole('status')).toContainText('Project opened with 1 photo to locate')
+  await expect(page.locator('.toast')).toContainText('Project opened with 1 photo to locate')
 
   await page.getByRole('tab', { name: 'Images' }).click()
   await page.getByRole('button', { name: 'Manage photos' }).click()

@@ -83,7 +83,7 @@ test('a failed project open keeps the current document and decoded assets intact
     buffer: Buffer.from(archive),
   })
 
-  await expect(page.getByRole('status')).toContainText(/decode|image|source/i)
+  await expect(page.locator('.toast')).toContainText(/decode|image|source/i)
   await expect(title).toHaveValue('Keep current project')
   await expect.poll(() => sampleStageColor(page, left)).toBe('red')
 })
@@ -283,7 +283,7 @@ test('opens a linked project from the .collage.json extension', async ({ page })
   await expect(page.getByRole('textbox', { name: 'Project title' })).toHaveValue(
     'Linked JSON project',
   )
-  await expect(page.getByRole('status')).toContainText('Project opened')
+  await expect(page.locator('.toast')).toContainText('Project opened')
 })
 
 test('shows progress while saving and opening project files', async ({ page }) => {

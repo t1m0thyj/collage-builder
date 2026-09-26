@@ -44,7 +44,7 @@ test('page-range export validates input and downloads the requested pages', asyn
   const range = exportDialog.getByPlaceholder('1-3')
   await range.fill('2-1')
   await exportDialog.getByRole('button', { name: 'Export', exact: true }).click()
-  await expect(page.getByRole('status')).toContainText('Choose pages between 1 and 2')
+  await expect(page.locator('.toast')).toContainText('Choose pages between 1 and 2')
   await expect(exportDialog).toBeVisible()
 
   await range.fill('1-2')

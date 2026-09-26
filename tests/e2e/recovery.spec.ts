@@ -50,7 +50,7 @@ test('opens a disk project when local recovery was upgraded to version 2', async
   await expect(page.getByRole('textbox', { name: 'Project title' })).toHaveValue(
     'Project from disk',
   )
-  await expect(page.getByRole('status')).toContainText('Project opened')
+  await expect(page.locator('.toast')).toContainText('Project opened')
   expect(
     await page.evaluate(
       () =>
@@ -110,7 +110,7 @@ test('startup recovery asks before restoring an unsaved project', async ({ page,
   await expect(title).toHaveValue('Untitled collage')
   await recoveryDialog.getByRole('button', { name: 'Continue this collage' }).click()
   await expect(title).toHaveValue('Recovered project')
-  await expect(page.getByRole('status')).toContainText('Local recovery restored')
+  await expect(page.locator('.toast')).toContainText('Local recovery restored')
 })
 
 test('portrait draft preview fits inside its thumbnail', async ({ page, browserName }) => {
