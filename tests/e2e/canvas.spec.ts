@@ -209,17 +209,100 @@ test('dragging crop edges changes zoom', async ({ page }) => {
   const host = page.getByRole('region', { name: 'Collage canvas' })
   await expect(host).toHaveAttribute('data-crop-placement', /.+/)
   const placement = JSON.parse((await host.getAttribute('data-crop-placement'))!) as {
+    width: number
+  }
+  const [frameBounds] = JSON.parse((await host.getAttribute('data-frame-hitboxes'))!) as {
     x: number
     y: number
     width: number
-  }
+  }[]
   const cropEdge = await canvasDocumentPoint(page, {
-    x: placement.x + placement.width / 2,
-    y: placement.y,
+    x: frameBounds.x + frameBounds.width / 2,
+    y: frameBounds.y,
   })
   await page.mouse.move(cropEdge.x, cropEdge.y)
   await page.mouse.down()
   await page.mouse.move(cropEdge.x, cropEdge.y - 24, { steps: 8 })
+  await expect
+    .poll(async () => {
+      const current = JSON.parse((await host.getAttribute('data-crop-placement'))!) as {
+        width: number
+      }
+      return current.width
+    })
+    .not.toBe(placement.width)
+  await page.mouse.up()
+  await expect(cropZoom).not.toHaveValue('1.00')
+})
+
+test('dragging a crop image previews smoothly and commits on release', async ({ page }) => {
+  await page.goto('/')
+  await importImage(page, 'pan.png', redPng)
+  await page.getByRole('tab', { name: 'Images' }).click()
+  await page.getByRole('button', { name: 'Frame 1, empty' }).focus()
+  await page.keyboard.press('Enter')
+  await page.getByText('pan.png', { exact: true }).click()
+  await page.getByRole('button', { name: 'Crop image', exact: true }).click()
+
+  const host = page.getByRole('region', { name: 'Collage canvas' })
+  const [frameBounds] = JSON.parse((await host.getAttribute('data-frame-hitboxes'))!) as {
+    x: number
+    y: number
+    width: number
+    height: number
+  }[]
+  const center = await canvasDocumentPoint(page, {
+    x: frameBounds.x + frameBounds.width / 2,
+    y: frameBounds.y + frameBounds.height / 2,
+  })
+  const before = await host.getAttribute('data-crop-placement')
+  const verticalPosition = page.getByRole('spinbutton', { name: 'Crop vertical position' })
+  await expect(verticalPosition).toHaveValue('50')
+
+  await page.mouse.move(center.x, center.y)
+  await page.mouse.down()
+  await page.mouse.move(center.x, center.y + 24, { steps: 8 })
+  await expect(host).not.toHaveAttribute('data-crop-placement', before!)
+  await expect(verticalPosition).toHaveValue('50')
+  await page.mouse.up()
+  await expect(verticalPosition).not.toHaveValue('50')
+})
+
+test('dragging a crop corner previews zoom and commits on release', async ({ page }) => {
+  await page.goto('/')
+  const pngBase64 = await page.evaluate(() => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 600
+    canvas.height = 150
+    const context = canvas.getContext('2d')!
+    context.fillStyle = '#d84b42'
+    context.fillRect(0, 0, canvas.width, canvas.height)
+    return canvas.toDataURL('image/png').split(',')[1]
+  })
+  await importImage(page, 'wide.png', Buffer.from(pngBase64, 'base64'))
+  await page.getByRole('tab', { name: 'Images' }).click()
+  await page.getByRole('button', { name: 'Frame 1, empty' }).focus()
+  await page.keyboard.press('Enter')
+  await page.getByText('wide.png', { exact: true }).click()
+  await page.getByRole('button', { name: 'Crop image', exact: true }).click()
+
+  const host = page.getByRole('region', { name: 'Collage canvas' })
+  const placement = JSON.parse((await host.getAttribute('data-crop-placement'))!) as {
+    x: number
+    y: number
+    width: number
+    height: number
+  }
+  const corner = await canvasDocumentPoint(page, {
+    x: placement.x + placement.width,
+    y: placement.y + placement.height,
+  })
+  const cropZoom = page.getByRole('spinbutton', { name: 'Crop zoom value' })
+  await page.mouse.move(corner.x, corner.y)
+  await page.mouse.down()
+  await page.mouse.move(corner.x + 20, corner.y + 20, { steps: 8 })
+  await expect(host).not.toHaveAttribute('data-crop-placement', JSON.stringify(placement))
+  await expect(cropZoom).toHaveValue('1.00')
   await page.mouse.up()
   await expect(cropZoom).not.toHaveValue('1.00')
 })

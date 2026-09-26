@@ -16,13 +16,19 @@
   export let stageY: number
   export let fitScale: number
   export let cornerRadius: number
-  export let commitPan: (
-    event: { target: { x(): number; y(): number } },
+  type StagePointerEvent = {
+    target: { getStage(): { getPointerPosition(): { x: number; y: number } | null } | null }
+  }
+
+  export let beginPan: (
+    event: StagePointerEvent,
     frame: Frame,
     placement: Placement,
     content: SlotContentV1,
     slotId: string,
   ) => void
+  export let previewPan: (event: StagePointerEvent) => void
+  export let finishPan: (event: StagePointerEvent) => void
   export let cropDragBound: (
     position: { x: number; y: number },
     frame: Frame,
@@ -58,8 +64,8 @@
     cornerX: number,
     cornerY: number,
   ) => { x: number; y: number }
-  export let previewCornerZoom: (
-    event: { target: { x(): number; y(): number } },
+  export let beginCornerZoom: (
+    event: StagePointerEvent,
     frame: Frame,
     placement: Placement,
     content: SlotContentV1,
@@ -67,6 +73,8 @@
     cornerX: number,
     cornerY: number,
   ) => void
+  export let previewCornerZoom: (event: StagePointerEvent) => void
+  export let finishCornerZoom: (event: StagePointerEvent) => void
 </script>
 
 <Layer>
@@ -79,8 +87,9 @@
       height={placement.height}
       draggable
       dragBoundFunc={(position) => cropDragBound(position, frame, placement)}
-      ondragmove={(event) => commitPan(event, frame, placement, content, frame.slotId)}
-      ondragend={(event) => commitPan(event, frame, placement, content, frame.slotId)}
+      onpointerdown={(event) => beginPan(event, frame, placement, content, frame.slotId)}
+      ondragmove={previewPan}
+      ondragend={finishPan}
     />
     <Rect
       x={frame.x + placement.x}
@@ -99,8 +108,9 @@
         height={placement.height}
         draggable
         dragBoundFunc={(position) => cropDragBound(position, frame, placement)}
-        ondragmove={(event) => commitPan(event, frame, placement, content, frame.slotId)}
-        ondragend={(event) => commitPan(event, frame, placement, content, frame.slotId)}
+        onpointerdown={(event) => beginPan(event, frame, placement, content, frame.slotId)}
+        ondragmove={previewPan}
+        ondragend={finishPan}
       /></Group
     >
     {#if frame.polygon}<Line
@@ -174,15 +184,15 @@
         shadowOpacity={0.28}
         shadowBlur={2}
         draggable
+        onpointerdown={(event) =>
+          beginCornerZoom(event, frame, placement, content, frame.slotId, corner[0], corner[1])}
         onpointerenter={(event) =>
           setCursor(event, corner[0] === corner[1] ? 'nwse-resize' : 'nesw-resize')}
         onpointerleave={(event) => setCursor(event, 'default')}
         dragBoundFunc={(position) =>
           cornerDragBound(position, frame, placement, content, corner[0], corner[1])}
-        ondragmove={(event) =>
-          previewCornerZoom(event, frame, placement, content, frame.slotId, corner[0], corner[1])}
-        ondragend={(event) =>
-          previewCornerZoom(event, frame, placement, content, frame.slotId, corner[0], corner[1])}
+        ondragmove={previewCornerZoom}
+        ondragend={finishCornerZoom}
       />{/each}
   </Group>
 </Layer>

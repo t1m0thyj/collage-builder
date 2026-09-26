@@ -11,13 +11,17 @@ export async function preparePageImages(
   page: PageV1,
   registry: AssetRegistry,
   isCurrent: () => boolean = () => true,
+  onPreviewReady: () => void = () => undefined,
 ): Promise<boolean> {
   const assetIds = pageAssetIds(page).filter((assetId) => registry.getBlob(assetId))
-  const changed = await registry.ensureImages(assetIds)
-  // A newer page request may have completed while this page was decoding.
-  // Only the request that is still current owns decoded-image cleanup.
+  const previewChanged = await registry.ensureThumbnailImages(assetIds)
   if (!isCurrent()) return false
-  registry.releaseDecodedExcept(assetIds)
+  if (previewChanged) onPreviewReady()
+  const changed = await registry.ensureImages(assetIds, isCurrent)
+  // A newer page request may have completed while this page was decoding.
+  // Only the current page request may evict older decoded images.
+  if (!isCurrent()) return false
+  registry.retainDecodedForPage(assetIds)
   return changed
 }
 

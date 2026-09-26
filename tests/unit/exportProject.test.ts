@@ -31,7 +31,7 @@ describe('project export', () => {
       getImage: () => undefined,
       getRenderableBlob: () => undefined,
       ensureImages: async () => false,
-      releaseDecodedExcept: vi.fn(),
+      retainDecodedForPage: vi.fn(),
     } as unknown as AssetRegistry
 
     const result = await renderProjectExport({
@@ -50,6 +50,6 @@ describe('project export', () => {
 
     expect(result).toMatchObject({ filename: 'test-pages.zip', pageCount: 3 })
     expect(exportMocks.renderCountsAtZipConsumption).toEqual([1, 2, 3])
-    expect(registry.releaseDecodedExcept).toHaveBeenCalledTimes(3)
+    expect(registry.retainDecodedForPage).toHaveBeenCalledTimes(3)
   })
 })

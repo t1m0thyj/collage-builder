@@ -79,7 +79,7 @@ export async function renderProjectExport({
       onProgress('Preparing download…')
       return { blob: rendered.blob, filename: rendered.name, pageCount: 1 }
     } finally {
-      registry.releaseDecodedExcept(activePageAssetIds)
+      registry.retainDecodedForPage(activePageAssetIds)
     }
   }
 
@@ -90,7 +90,7 @@ export async function renderProjectExport({
         // one rendered page remains reachable outside the growing final ZIP.
         yield await renderPage(position, index)
       } finally {
-        registry.releaseDecodedExcept(activePageAssetIds)
+        registry.retainDecodedForPage(activePageAssetIds)
       }
       await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 0))
     }

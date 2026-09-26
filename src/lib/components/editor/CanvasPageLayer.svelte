@@ -13,7 +13,6 @@
   type StagePointerEvent = {
     target: { getStage(): { getPointerPosition(): { x: number; y: number } | null } | null }
   }
-  type PositionEvent = { target: { x(): number; y(): number } }
   type DividerPointerEvent = {
     evt?: { altKey?: boolean; shiftKey?: boolean }
     target: {
@@ -34,6 +33,11 @@
   export let assets: Record<AssetId, AssetRecordV1>
   export let imageRevision: number
   export let cropSlotId: SlotId | null
+  export let cropDraft: {
+    pageId: string
+    slotId: SlotId
+    placement: SlotContentV1['placement']
+  } | null
   export let selectedSlotId: SlotId | null
   export let dragTargetSlotId: SlotId | null
   export let displayDividers: Divider[]
@@ -60,13 +64,15 @@
     placement: ReturnType<typeof resolveCoverPlacement>,
   ) => { x: number; y: number }
   export let selectOrCropFrame: (slotId: SlotId) => void
-  export let commitPan: (
-    event: PositionEvent,
+  export let beginPan: (
+    event: StagePointerEvent,
     frame: { x: number; y: number },
     placement: ReturnType<typeof resolveCoverPlacement>,
     content: SlotContentV1,
     slotId: SlotId,
   ) => void
+  export let previewPan: (event: StagePointerEvent) => void
+  export let finishPan: (event: StagePointerEvent) => void
   export let beginFrameDrag: (slotId: SlotId) => void
   export let previewFrameDrag: (event: StagePointerEvent, sourceSlotId: SlotId) => void
   export let endFrameDrag: (event: StagePointerEvent, sourceSlotId: SlotId) => void
@@ -132,7 +138,11 @@
     />
 
     {#each model.frames as frame, index (frame.slotId)}
-      {@const content = page.slots[frame.slotId]}
+      {@const persistedContent = page.slots[frame.slotId]}
+      {@const content =
+        persistedContent && cropDraft?.pageId === page.id && cropDraft.slotId === frame.slotId
+          ? { ...persistedContent, placement: cropDraft.placement }
+          : persistedContent}
       {@const asset = content ? assets[content.assetId] : undefined}
       {@const image = content ? getImage(content.assetId, imageRevision) : undefined}
       {@const placement =
@@ -181,13 +191,15 @@
               draggable={cropSlotId === frame.slotId}
               dragBoundFunc={(position) => cropDragBound(position, frame, placement)}
               onpointerclick={() => selectOrCropFrame(frame.slotId)}
-              ondragmove={(event) => {
+              onpointerdown={(event) => {
                 if (cropSlotId === frame.slotId)
-                  commitPan(event, frame, placement, content!, frame.slotId)
+                  beginPan(event, frame, placement, content!, frame.slotId)
+              }}
+              ondragmove={(event) => {
+                if (cropSlotId === frame.slotId) previewPan(event)
               }}
               ondragend={(event) => {
-                if (cropSlotId === frame.slotId)
-                  commitPan(event, frame, placement, content!, frame.slotId)
+                if (cropSlotId === frame.slotId) finishPan(event)
               }}
             />
           </Group>

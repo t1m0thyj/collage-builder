@@ -72,6 +72,27 @@
     placement: SlotContentV1['placement']
     dimensions: ReturnType<typeof resolveCoverPlacement>
   } | null = null
+  let cropDraft: {
+    pageId: string
+    slotId: SlotId
+    placement: SlotContentV1['placement']
+  } | null = null
+  let panCropDrag: {
+    slotId: SlotId
+    startX: number
+    startY: number
+    placement: SlotContentV1['placement']
+    dimensions: ReturnType<typeof resolveCoverPlacement>
+  } | null = null
+  let cornerCropDrag: {
+    slotId: SlotId
+    startX: number
+    startY: number
+    directionX: number
+    directionY: number
+    placement: SlotContentV1['placement']
+    dimensions: ReturnType<typeof resolveCoverPlacement>
+  } | null = null
   let dividerDrag: {
     divider: Divider
     startPointerCoordinate: number
@@ -83,22 +104,69 @@
   } | null = null
   let dividerPointerOrigin: { key: string; coordinate: number } | null = null
 
-  function commitPan(
-    event: { target: { x(): number; y(): number } },
-    frame: { x: number; y: number },
+  function cropPointer(event: {
+    target: { getStage(): { getPointerPosition(): { x: number; y: number } | null } | null }
+  }) {
+    const pointer = event.target.getStage()?.getPointerPosition()
+    return pointer
+      ? { x: (pointer.x - stageX) / fitScale, y: (pointer.y - stageY) / fitScale }
+      : null
+  }
+
+  function previewCrop(slotId: SlotId, placement: SlotContentV1['placement']) {
+    cropDraft = { pageId: page.id, slotId, placement }
+  }
+
+  function commitCropDrag(slotId: SlotId) {
+    if (cropDraft?.pageId === page.id && cropDraft.slotId === slotId)
+      onplacementchange(slotId, cropDraft.placement)
+    cropDraft = null
+    panCropDrag = null
+    cornerCropDrag = null
+    sideCropDrag = null
+  }
+
+  function beginPan(
+    event: {
+      target: { getStage(): { getPointerPosition(): { x: number; y: number } | null } | null }
+    },
+    _frame: { x: number; y: number },
     placement: ReturnType<typeof resolveCoverPlacement>,
     content: SlotContentV1,
     slotId: SlotId,
   ) {
-    onplacementchange(
+    const pointer = cropPointer(event)
+    if (!pointer) return
+    panCropDrag = {
       slotId,
+      startX: pointer.x,
+      startY: pointer.y,
+      placement: content.placement,
+      dimensions: placement,
+    }
+  }
+
+  function previewPan(event: {
+    target: { getStage(): { getPointerPosition(): { x: number; y: number } | null } | null }
+  }) {
+    const pointer = cropPointer(event)
+    if (!pointer || !panCropDrag) return
+    previewCrop(
+      panCropDrag.slotId,
       panPlacement(
-        content.placement,
-        placement,
-        event.target.x() - (frame.x + placement.x),
-        event.target.y() - (frame.y + placement.y),
+        panCropDrag.placement,
+        panCropDrag.dimensions,
+        pointer.x - panCropDrag.startX,
+        pointer.y - panCropDrag.startY,
       ),
     )
+  }
+
+  function finishPan(event: {
+    target: { getStage(): { getPointerPosition(): { x: number; y: number } | null } | null }
+  }) {
+    previewPan(event)
+    if (panCropDrag) commitCropDrag(panCropDrag.slotId)
   }
 
   function roundedClip(
@@ -136,8 +204,10 @@
     )
   }
 
-  function previewCornerZoom(
-    event: { target: { x(): number; y(): number } },
+  function beginCornerZoom(
+    event: {
+      target: { getStage(): { getPointerPosition(): { x: number; y: number } | null } | null }
+    },
     frame: { x: number; y: number },
     placement: ReturnType<typeof resolveCoverPlacement>,
     content: SlotContentV1,
@@ -145,16 +215,46 @@
     cornerX: number,
     cornerY: number,
   ) {
+    const pointer = cropPointer(event)
+    if (!pointer) return
     const anchorX = frame.x + placement.x + cornerX * placement.width
     const anchorY = frame.y + placement.y + cornerY * placement.height
     const centerX = frame.x + placement.x + placement.width / 2
     const centerY = frame.y + placement.y + placement.height / 2
-    const originalDistance = Math.hypot(anchorX - centerX, anchorY - centerY)
-    const movedDistance = Math.hypot(event.target.x() - centerX, event.target.y() - centerY)
+    const distance = Math.hypot(anchorX - centerX, anchorY - centerY)
+    cornerCropDrag = {
+      slotId,
+      startX: pointer.x,
+      startY: pointer.y,
+      directionX: (anchorX - centerX) / distance,
+      directionY: (anchorY - centerY) / distance,
+      placement: content.placement,
+      dimensions: placement,
+    }
+  }
+
+  function previewCornerZoom(event: {
+    target: { getStage(): { getPointerPosition(): { x: number; y: number } | null } | null }
+  }) {
+    const pointer = cropPointer(event)
+    if (!pointer || !cornerCropDrag) return
+    const delta =
+      (pointer.x - cornerCropDrag.startX) * cornerCropDrag.directionX +
+      (pointer.y - cornerCropDrag.startY) * cornerCropDrag.directionY
     const zoom =
-      content.placement.zoom *
-      (1 + (movedDistance - originalDistance) / Math.max(placement.width, placement.height))
-    onplacementchange(slotId, zoomPlacement(content.placement, placement, zoom))
+      cornerCropDrag.placement.zoom *
+      (1 + delta / Math.max(cornerCropDrag.dimensions.width, cornerCropDrag.dimensions.height))
+    previewCrop(
+      cornerCropDrag.slotId,
+      zoomPlacement(cornerCropDrag.placement, cornerCropDrag.dimensions, zoom),
+    )
+  }
+
+  function finishCornerZoom(event: {
+    target: { getStage(): { getPointerPosition(): { x: number; y: number } | null } | null }
+  }) {
+    previewCornerZoom(event)
+    if (cornerCropDrag) commitCropDrag(cornerCropDrag.slotId)
   }
 
   function cropDragBound(
@@ -162,6 +262,7 @@
     frame: { x: number; y: number; width: number; height: number },
     placement: ReturnType<typeof resolveCoverPlacement>,
   ) {
+    placement = panCropDrag?.dimensions ?? placement
     const documentX = (position.x - stageX) / fitScale
     const documentY = (position.y - stageY) / fitScale
     const boundedX = Math.min(frame.x, Math.max(frame.x + frame.width - placement.width, documentX))
@@ -183,6 +284,10 @@
     cornerX: number,
     cornerY: number,
   ) {
+    if (cornerCropDrag) {
+      placement = cornerCropDrag.dimensions
+      content = { ...content, placement: cornerCropDrag.placement }
+    }
     const centerX = frame.x + placement.x + placement.width / 2
     const centerY = frame.y + placement.y + placement.height / 2
     const anchorX = frame.x + placement.x + cornerX * placement.width
@@ -242,10 +347,17 @@
       (x - sideCropDrag.startX) * sideCropDrag.directionX +
       (y - sideCropDrag.startY) * sideCropDrag.directionY
     const zoom = sideCropDrag.placement.zoom * (1 + (2 * outwardDelta) / sideCropDrag.dimension)
-    onplacementchange(
+    previewCrop(
       sideCropDrag.slotId,
       zoomPlacement(sideCropDrag.placement, sideCropDrag.dimensions, zoom),
     )
+  }
+
+  function finishSideZoom(event: {
+    target: { getStage(): { getPointerPosition(): { x: number; y: number } | null } | null }
+  }) {
+    previewSideZoom(event)
+    if (sideCropDrag) commitCropDrag(sideCropDrag.slotId)
   }
 
   function documentPointer(event: DividerPointerEvent) {
@@ -507,7 +619,13 @@
   )
   $: keyboardDividers = dividers
   $: cropFrame = cropSlotId ? model.frames.find((frame) => frame.slotId === cropSlotId) : undefined
-  $: cropContent = cropFrame ? page.slots[cropFrame.slotId] : null
+  $: if (cropDraft && (cropDraft.pageId !== page.id || cropDraft.slotId !== cropSlotId))
+    cropDraft = null
+  $: cropContent = cropFrame
+    ? cropDraft?.slotId === cropFrame.slotId
+      ? { ...page.slots[cropFrame.slotId]!, placement: cropDraft.placement }
+      : page.slots[cropFrame.slotId]
+    : null
   $: cropAsset = cropContent ? assets[cropContent.assetId] : undefined
   $: cropImage = cropContent ? getImage(cropContent.assetId, imageRevision) : undefined
   $: cropPlacement =
@@ -542,6 +660,14 @@
     resizeObserver.observe(host)
     resize()
     const cancelDrag = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && cropDraft) {
+        cropDraft = null
+        panCropDrag = null
+        cornerCropDrag = null
+        sideCropDrag = null
+        event.preventDefault()
+        return
+      }
       if (event.key === 'Escape' && dividerDrag) {
         dividerDrag = null
         activeDividerKey = null
@@ -557,10 +683,15 @@
         event.preventDefault()
       }
     }
+    const finishOutsideSideDrag = () => {
+      if (sideCropDrag) commitCropDrag(sideCropDrag.slotId)
+    }
     globalThis.addEventListener('keydown', cancelDrag)
+    globalThis.addEventListener('pointerup', finishOutsideSideDrag)
     return () => {
       resizeObserver?.disconnect()
       globalThis.removeEventListener('keydown', cancelDrag)
+      globalThis.removeEventListener('pointerup', finishOutsideSideDrag)
     }
   })
 </script>
@@ -598,7 +729,7 @@
     height={stageHeight}
     onwheel={handleWheel}
     onpointermove={previewSideZoom}
-    onpointerup={() => (sideCropDrag = null)}
+    onpointerup={finishSideZoom}
   >
     <CanvasPageLayer
       {viewportWidth}
@@ -612,6 +743,7 @@
       {assets}
       {imageRevision}
       {cropSlotId}
+      {cropDraft}
       {selectedSlotId}
       {dragTargetSlotId}
       {displayDividers}
@@ -626,7 +758,9 @@
       {roundedClip}
       {cropDragBound}
       {selectOrCropFrame}
-      {commitPan}
+      {beginPan}
+      {previewPan}
+      {finishPan}
       {beginFrameDrag}
       {previewFrameDrag}
       {endFrameDrag}
@@ -652,14 +786,18 @@
         {stageY}
         {fitScale}
         cornerRadius={model.cornerRadius}
-        {commitPan}
+        {beginPan}
+        {previewPan}
+        {finishPan}
         {cropDragBound}
         {roundedClip}
         {polygonPoints}
         {setCursor}
         {beginSideZoom}
         {cornerDragBound}
+        {beginCornerZoom}
         {previewCornerZoom}
+        {finishCornerZoom}
       ></CropOverlay>
     {/if}
   </Stage>

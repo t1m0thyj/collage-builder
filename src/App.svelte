@@ -344,7 +344,7 @@
   async function preparePageImages(page: PageV1, registry = assetRegistry): Promise<void> {
     try {
       const isCurrent = () => registry === assetRegistry && page.id === activePageId
-      const changed = await loadPageImages(page, registry, isCurrent)
+      const changed = await loadPageImages(page, registry, isCurrent, () => (imageRevision += 1))
       if (registry !== assetRegistry || page.id !== activePageId) return
       if (changed) imageRevision += 1
     } catch (error) {

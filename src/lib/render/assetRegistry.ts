@@ -3,11 +3,20 @@ import type { CollageDocumentV1 } from '../domain/types'
 import { maxProjectBytes } from '../persistence/limits'
 import { convertHeicForDisplay, isHeicBlob } from '../domain/heic'
 
+export function decodedImageBudgetForDevice(deviceMemory?: number): number {
+  const mebibyte = 1024 * 1024
+  if (deviceMemory !== undefined && deviceMemory >= 8) return 256 * mebibyte
+  if (deviceMemory !== undefined && deviceMemory >= 4) return 128 * mebibyte
+  return 64 * mebibyte
+}
+
 export class AssetRegistry {
   private readonly blobs = new Map<AssetId, Blob>()
   private readonly activeHashes = new Map<AssetId, string>()
   private readonly images = new Map<AssetId, HTMLImageElement>()
   private readonly imageLoads = new Map<AssetId, Promise<HTMLImageElement>>()
+  private readonly thumbnailImages = new Map<AssetId, HTMLImageElement>()
+  private readonly thumbnailLoads = new Map<AssetId, Promise<HTMLImageElement>>()
   private readonly objectUrls = new Map<AssetId, string>()
   private readonly renderableBlobs = new Map<AssetId, Blob>()
   private readonly thumbnailUrls = new Map<AssetId, string>()
@@ -15,6 +24,13 @@ export class AssetRegistry {
   private retainedBytes = 0
   private readonly retainedLimit = maxProjectBytes
   private readonly thumbnailEdge = 256
+  // Thumbnails provide a quick canvas preview without keeping every full-size photo decoded.
+  private readonly decodedThumbnailLimit = 128
+  private readonly decodedImageBudget = decodedImageBudgetForDevice(
+    typeof navigator === 'undefined'
+      ? undefined
+      : (navigator as Navigator & { deviceMemory?: number }).deviceMemory,
+  )
 
   async register(
     assetId: AssetId,
@@ -115,26 +131,31 @@ export class AssetRegistry {
 
   async ensureImage(assetId: AssetId): Promise<HTMLImageElement> {
     const existing = this.images.get(assetId)
-    if (existing) return existing
+    if (existing) {
+      this.images.delete(assetId)
+      this.images.set(assetId, existing)
+      return existing
+    }
     const pending = this.imageLoads.get(assetId)
     if (pending) return pending
     const objectUrl = this.objectUrls.get(assetId)
     if (!objectUrl) throw new Error(`Missing original bytes for asset ${assetId}`)
     const load = this.decodeImage(objectUrl)
       .then((image) => {
-        this.images.set(assetId, image)
+        if (this.objectUrls.get(assetId) === objectUrl) this.images.set(assetId, image)
         return image
       })
       .catch(async (error) => {
+        if (this.objectUrls.get(assetId) !== objectUrl) throw error
         const originalBlob = this.blobs.get(assetId)
         if (!originalBlob || !isHeicBlob(originalBlob)) throw error
         const fallbackBlob = await convertHeicForDisplay(originalBlob, 'Stored HEIC/HEIF image')
         const fallbackUrl = URL.createObjectURL(fallbackBlob)
         try {
           const image = await this.decodeImage(fallbackUrl)
-          const staleUrl = this.objectUrls.get(assetId)
+          if (this.objectUrls.get(assetId) !== objectUrl) throw error
           this.objectUrls.set(assetId, fallbackUrl)
-          if (staleUrl) URL.revokeObjectURL(staleUrl)
+          URL.revokeObjectURL(objectUrl)
           this.images.set(assetId, image)
           return image
         } catch (fallbackError) {
@@ -146,7 +167,7 @@ export class AssetRegistry {
     try {
       return await load
     } finally {
-      this.imageLoads.delete(assetId)
+      if (this.imageLoads.get(assetId) === load) this.imageLoads.delete(assetId)
     }
   }
 
@@ -157,12 +178,62 @@ export class AssetRegistry {
     return image
   }
 
-  async ensureImages(assetIds: Iterable<AssetId>): Promise<boolean> {
+  async ensureThumbnailImages(assetIds: Iterable<AssetId>): Promise<boolean> {
     const uniqueAssetIds = [...new Set(assetIds)]
+    for (const assetId of uniqueAssetIds) {
+      const cached = this.thumbnailImages.get(assetId)
+      if (cached) {
+        this.thumbnailImages.delete(assetId)
+        this.thumbnailImages.set(assetId, cached)
+      }
+    }
+    const missing = uniqueAssetIds.filter(
+      (assetId) => !this.images.has(assetId) && !this.thumbnailImages.has(assetId),
+    )
+    await Promise.all(
+      missing.map(async (assetId) => {
+        const pending = this.thumbnailLoads.get(assetId)
+        if (pending) return pending
+        const url = this.thumbnailUrls.get(assetId)
+        if (!url) return
+        const load = this.decodeImage(url).then((image) => {
+          if (this.thumbnailUrls.get(assetId) === url) {
+            this.thumbnailImages.set(assetId, image)
+            while (this.thumbnailImages.size > this.decodedThumbnailLimit)
+              this.thumbnailImages.delete(this.thumbnailImages.keys().next().value!)
+          }
+          return image
+        })
+        this.thumbnailLoads.set(assetId, load)
+        try {
+          await load
+        } finally {
+          if (this.thumbnailLoads.get(assetId) === load) this.thumbnailLoads.delete(assetId)
+        }
+      }),
+    )
+    return missing.length > 0
+  }
+
+  async ensureImages(
+    assetIds: Iterable<AssetId>,
+    isCurrent: () => boolean = () => true,
+  ): Promise<boolean> {
+    const uniqueAssetIds = [...new Set(assetIds)]
+    for (const assetId of uniqueAssetIds) {
+      const cached = this.images.get(assetId)
+      if (cached) {
+        this.images.delete(assetId)
+        this.images.set(assetId, cached)
+      }
+    }
     const missingAssetIds = uniqueAssetIds.filter((assetId) => !this.images.has(assetId))
     // Serial decoding avoids a transient full-page spike while several large
     // browser image decoders allocate their pixel buffers at once.
-    for (const assetId of missingAssetIds) await this.ensureImage(assetId)
+    for (const assetId of missingAssetIds) {
+      if (!isCurrent()) break
+      await this.ensureImage(assetId)
+    }
     return missingAssetIds.length > 0
   }
 
@@ -172,14 +243,19 @@ export class AssetRegistry {
     return bytes
   }
 
-  releaseDecodedExcept(assetIds: Iterable<AssetId>): void {
-    const retained = new Set(assetIds)
-    for (const assetId of this.images.keys())
-      if (!retained.has(assetId)) this.images.delete(assetId)
+  retainDecodedForPage(assetIds: Iterable<AssetId>): void {
+    const active = new Set(assetIds)
+    let bytes = this.decodedImageBytes
+    for (const [assetId, image] of this.images) {
+      if (bytes <= this.decodedImageBudget) break
+      if (active.has(assetId)) continue
+      this.images.delete(assetId)
+      bytes -= image.naturalWidth * image.naturalHeight * 4
+    }
   }
 
   getImage(assetId: AssetId): HTMLImageElement | undefined {
-    return this.images.get(assetId)
+    return this.images.get(assetId) ?? this.thumbnailImages.get(assetId)
   }
   getBlob(assetId: AssetId): Blob | undefined {
     return this.blobs.get(assetId)
@@ -247,7 +323,9 @@ export class AssetRegistry {
     this.objectUrls.delete(assetId)
     this.thumbnailUrls.delete(assetId)
     this.imageLoads.delete(assetId)
+    this.thumbnailLoads.delete(assetId)
     this.images.delete(assetId)
+    this.thumbnailImages.delete(assetId)
     this.blobs.delete(assetId)
     this.renderableBlobs.delete(assetId)
     this.activeHashes.delete(assetId)
