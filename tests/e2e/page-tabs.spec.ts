@@ -34,7 +34,7 @@ test('double-click rename saves when focus leaves the tab', async ({ page }) => 
   await page.getByRole('button', { name: 'Page 1' }).dblclick()
   const nameEditor = page.getByRole('textbox', { name: 'Rename page' })
   await nameEditor.fill('First page')
-  await page.getByRole('button', { name: 'Add page' }).click()
+  await page.getByRole('textbox', { name: 'Project title' }).click()
   await expect(page.getByRole('button', { name: 'First page' })).toBeVisible()
   await expect(nameEditor).toHaveCount(0)
 })
