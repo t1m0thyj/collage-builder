@@ -3,14 +3,41 @@
   z-index: 30;
   display: flex;
   align-items: flex-end;
+  min-width: 0;
   gap: 0;
   padding: 0 12px;
   border-top: 1px solid #cfd8e6;
   background: #e9eef6;
 }
+.page-tabs-measure {
+  position: absolute;
+  display: flex;
+  align-items: flex-end;
+  width: max-content;
+  visibility: hidden;
+  pointer-events: none;
+}
+.page-tab-viewport {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  min-width: 0;
+  height: 40px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.page-tab-viewport::-webkit-scrollbar {
+  display: none;
+}
+.page-scroll-button {
+  flex: 0 0 31px;
+  margin-bottom: 3px;
+}
 .page-tab {
   height: 32px;
   min-width: 84px;
+  max-width: 180px;
   padding: 0 12px;
   border: 1px solid transparent;
   border-bottom: 0;
@@ -19,6 +46,9 @@
   color: #646b76;
   font-size: 12px;
   font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   transition:
     height 120ms ease,
     background-color 120ms ease,
@@ -40,6 +70,15 @@
   border-bottom: 1px solid #fff;
   box-shadow: 0 -2px 5px rgba(49, 92, 156, 0.08);
 }
+.page-tab-rename {
+  width: 180px;
+  border-color: #9aaccc;
+  background: #fff;
+  color: #315c9c;
+  text-align: left;
+  outline: 2px solid rgba(49, 92, 156, 0.48);
+  outline-offset: -2px;
+}
 .page-tab.page-drag-before {
   box-shadow: inset 3px 0 #315c9c;
 }
@@ -53,6 +92,7 @@
 }
 .page-tab-with-actions {
   position: relative;
+  flex: 0 0 auto;
   margin-right: 0;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -101,8 +141,7 @@
     transform 180ms ease;
   transition-delay: 70ms;
 }
-.page-tab-with-actions:hover .page-tab-preview,
-.page-tab-with-actions:focus-within .page-tab-preview {
+.page-tab-preview.visible {
   opacity: 1;
   transform: translate(-50%, 0);
   transition-delay: 0ms;

@@ -76,7 +76,11 @@ test('100 images and 25 pages @benchmark', async ({ page, browser, browserName }
     }
     if (pageIndex < 24) await page.getByRole('button', { name: 'Add page' }).click()
   }
-  await expect(page.getByRole('button', { name: 'Choose page' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Scroll tabs left' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Page 25', exact: true })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
   const pagesCreatedAt = performance.now()
 
   await page.getByRole('button', { name: 'Choose export scope' }).click()

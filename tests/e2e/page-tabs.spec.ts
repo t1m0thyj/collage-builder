@@ -1,0 +1,132 @@
+import { test, expect } from './test-fixtures'
+
+test('opening tab actions does not remove the active page', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Add page' }).click()
+  await expect(page.getByRole('button', { name: 'Page 2' })).toBeVisible()
+  await page.getByRole('button', { name: 'Page actions' }).click()
+  await expect(page.getByRole('menuitem', { name: 'Rename' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Page 2' })).toBeVisible()
+})
+
+test('page actions rename and duplicate without accidental deletion', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Page actions' }).click()
+  await page.getByRole('menuitem', { name: 'Rename' }).click()
+  const nameEditor = page.getByRole('textbox', { name: 'Rename page' })
+  await expect(nameEditor).toBeFocused()
+  await nameEditor.fill('Cover')
+  await nameEditor.press('Enter')
+  await expect(page.getByRole('button', { name: 'Cover' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Cover' }).dblclick()
+  await nameEditor.fill('Discarded name')
+  await nameEditor.press('Escape')
+  await expect(page.getByRole('button', { name: 'Cover' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Page actions' }).click()
+  await page.getByRole('menuitem', { name: 'Duplicate' }).click()
+  await expect(page.getByRole('button', { name: /Cover/ })).toHaveCount(2)
+})
+
+test('double-click rename saves when focus leaves the tab', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Page 1' }).dblclick()
+  const nameEditor = page.getByRole('textbox', { name: 'Rename page' })
+  await nameEditor.fill('First page')
+  await page.getByRole('button', { name: 'Add page' }).click()
+  await expect(page.getByRole('button', { name: 'First page' })).toBeVisible()
+  await expect(nameEditor).toHaveCount(0)
+})
+
+test('page tabs can be reordered by dragging', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Add page' }).click()
+  await page.getByRole('button', { name: 'Add page' }).click()
+
+  const first = page.getByRole('button', { name: 'Page 1', exact: true })
+  const third = page.getByRole('button', { name: 'Page 3', exact: true })
+  await first.dragTo(third, { targetPosition: { x: 80, y: 16 } })
+
+  await expect(page.locator('.page-tab-viewport > .page-tab-with-actions > .page-tab')).toHaveText([
+    'Page 2',
+    'Page 3',
+    'Page 1',
+  ])
+})
+
+test('page tabs remain visible while they fit and gain scroll arrows when space shrinks', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1800, height: 900 })
+  await page.goto('/')
+  for (let pageNumber = 2; pageNumber <= 6; pageNumber += 1)
+    await page.getByRole('button', { name: 'Add page' }).click()
+
+  const tabs = page.locator('.page-tab-viewport > .page-tab-with-actions > .page-tab')
+  await expect(tabs).toHaveText(['Page 1', 'Page 2', 'Page 3', 'Page 4', 'Page 5', 'Page 6'])
+  await expect(page.getByRole('button', { name: 'Scroll tabs left' })).toHaveCount(0)
+
+  await page.setViewportSize({ width: 1000, height: 900 })
+  await expect(page.getByRole('button', { name: 'Scroll tabs left' })).toBeVisible()
+  await expect(tabs).toHaveCount(6)
+  await expect(page.getByRole('button', { name: 'Scroll tabs right' })).toBeDisabled()
+  await page.setViewportSize({ width: 1800, height: 900 })
+  await expect(page.getByRole('button', { name: 'Scroll tabs left' })).toHaveCount(0)
+  await expect(tabs).toHaveCount(6)
+})
+
+test('overflowing page tabs scroll with arrows and keep the active page in view', async ({
+  page,
+}) => {
+  await page.goto('/')
+  for (let pageNumber = 2; pageNumber <= 10; pageNumber += 1)
+    await page.getByRole('button', { name: 'Add page' }).click()
+
+  const tabStrip = page.locator('.page-tab-viewport')
+  const leftArrow = page.getByRole('button', { name: 'Scroll tabs left' })
+  const rightArrow = page.getByRole('button', { name: 'Scroll tabs right' })
+  await expect(page.locator('.page-tab-viewport .page-tab')).toHaveCount(10)
+  await expect(page.getByRole('button', { name: 'Page 10', exact: true })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
+  await expect(rightArrow).toBeDisabled()
+  await expect(leftArrow).toBeEnabled()
+
+  const rightEdge = await tabStrip.evaluate((element) => element.scrollLeft)
+  await leftArrow.click()
+  await expect
+    .poll(() => tabStrip.evaluate((element) => element.scrollLeft))
+    .toBeLessThan(rightEdge)
+  await expect(rightArrow).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'Page 10', exact: true })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
+
+  await rightArrow.click()
+  await expect(rightArrow).toBeDisabled()
+  await page.getByRole('button', { name: 'Page 1', exact: true }).click()
+  await expect(leftArrow).toBeDisabled()
+  await expect
+    .poll(() =>
+      tabStrip.evaluate((element) => {
+        const viewport = element.getBoundingClientRect()
+        const active = element.querySelector('.active-tab-action')?.getBoundingClientRect()
+        return Boolean(active && active.left >= viewport.left && active.right <= viewport.right)
+      }),
+    )
+    .toBe(true)
+
+  await page.getByRole('button', { name: 'Page 1', exact: true }).hover()
+  await expect(page.getByRole('tooltip', { name: 'Page 1' })).toBeVisible()
+  await rightArrow.hover()
+  await expect(page.getByRole('tooltip', { name: 'Page 1' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Page 1', exact: true }).hover()
+  await page.getByRole('button', { name: 'Page 2', exact: true }).hover()
+  await expect(page.getByRole('tooltip')).toHaveCount(1)
+  await expect(page.getByRole('tooltip', { name: 'Page 2' })).toBeVisible()
+  await page.locator('#collage-canvas').hover()
+  await expect(page.getByRole('tooltip')).toHaveCount(0)
+})

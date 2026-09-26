@@ -109,6 +109,8 @@
   let selectedAssetIds: string[] = []
   let imageManagerView: 'grid' | 'list' = 'grid'
   let pendingRemovalAssetIds: string[] | null = null
+  let pendingRelinkConfirmation: string | null = null
+  let relinkConfirmationResolver: ((accepted: boolean) => void) | null = null
   let isExportOpen = false
   let exportScope: 'current' | 'all' | 'range' = 'current'
   let exportRange = '1-1'
@@ -137,6 +139,19 @@
   let importStatus: ImportBatchStatus | null = null
   let toast = ''
   let projectTitle = document.title
+
+  function confirmRelink(message: string): Promise<boolean> {
+    resolveRelinkConfirmation(false)
+    pendingRelinkConfirmation = message
+    return new Promise((resolve) => (relinkConfirmationResolver = resolve))
+  }
+
+  function resolveRelinkConfirmation(accepted: boolean) {
+    const resolve = relinkConfirmationResolver
+    relinkConfirmationResolver = null
+    pendingRelinkConfirmation = null
+    resolve?.(accepted)
+  }
 
   async function reloadAfterRecovery(): Promise<void> {
     operationProgress = 'Preserving unsaved work…'
@@ -194,6 +209,7 @@
     },
     setImportStatus: (status) => (importStatus = status),
     setOperationProgress: (message) => (operationProgress = message),
+    confirmRelink,
     announce,
   })
   const projectWorkflow = new ProjectWorkflowController({
@@ -312,9 +328,8 @@
       project.addPage(activePage.id)
       activePageId = document.pages.at(-1)!.id
     },
-    rename() {
-      const name = globalThis.prompt('Page name', activePage.name)
-      if (name !== null) project.renamePage(activePage.id, name)
+    rename(pageId: string, name: string) {
+      project.renamePage(pageId, name)
     },
     assignAsset(assetId: string, slotId: string) {
       project.assignAsset(activePage.id, slotId, assetId)
@@ -357,6 +372,7 @@
   let subscribedProjectId = document.projectId
   project.document.subscribe((value) => {
     if (value.projectId !== subscribedProjectId) {
+      resolveRelinkConfirmation(false)
       subscribedProjectId = value.projectId
       importStatus = null
     }
@@ -702,6 +718,7 @@
     {document}
     {activePage}
     bind:pendingRemovalAssetIds
+    {pendingRelinkConfirmation}
     {isSaveFormatOpen}
     bind:pendingNavigation
     bind:pendingLinkedDocument
@@ -717,6 +734,7 @@
     {formatBytes}
     exportUpscaleCount={exportWorkflow.upscaleCount}
     onremoveassets={assetWorkflow.remove}
+    onresolverelink={resolveRelinkConfirmation}
     onresolvesaveformat={resolveSaveFormat}
     oncontinuenavigation={projectWorkflow.continueNavigation}
     onsavethencontinue={projectWorkflow.saveThenContinue}

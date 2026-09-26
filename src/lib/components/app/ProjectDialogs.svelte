@@ -10,6 +10,7 @@
   export let document: CollageDocumentV1
   export let activePage: PageV1
   export let pendingRemovalAssetIds: string[] | null
+  export let pendingRelinkConfirmation: string | null
   export let isSaveFormatOpen: boolean
   export let pendingNavigation: 'new' | 'open' | null
   export let pendingLinkedDocument: CollageDocumentV1 | null
@@ -25,6 +26,7 @@
   export let formatBytes: (bytes: number) => string
   export let exportUpscaleCount: () => number
   export let onremoveassets: (assetIds: string[]) => void
+  export let onresolverelink: (accepted: boolean) => void
   export let onresolvesaveformat: (format: SaveFormat | null) => void
   export let oncontinuenavigation: () => void
   export let onsavethencontinue: () => void
@@ -83,6 +85,34 @@
         <button class="button" onclick={() => (pendingRemovalAssetIds = null)}>Cancel</button
         ><button class="button danger" onclick={() => onremoveassets(pendingRemovalAssetIds!)}
           >Remove images</button
+        >
+      </div>
+    </Dialog.Content>
+  {/if}
+</Dialog.Root>
+
+<Dialog.Root
+  open={Boolean(pendingRelinkConfirmation)}
+  onOpenChange={(open) => !open && onresolverelink(false)}
+>
+  {#if pendingRelinkConfirmation}
+    <Dialog.Content class="dialog" aria-modal="true" aria-labelledby="relink-confirmation-title">
+      <div class="dialog-header">
+        <div>
+          <p class="eyebrow">Locate image</p>
+          <h2 id="relink-confirmation-title">Use a different image?</h2>
+        </div>
+        <button
+          class="icon-button"
+          aria-label="Cancel relink"
+          onclick={() => onresolverelink(false)}><X size={17}></X></button
+        >
+      </div>
+      <div class="export-form"><p>{pendingRelinkConfirmation}</p></div>
+      <div class="dialog-footer">
+        <button class="button" onclick={() => onresolverelink(false)}>Cancel</button>
+        <button class="button button-primary" onclick={() => onresolverelink(true)}
+          >Use image anyway</button
         >
       </div>
     </Dialog.Content>

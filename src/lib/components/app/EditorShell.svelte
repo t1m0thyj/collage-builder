@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount, tick } from 'svelte'
   import { ChevronLeft, ChevronRight, Plus } from '@lucide/svelte'
   import type {
     AssetId,
@@ -11,7 +12,6 @@
   import type { AssetRegistry } from '../../render/assetRegistry'
   import CanvasEditor from '../editor/CanvasEditor.svelte'
   import PageActions from '../PageActions.svelte'
-  import * as Select from '../ui/select'
 
   export let document: CollageDocumentV1
   export let activePage: PageV1
@@ -40,7 +40,7 @@
     changes: Array<{ path: number[]; index: number; position: number }>,
   ) => void
   export let onaddpage: () => void
-  export let onrenamepage: () => void
+  export let onrenamepage: (pageId: string, name: string) => void
   export let onduplicatepage: () => void
   export let onmovepage: (direction: -1 | 1) => void
   export let onreorderpage: (pageId: string, targetIndex: number) => void
@@ -48,22 +48,113 @@
   export let ondeletepage: () => void
 
   let isPageMenuOpen = false
+  let pagebar: HTMLElement
+  let pageTabsViewport: HTMLElement
+  let pageTabsMeasure: HTMLElement
+  let hasOverflow = false
+  let canScrollLeft = false
+  let canScrollRight = false
+  let previewPageId: string | null = null
+  let previewLeft = 0
+  let previewPage: PageV1 | undefined
+  let renamingPageId: string | null = null
+  let renameDraft = ''
+  let renameInput: HTMLInputElement | undefined
   let draggedPageId: string | null = null
   let pageDropTarget: { pageId: string; edge: 'before' | 'after' } | null = null
+  $: previewPage = document.pages.find((page) => page.id === previewPageId)
+  $: if (activePageId && pageTabsViewport) void tick().then(ensureActiveTabVisible)
+
+  function updateScrollState() {
+    canScrollLeft = pageTabsViewport.scrollLeft > 1
+    canScrollRight =
+      pageTabsViewport.scrollLeft + pageTabsViewport.clientWidth < pageTabsViewport.scrollWidth - 1
+  }
+
+  function ensureActiveTabVisible() {
+    const activeTab = pageTabsViewport.querySelector<HTMLElement>(
+      '.page-tab-with-actions.active-tab-action',
+    )
+    if (!activeTab) return
+    const viewportBounds = pageTabsViewport.getBoundingClientRect()
+    const tabBounds = activeTab.getBoundingClientRect()
+    if (tabBounds.left < viewportBounds.left) {
+      pageTabsViewport.scrollLeft += tabBounds.left - viewportBounds.left
+    } else if (tabBounds.right > viewportBounds.right) {
+      pageTabsViewport.scrollLeft += tabBounds.right - viewportBounds.right
+    }
+    updateScrollState()
+  }
+
+  function scrollTabs(direction: -1 | 1) {
+    previewPageId = null
+    pageTabsViewport.scrollBy({
+      left: direction * Math.max(84, pageTabsViewport.clientWidth * 0.75),
+      behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+    })
+  }
+
+  function showPagePreview(pageId: string, element: HTMLElement) {
+    const pagebarBounds = pagebar.getBoundingClientRect()
+    const tabBounds = element.getBoundingClientRect()
+    previewLeft = Math.max(
+      140,
+      Math.min(
+        pagebarBounds.width - 140,
+        tabBounds.left + tabBounds.width / 2 - pagebarBounds.left,
+      ),
+    )
+    previewPageId = pageId
+  }
+
+  function hidePagePreview(pageId: string) {
+    if (previewPageId === pageId) previewPageId = null
+  }
+
+  onMount(() => {
+    const updatePageTabs = () => {
+      const styles = getComputedStyle(pagebar)
+      const availableWidth =
+        pagebar.clientWidth - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight)
+      hasOverflow = pageTabsMeasure.getBoundingClientRect().width > availableWidth
+      void tick().then(ensureActiveTabVisible)
+    }
+    const observer = new ResizeObserver(updatePageTabs)
+    observer.observe(pagebar)
+    observer.observe(pageTabsMeasure)
+    updatePageTabs()
+    return () => observer.disconnect()
+  })
 
   function selectPage(pageId: string) {
     onactivepagechange(pageId)
     onselectedslotchange(null)
   }
 
-  function previousPage() {
-    const index = document.pages.findIndex((page) => page.id === activePageId)
-    if (index > 0) selectPage(document.pages[index - 1].id)
+  function startRename(pageId: string) {
+    const page = document.pages.find((candidate) => candidate.id === pageId)
+    if (!page) return
+    isPageMenuOpen = false
+    previewPageId = null
+    renameDraft = page.name
+    renamingPageId = pageId
+    void tick().then(() => {
+      renameInput?.focus()
+      renameInput?.select()
+    })
   }
 
-  function nextPage() {
-    const index = document.pages.findIndex((page) => page.id === activePageId)
-    if (index < document.pages.length - 1) selectPage(document.pages[index + 1].id)
+  function finishRename(save: boolean, restoreFocus = false) {
+    const pageId = renamingPageId
+    if (!pageId) return
+    renamingPageId = null
+    if (save) onrenamepage(pageId, renameDraft)
+    if (restoreFocus)
+      void tick().then(() =>
+        [...pageTabsViewport.querySelectorAll<HTMLButtonElement>('.page-tab')]
+          .find((tab) => tab.dataset.pageId === pageId)
+          ?.focus(),
+      )
   }
 
   function startPageDrag(event: DragEvent, pageId: string) {
@@ -88,7 +179,10 @@
     const sourceId = draggedPageId ?? event.dataTransfer?.getData('application/x-collage-page')
     const targetIndex = document.pages.findIndex((page) => page.id === pageId)
     const boundary = targetIndex + (pageDropTarget?.edge === 'after' ? 1 : 0)
-    if (sourceId && targetIndex >= 0) onreorderpage(sourceId, boundary)
+    if (sourceId && targetIndex >= 0) {
+      onreorderpage(sourceId, boundary)
+      void tick().then(ensureActiveTabVisible)
+    }
     draggedPageId = null
     pageDropTarget = null
   }
@@ -127,58 +221,95 @@
       />
     </div>
   </section>
-  <footer class="pagebar" aria-label="Pages">
-    {#if document.pages.length > 4}
-      <button
-        class="icon-button"
-        aria-label="Previous page"
-        disabled={document.pages.findIndex((page) => page.id === activePageId) === 0}
-        onclick={previousPage}><ChevronLeft size={17}></ChevronLeft></button
-      >
-    {/if}
-    {#if document.pages.length <= 4}
+  <footer bind:this={pagebar} class="pagebar" aria-label="Pages">
+    <div bind:this={pageTabsMeasure} class="page-tabs-measure" aria-hidden="true">
       {#each document.pages as page (page.id)}
         <div class:active-tab-action={page.id === activePageId} class="page-tab-with-actions">
-          <div class="page-tab-preview" role="tooltip">
-            <strong>{page.name}</strong>
-            <div
-              class="page-tab-preview-canvas"
-              style={`aspect-ratio: ${page.width} / ${page.height}; background: ${page.style.transparentBackground ? 'transparent' : page.style.backgroundColor}`}
+          {#if renamingPageId === page.id}
+            <span class="page-tab page-tab-rename"></span>
+          {:else}
+            <button class:active={page.id === activePageId} class="page-tab" tabindex="-1"
+              >{page.name}</button
             >
-              {#each resolveLayout(page) as frame (frame.slotId)}
-                {@const content = page.slots[frame.slotId]}
-                <i
-                  class:populated={Boolean(content)}
-                  style={`left:${(frame.x / page.width) * 100}%;top:${(frame.y / page.height) * 100}%;width:${(frame.width / page.width) * 100}%;height:${(frame.height / page.height) * 100}%;border-radius:${Math.min(page.style.cornerRadius / Math.max(page.width, page.height), 0.1) * 100}%`}
-                  >{#if content && assetRegistry.getThumbnailUrl(content.assetId)}<img
-                      src={assetRegistry.getThumbnailUrl(content.assetId)}
-                      alt=""
-                      style={`object-position:${content.placement.positionX * 100}% ${content.placement.positionY * 100}%;transform:scale(${content.placement.zoom});transform-origin:${content.placement.positionX * 100}% ${content.placement.positionY * 100}%`}
-                    />{/if}</i
-                >{/each}
-            </div>
-          </div>
-          <button
-            class:active={page.id === activePageId}
-            class:page-drag-before={pageDropTarget?.pageId === page.id &&
-              pageDropTarget.edge === 'before'}
-            class:page-drag-after={pageDropTarget?.pageId === page.id &&
-              pageDropTarget.edge === 'after'}
-            class="page-tab"
-            draggable="true"
-            aria-current={page.id === activePageId ? 'page' : undefined}
-            ondragstart={(event) => startPageDrag(event, page.id)}
-            ondragover={(event) => updatePageDropTarget(event, page.id)}
-            ondrop={(event) => finishPageDrop(event, page.id)}
-            ondragend={finishPageDrag}
-            onclick={() => selectPage(page.id)}>{page.name}</button
-          >
+          {/if}
+          {#if page.id === activePageId}
+            <button class="page-actions-button" tabindex="-1" aria-label="Page actions"></button>
+          {/if}
+        </div>
+      {/each}
+      <button class="add-page" tabindex="-1" aria-label="Add page"><Plus size={16}></Plus></button>
+    </div>
+    {#if hasOverflow}
+      <button
+        class="icon-button page-scroll-button"
+        aria-label="Scroll tabs left"
+        disabled={!canScrollLeft}
+        onclick={() => scrollTabs(-1)}><ChevronLeft size={17}></ChevronLeft></button
+      >
+    {/if}
+    <div
+      bind:this={pageTabsViewport}
+      class="page-tab-viewport"
+      onscroll={() => {
+        updateScrollState()
+        const hoveredTab = pageTabsViewport.querySelector<HTMLElement>(
+          '.page-tab:hover, .page-tab:focus-visible',
+        )
+        if (hoveredTab?.dataset.pageId) showPagePreview(hoveredTab.dataset.pageId, hoveredTab)
+        else previewPageId = null
+      }}
+    >
+      {#each document.pages as page (page.id)}
+        <div class:active-tab-action={page.id === activePageId} class="page-tab-with-actions">
+          {#if renamingPageId === page.id}
+            <input
+              bind:this={renameInput}
+              bind:value={renameDraft}
+              class="page-tab page-tab-rename"
+              aria-label="Rename page"
+              onkeydown={(event) => {
+                if (event.key === 'Enter' || event.key === 'Escape') {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  finishRename(event.key === 'Enter', true)
+                }
+              }}
+              onblur={() => finishRename(true)}
+            />
+          {:else}
+            <button
+              class:active={page.id === activePageId}
+              class:page-drag-before={pageDropTarget?.pageId === page.id &&
+                pageDropTarget.edge === 'before'}
+              class:page-drag-after={pageDropTarget?.pageId === page.id &&
+                pageDropTarget.edge === 'after'}
+              class="page-tab"
+              data-page-id={page.id}
+              draggable="true"
+              aria-current={page.id === activePageId ? 'page' : undefined}
+              onpointerenter={(event) => showPagePreview(page.id, event.currentTarget)}
+              onpointerleave={(event) => {
+                if (!event.currentTarget.matches(':focus-visible')) hidePagePreview(page.id)
+              }}
+              onfocus={(event) => {
+                if (event.currentTarget.matches(':focus-visible'))
+                  showPagePreview(page.id, event.currentTarget)
+              }}
+              onblur={() => hidePagePreview(page.id)}
+              ondragstart={(event) => startPageDrag(event, page.id)}
+              ondragover={(event) => updatePageDropTarget(event, page.id)}
+              ondrop={(event) => finishPageDrop(event, page.id)}
+              ondragend={finishPageDrag}
+              ondblclick={() => startRename(page.id)}
+              onclick={() => selectPage(page.id)}>{page.name}</button
+            >
+          {/if}
           {#if page.id === activePageId}
             <PageActions
               bind:open={isPageMenuOpen}
               pageIndex={document.pages.findIndex((candidate) => candidate.id === activePageId)}
               pageCount={document.pages.length}
-              onRename={onrenamepage}
+              onRename={() => startRename(page.id)}
               onDuplicate={onduplicatepage}
               onMoveLeft={() => onmovepage(-1)}
               onMoveRight={() => onmovepage(1)}
@@ -188,44 +319,38 @@
           {/if}
         </div>
       {/each}
-    {:else}
-      <div class="page-picker-with-actions">
-        <Select.Root
-          type="single"
-          value={activePageId}
-          onValueChange={(value) => value && selectPage(value)}
-          ><Select.Trigger class="page-picker" aria-label="Choose page"
-            ><span>{activePage.name}</span></Select.Trigger
-          ><Select.Content class="asset-sort-content"
-            >{#each document.pages as page (page.id)}<Select.Item value={page.id}
-                >{page.name}</Select.Item
-              >{/each}</Select.Content
-          ></Select.Root
-        >
-        <PageActions
-          bind:open={isPageMenuOpen}
-          pageIndex={document.pages.findIndex((page) => page.id === activePageId)}
-          pageCount={document.pages.length}
-          onRename={onrenamepage}
-          onDuplicate={onduplicatepage}
-          onMoveLeft={() => onmovepage(-1)}
-          onMoveRight={() => onmovepage(1)}
-          onClear={onclearpage}
-          onDelete={ondeletepage}
-        />
-      </div>
+    </div>
+    {#if hasOverflow}
+      <button
+        class="icon-button page-scroll-button"
+        aria-label="Scroll tabs right"
+        disabled={!canScrollRight}
+        onclick={() => scrollTabs(1)}><ChevronRight size={17}></ChevronRight></button
+      >
     {/if}
     <button class="add-page" onclick={onaddpage} aria-label="Add page"
       ><Plus size={16}></Plus></button
     >
-    {#if document.pages.length > 4}
-      <button
-        class="icon-button"
-        aria-label="Next page"
-        disabled={document.pages.findIndex((page) => page.id === activePageId) ===
-          document.pages.length - 1}
-        onclick={nextPage}><ChevronRight size={17}></ChevronRight></button
-      >
+    {#if previewPage}
+      <div class="page-tab-preview visible" role="tooltip" style:left={`${previewLeft}px`}>
+        <strong>{previewPage.name}</strong>
+        <div
+          class="page-tab-preview-canvas"
+          style={`aspect-ratio: ${previewPage.width} / ${previewPage.height}; background: ${previewPage.style.transparentBackground ? 'transparent' : previewPage.style.backgroundColor}`}
+        >
+          {#each resolveLayout(previewPage) as frame (frame.slotId)}
+            {@const content = previewPage.slots[frame.slotId]}
+            <i
+              class:populated={Boolean(content)}
+              style={`left:${(frame.x / previewPage.width) * 100}%;top:${(frame.y / previewPage.height) * 100}%;width:${(frame.width / previewPage.width) * 100}%;height:${(frame.height / previewPage.height) * 100}%;border-radius:${Math.min(previewPage.style.cornerRadius / Math.max(previewPage.width, previewPage.height), 0.1) * 100}%`}
+              >{#if content && assetRegistry.getThumbnailUrl(content.assetId)}<img
+                  src={assetRegistry.getThumbnailUrl(content.assetId)}
+                  alt=""
+                  style={`object-position:${content.placement.positionX * 100}% ${content.placement.positionY * 100}%;transform:scale(${content.placement.zoom});transform-origin:${content.placement.positionX * 100}% ${content.placement.positionY * 100}%`}
+                />{/if}</i
+            >{/each}
+        </div>
+      </div>
     {/if}
   </footer>
 </section>

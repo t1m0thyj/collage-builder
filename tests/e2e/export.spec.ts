@@ -1,0 +1,241 @@
+import { test, expect } from './test-fixtures'
+import {
+  redPng,
+  bluePng,
+  realPhotoPath,
+  visualParityArchive,
+  importImage,
+  pngDimensions,
+  downloadBytes,
+  rasterDimensions,
+  sampleDownloadedPng,
+  exportCurrentPng,
+  chooseTwoColumnLayout,
+  twoColumnFrameCenters,
+  assignSidebarImage,
+  sampleStagePixel,
+  setNumber,
+  expectOnTop,
+  collageMimeType,
+} from './test-helpers'
+
+test('page-range export dialog overlays the editor', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Choose export scope' }).click()
+  await page.getByRole('menuitem', { name: 'Page range…' }).click()
+  await expect(page.getByRole('dialog', { name: 'Export pages' })).toBeVisible()
+  await expectOnTop(page, 'Export pages')
+})
+
+test('page-range export validates input and downloads the requested pages', async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName === 'webkit' && process.platform === 'win32',
+    'Playwright WebKit on Windows exhausts canvas encoders across test contexts',
+  )
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Add page' }).click()
+  await page.getByRole('button', { name: 'Choose export scope' }).click()
+  await page.getByRole('menuitem', { name: 'Page range…' }).click()
+  const exportDialog = page.getByRole('dialog', { name: 'Export pages' })
+  await exportDialog.getByRole('spinbutton', { name: 'Width (px)' }).fill('400')
+  const range = exportDialog.getByPlaceholder('1-3')
+  await range.fill('2-1')
+  await exportDialog.getByRole('button', { name: 'Export', exact: true }).click()
+  await expect(page.getByRole('status')).toContainText('Choose pages between 1 and 2')
+  await expect(exportDialog).toBeVisible()
+
+  await range.fill('1-2')
+  const downloadPromise = page.waitForEvent('download')
+  await exportDialog.getByRole('button', { name: 'Export', exact: true }).click()
+  const download = await downloadPromise
+  expect(download.suggestedFilename()).toBe('Untitled collage-pages.zip')
+  await expect(exportDialog).toBeHidden()
+})
+
+test('exports current-page PNGs at normal and default 4K resolutions', async ({
+  page,
+  browserName,
+}) => {
+  await page.goto('/')
+  await importImage(page, 'export.png', redPng)
+  const host = page.getByRole('region', { name: 'Collage canvas' })
+  const hostBox = await host.boundingBox()
+  expect(hostBox).not.toBeNull()
+  await page.getByRole('tab', { name: 'Images' }).click()
+  await page.mouse.click(hostBox!.x + hostBox!.width * 0.5, hostBox!.y + hostBox!.height * 0.5)
+  await page.getByText('export.png', { exact: true }).click()
+
+  await page.getByRole('button', { name: 'Export…' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Export pages' })
+  const width = dialog.getByRole('spinbutton', { name: 'Width (px)' })
+  await width.fill('800')
+  const normalDownload = page.waitForEvent('download')
+  await dialog.getByRole('button', { name: 'Export', exact: true }).click()
+  await expect(await pngDimensions(await normalDownload)).toEqual({ width: 800, height: 600 })
+
+  await page.getByRole('button', { name: 'Export…' }).click()
+  await width.fill('3840')
+  const largeDownload = page.waitForEvent('download')
+  await dialog.getByRole('button', { name: 'Export', exact: true }).click()
+  await expect(await pngDimensions(await largeDownload)).toEqual({ width: 3840, height: 2880 })
+
+  const renderMeasurements = await page.evaluate(() =>
+    performance.getEntriesByName('collage-export-render').map((entry) => {
+      const detail = (entry as PerformanceMeasure).detail as {
+        pixelCount: number
+        renderer: string
+      }
+      return { durationMs: entry.duration, ...detail }
+    }),
+  )
+  expect(renderMeasurements).toHaveLength(2)
+  expect(renderMeasurements.map(({ pixelCount }) => pixelCount)).toEqual([800 * 600, 3840 * 2880])
+  expect(renderMeasurements.every(({ durationMs }) => durationMs > 0)).toBe(true)
+  if (browserName === 'chromium')
+    expect(renderMeasurements.every(({ renderer }) => renderer === 'worker')).toBe(true)
+})
+
+test('exports JPEG with configurable quality', async ({ page }) => {
+  await page.goto('/')
+  await importImage(page, 'export.png', redPng)
+  const host = page.getByRole('region', { name: 'Collage canvas' })
+  const hostBox = await host.boundingBox()
+  expect(hostBox).not.toBeNull()
+  await page.getByRole('tab', { name: 'Images' }).click()
+  await page.mouse.click(hostBox!.x + hostBox!.width * 0.5, hostBox!.y + hostBox!.height * 0.5)
+  await page.getByText('export.png', { exact: true }).click()
+
+  await page.getByRole('button', { name: 'Export…' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Export pages' })
+  await dialog.getByRole('button', { name: 'Export format' }).click()
+  await page.getByRole('option', { name: 'JPEG', exact: true }).click()
+  await dialog.getByRole('spinbutton', { name: 'Width (px)' }).fill('800')
+  await dialog.getByRole('spinbutton', { name: 'JPEG quality (%)' }).fill('72')
+  const downloadPromise = page.waitForEvent('download')
+  await dialog.getByRole('button', { name: 'Export', exact: true }).click()
+  const download = await downloadPromise
+  expect(download.suggestedFilename()).toBe('Untitled collage-01.jpg')
+  const bytes = await downloadBytes(download)
+  expect(bytes.subarray(0, 3)).toEqual(Buffer.from([0xff, 0xd8, 0xff]))
+  expect(await rasterDimensions(page, bytes)).toEqual({ width: 800, height: 600 })
+  await expect(page.getByRole('button', { name: 'Export…' })).toBeVisible()
+})
+
+test('export pixels preserve image colors and the configured page gap', async ({ page }) => {
+  await page.goto('/')
+  await chooseTwoColumnLayout(page)
+  await importImage(page, 'red.png', redPng)
+  await importImage(page, 'blue.png', bluePng)
+  await assignSidebarImage(page, 'red.png', 1)
+  await assignSidebarImage(page, 'blue.png', 2)
+  await page.getByRole('switch', { name: 'Frame shadow enabled' }).click()
+
+  await page.getByRole('button', { name: 'Export…' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Export pages' })
+  await dialog.getByRole('spinbutton', { name: 'Width (px)' }).fill('400')
+  const downloadPromise = page.waitForEvent('download')
+  await dialog.getByRole('button', { name: 'Export', exact: true }).click()
+  const [leftPixel, gapPixel, rightPixel] = await sampleDownloadedPng(page, await downloadPromise, [
+    { x: 100, y: 150 },
+    { x: 200, y: 150 },
+    { x: 300, y: 150 },
+  ])
+  expect(leftPixel.slice(0, 3)).toEqual([238, 45, 54])
+  expect(gapPixel.slice(0, 3)).toEqual([128, 128, 128])
+  expect(rightPixel.slice(0, 3)).toEqual([30, 110, 230])
+})
+
+test('exports rounded corners, transparent areas, and shadows accurately', async ({ page }) => {
+  await page.goto('/')
+  await page.locator('input[type="file"][accept*=".collage.json"]').setInputFiles({
+    name: 'visual-parity.collage',
+    mimeType: collageMimeType,
+    buffer: Buffer.from(visualParityArchive()),
+  })
+  await expect(page.locator('.toast')).toHaveText('Project opened.')
+  await expect(page.getByRole('textbox', { name: 'Project title' })).toHaveValue('Visual parity')
+  await page.getByRole('tab', { name: 'Images' }).click()
+  await expect(page.locator('.asset-row img').first()).toBeVisible()
+
+  const roundedPixels = await sampleDownloadedPng(page, await exportCurrentPng(page, 100), [
+    { x: 50, y: 50 },
+    { x: 0, y: 0 },
+  ])
+  expect(roundedPixels[0]).toEqual([238, 45, 54, 255])
+  expect(roundedPixels[1]).toEqual([0, 0, 0, 0])
+
+  await page.getByRole('button', { name: 'Transparent' }).click()
+  const transparentPixels = await sampleDownloadedPng(page, await exportCurrentPng(page, 100), [
+    { x: 50, y: 50 },
+    { x: 0, y: 0 },
+  ])
+  expect(transparentPixels[0]).toEqual([238, 45, 54, 255])
+  expect(transparentPixels[1]).toEqual([0, 0, 0, 0])
+
+  await page.getByRole('button', { name: 'Shadow' }).click()
+  const [shadowPixel, transparentPixel] = await sampleDownloadedPng(
+    page,
+    await exportCurrentPng(page, 100),
+    [
+      { x: 84, y: 50 },
+      { x: 5, y: 5 },
+    ],
+  )
+  expect(shadowPixel.slice(0, 3)).toEqual([0, 0, 0])
+  expect(shadowPixel[3]).toBeGreaterThanOrEqual(120)
+  expect(shadowPixel[3]).toBeLessThanOrEqual(135)
+  expect(transparentPixel).toEqual([0, 0, 0, 0])
+})
+
+test('real photo import, crop, thumbnail, and export stay visually consistent', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await chooseTwoColumnLayout(page)
+  await page
+    .locator(
+      'input[type="file"][accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"]',
+    )
+    .first()
+    .setInputFiles(realPhotoPath)
+  await page.getByRole('tab', { name: 'Images' }).click()
+  await expect(page.getByText('real-photo-still-life.png', { exact: true })).toBeVisible()
+
+  const thumbnail = page.locator('.asset-row img').first()
+  await expect(thumbnail).toBeVisible()
+  expect(
+    await thumbnail.evaluate((image) => ({
+      width: image.naturalWidth,
+      height: image.naturalHeight,
+    })),
+  ).toEqual({ width: 256, height: 171 })
+
+  await assignSidebarImage(page, 'real-photo-still-life.png', 1)
+  const [left] = await twoColumnFrameCenters(page)
+  await page.getByRole('button', { name: 'Crop image', exact: true }).click()
+  await setNumber(page, 'Crop zoom value', '1.20')
+  await setNumber(page, 'Crop horizontal position', '45')
+  await page.getByRole('button', { name: 'Done' }).click()
+
+  await expect.poll(() => sampleStagePixel(page, left)).not.toEqual([229, 226, 217, 255])
+  const renderedStagePixel = await sampleStagePixel(page, left)
+  expect(renderedStagePixel[3]).toBe(255)
+
+  await page.getByRole('button', { name: 'Export…' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Export pages' })
+  await dialog.getByRole('spinbutton', { name: 'Width (px)' }).fill('600')
+  const downloadPromise = page.waitForEvent('download')
+  await dialog.getByRole('button', { name: 'Export', exact: true }).click()
+  const [exportedPixel] = await sampleDownloadedPng(page, await downloadPromise, [
+    { x: 151, y: 225 },
+  ])
+  const maximumResamplingDelta = 32
+  for (let channel = 0; channel < 3; channel += 1)
+    expect(Math.abs(exportedPixel[channel] - renderedStagePixel[channel])).toBeLessThanOrEqual(
+      maximumResamplingDelta,
+    )
+  expect(exportedPixel[3]).toBe(255)
+})

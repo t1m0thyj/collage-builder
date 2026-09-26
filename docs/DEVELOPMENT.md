@@ -24,6 +24,14 @@ npm run dev
 
 CI runs the formatting gate explicitly before the remaining verification steps. Repository text uses UTF-8, LF line endings, two-space indentation, and a final newline as defined by `.editorconfig`, `.gitattributes`, and `.prettierrc.json`.
 
+Browser tests are grouped by feature in `tests/e2e/` (`page-tabs`, `assets`, `canvas`, `editor-shell`, `export`, `projects`, and `recovery`). During a fix, run the relevant spec file or filter by test name. For example:
+
+```sh
+npx playwright test tests/e2e/page-tabs.spec.ts --project=chromium
+```
+
+Run the broader suite when the change affects several features or a required verification gate calls for it.
+
 ## Project map
 
 - `src/lib/app/`: application workflows and lifecycle

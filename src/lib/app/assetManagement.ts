@@ -218,13 +218,14 @@ export async function relinkProjectAsset(
   document: CollageDocumentV1,
   registry: AssetRegistry,
   project: ProjectStore,
-  confirmMismatch: () => boolean,
+  confirmMismatch: () => boolean | Promise<boolean>,
   isCurrent: () => boolean = () => true,
 ): Promise<boolean> {
   const { asset, file: normalizedFile, displayBlob } = await validateImportedImage(file)
   if (!isCurrent()) return false
   const original = document.assets[target]
-  if (original.sha256 !== asset.sha256 && !confirmMismatch()) return false
+  if (original.sha256 !== asset.sha256 && !(await confirmMismatch())) return false
+  if (!isCurrent()) return false
   const registered = await registry.register(
     target,
     normalizedFile,
@@ -254,7 +255,7 @@ export async function relinkMissingProjectAssets(
   document: CollageDocumentV1,
   registry: AssetRegistry,
   project: ProjectStore,
-  confirmSuggestion: (original: AssetRecordV1, candidate: File) => boolean,
+  confirmSuggestion: (original: AssetRecordV1, candidate: File) => boolean | Promise<boolean>,
   isCurrent: () => boolean = () => true,
 ): Promise<RelinkBatchResult> {
   const targetIds = [...new Set(missingAssetIds)].filter((id) => document.assets[id])
@@ -293,9 +294,13 @@ export async function relinkMissingProjectAssets(
       .map((candidate) => ({ candidate, score: candidateScore(original, candidate) }))
       .filter(({ score }) => score >= 3)
       .sort((left, right) => right.score - left.score)[0]?.candidate
-    if (suggestion && confirmSuggestion(original, suggestion.file)) {
-      matches.set(targetId, suggestion)
-      usedCandidates.add(suggestion)
+    if (suggestion) {
+      const accepted = await confirmSuggestion(original, suggestion.file)
+      if (!isCurrent()) return { relinkedAssetIds: [], unmatchedAssetIds: targetIds, issues }
+      if (accepted) {
+        matches.set(targetId, suggestion)
+        usedCandidates.add(suggestion)
+      }
     }
   }
 
@@ -355,6 +360,7 @@ interface AssetWorkflowHost {
   showImageLibrary: () => void
   setImportStatus: (status: ImportBatchStatus | null) => void
   setOperationProgress: (message: string | null) => void
+  confirmRelink: (message: string) => Promise<boolean>
   announce: (message: string) => void
 }
 
@@ -494,7 +500,7 @@ export class AssetWorkflowController {
         this.host.registry(),
         this.host.project,
         () =>
-          globalThis.confirm(
+          this.host.confirmRelink(
             'This file differs from the missing original. Use it for this image anyway?',
           ),
         isCurrent,
@@ -530,7 +536,7 @@ export class AssetWorkflowController {
         registry,
         this.host.project,
         (original, candidate) =>
-          globalThis.confirm(
+          this.host.confirmRelink(
             `${candidate.name} appears to match ${original.originalName} by name, dimensions, or size, but its contents differ. Use it anyway?`,
           ),
         isCurrent,

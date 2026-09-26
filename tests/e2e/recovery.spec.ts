@@ -1,0 +1,179 @@
+import { test, expect } from './test-fixtures'
+import { redPng, importImage, chooseTwoColumnLayout, assignSidebarImage } from './test-helpers'
+
+test('startup recovery asks before restoring an unsaved project', async ({ page, browserName }) => {
+  await page.goto('/')
+  // Playwright's Windows WebKit build cannot clone Blob/File values into IndexedDB.
+  // Its layout-only recovery thumbnail remains covered here and in the manager test below.
+  if (browserName !== 'webkit') {
+    await chooseTwoColumnLayout(page)
+    await importImage(page, 'recovery-preview.png', redPng)
+    await assignSidebarImage(page, 'recovery-preview.png', 1)
+  }
+  const title = page.getByRole('textbox', { name: 'Project title' })
+  await title.fill('Recovered project')
+  await title.press('Tab')
+  await expect(
+    page.getByRole('button', { name: /Saved locally.*Manage local copies/i }),
+  ).toBeVisible()
+  await page.reload()
+  const recoveryDialog = page.getByRole('dialog', { name: 'Pick up where you left off?' })
+  await expect(recoveryDialog).toContainText('Recovered project')
+  const preview = recoveryDialog.getByRole('img', { name: 'Preview of Recovered project' })
+  await expect(preview).toBeVisible()
+  if (browserName !== 'webkit') {
+    const previewPixel = await preview.evaluate(async (image: HTMLImageElement) => {
+      await image.decode()
+      const canvas = document.createElement('canvas')
+      canvas.width = image.naturalWidth
+      canvas.height = image.naturalHeight
+      const context = canvas.getContext('2d')!
+      context.drawImage(image, 0, 0)
+      return [
+        ...context.getImageData(
+          Math.round(canvas.width * 0.25),
+          Math.round(canvas.height * 0.5),
+          1,
+          1,
+        ).data,
+      ]
+    })
+    expect(previewPixel[0]).toBeGreaterThan(180)
+    expect(previewPixel[1]).toBeLessThan(100)
+  }
+  await expect(title).toHaveValue('Untitled collage')
+  await recoveryDialog.getByRole('button', { name: 'Continue this collage' }).click()
+  await expect(title).toHaveValue('Recovered project')
+  await expect(page.getByRole('status')).toContainText('Local recovery restored')
+})
+
+test('viewing saved drafts does not create a recovery for an untouched blank collage', async ({
+  page,
+}) => {
+  await page.goto('/')
+  const title = page.getByRole('textbox', { name: 'Project title' })
+  await title.fill('Keep this recovery')
+  await title.press('Tab')
+  await expect(
+    page.getByRole('button', { name: /Saved locally.*Manage local copies/i }),
+  ).toBeVisible()
+  await page.reload()
+
+  const recoveryDialog = page.getByRole('dialog', { name: 'Pick up where you left off?' })
+  await recoveryDialog.getByRole('button', { name: 'See saved drafts' }).click()
+  await expect(title).toHaveValue('Untitled collage')
+  const manager = page.getByRole('dialog', { name: 'Local recovery' })
+  await expect(manager).toContainText('Keep this recovery')
+  await expect(manager).not.toContainText('Untitled collage')
+})
+
+test('first visit offers an accessible quick start that can be reopened', async ({ page }) => {
+  await page.goto('/')
+  await page.evaluate(() => localStorage.removeItem('collage-builder:onboarding-complete:v1'))
+  await page.reload()
+
+  const dialog = page.getByRole('dialog', { name: 'Create your first collage' })
+  await expect(dialog).toContainText('Your photos stay on this device')
+  await dialog.getByRole('button', { name: 'Close quick start' }).click()
+  await expect(dialog).toBeHidden()
+  await page.reload()
+  await expect(dialog).toBeHidden()
+
+  await page.getByRole('button', { name: 'Show quick start' }).click()
+  await expect(dialog).toBeVisible()
+})
+
+test('local recovery manager reports storage and removes recovery copies', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'storage', {
+      configurable: true,
+      value: {
+        estimate: async () => ({ usage: 2 * 1024 * 1024, quota: 100 * 1024 * 1024 }),
+        persisted: async () => false,
+        persist: async () => {
+          sessionStorage.setItem('persistent-storage-requested', 'yes')
+          return false
+        },
+      },
+    })
+  })
+  await page.goto('/')
+  const title = page.getByRole('textbox', { name: 'Project title' })
+  await title.fill('Managed recovery')
+  await title.press('Tab')
+  const recoveryStatus = page.getByRole('button', {
+    name: /Saved locally.*Manage local copies/i,
+  })
+  await expect(recoveryStatus).toBeVisible()
+  await expect
+    .poll(() => page.evaluate(() => sessionStorage.getItem('persistent-storage-requested')))
+    .toBe('yes')
+  await recoveryStatus.click()
+
+  const dialog = page.getByRole('dialog', { name: 'Local recovery' })
+  await expect(dialog).toContainText('2.0 MB of 100 MB used by this site')
+  await expect(dialog).toContainText('Managed recovery')
+  await expect(dialog.getByRole('img', { name: 'Preview of Managed recovery' })).toBeVisible()
+  await dialog.getByRole('button', { name: 'Remove', exact: true }).click()
+  await dialog.getByRole('button', { name: 'Confirm remove' }).click()
+  await expect(dialog).toContainText('No local recovery copies are stored')
+})
+
+test('autosave failures remain visible with quota guidance', async ({ page }) => {
+  await page.addInitScript(() => {
+    const originalPut = IDBObjectStore.prototype.put
+    IDBObjectStore.prototype.put = function (value: unknown, key?: IDBValidKey) {
+      if (this.name === 'projects') throw new DOMException('Storage full', 'QuotaExceededError')
+      return originalPut.call(this, value, key)
+    }
+    Object.defineProperty(navigator, 'storage', {
+      configurable: true,
+      value: {
+        estimate: async () => ({ usage: 95 * 1024 * 1024, quota: 100 * 1024 * 1024 }),
+        persisted: async () => false,
+        persist: async () => false,
+      },
+    })
+  })
+  await page.goto('/')
+  const title = page.getByRole('textbox', { name: 'Project title' })
+  await title.fill('Storage full')
+  await title.press('Tab')
+  const failedStatus = page.getByRole('button', {
+    name: /Autosave failed.*Manage local copies/i,
+  })
+  await expect(failedStatus).toBeVisible()
+  await failedStatus.click()
+  await expect(page.getByRole('dialog', { name: 'Local recovery' })).toContainText(
+    'Browser storage is full (95.0 MB used of 100.0 MB)',
+  )
+})
+
+test('same-project tabs pause autosave until the user takes over', async ({ page, context }) => {
+  await page.goto('/')
+  const title = page.getByRole('textbox', { name: 'Project title' })
+  await title.fill('Shared tab recovery')
+  await title.press('Tab')
+  await expect(
+    page.getByRole('button', { name: /Saved locally.*Manage local copies/i }),
+  ).toBeVisible()
+
+  const secondPage = await context.newPage()
+  await secondPage.goto('/')
+  await secondPage
+    .getByRole('dialog', { name: 'Pick up where you left off?' })
+    .getByRole('button', { name: 'Continue this collage' })
+    .click()
+  await expect(secondPage.getByRole('textbox', { name: 'Project title' })).toHaveValue(
+    'Shared tab recovery',
+  )
+  const paused = secondPage.getByRole('button', {
+    name: /Autosave paused.*Manage local copies/i,
+  })
+  await expect(paused).toBeVisible()
+  await paused.click()
+  await secondPage.getByRole('button', { name: 'Use this tab instead' }).click()
+  await expect(
+    page.getByRole('button', { name: /Autosave paused.*Manage local copies/i }),
+  ).toBeVisible()
+})
