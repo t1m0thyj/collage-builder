@@ -44,7 +44,7 @@ export async function chooseSaveTarget(
           accept: { [collageMimeType]: ['.collage'] },
         },
         {
-          description: 'Collage project — linked images',
+          description: 'Linked collage project — needs photo folder',
           accept: { [linkedProjectMimeType]: ['.collage.json'] },
         },
       ],

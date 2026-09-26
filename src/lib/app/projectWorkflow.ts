@@ -21,6 +21,7 @@ interface ProjectWorkflowHost {
   missingAssetIds: () => Set<string>
   chooseProject: () => void
   chooseLinkedFolder: () => Promise<FileList | null>
+  chooseLinkedFolderForSave: () => Promise<FileList | null>
   chooseFallbackFormat: () => Promise<ProjectSaveFormat | null>
   installDocument: (
     document: CollageDocumentV1,
@@ -99,7 +100,7 @@ export class ProjectWorkflowController {
         projectTitle: this.host.projectTitle(),
         saveAs,
         chooseFallback: this.host.chooseFallbackFormat,
-        chooseLinkedFolder: this.host.chooseLinkedFolder,
+        chooseLinkedFolder: this.host.chooseLinkedFolderForSave,
         isCurrent,
       })
       if (!format || !isCurrent()) return false

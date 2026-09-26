@@ -30,6 +30,8 @@ Browser tests are grouped by feature in `tests/e2e/` (`page-tabs`, `assets`, `ca
 npx playwright test tests/e2e/page-tabs.spec.ts --project=chromium
 ```
 
+In restricted Windows environments where Playwright cannot stop its Vite process (`taskkill: Access denied`), start `npm run dev -- --host 127.0.0.1 --port 4174` in a separate terminal before running browser tests. Local Playwright runs reuse that server; stop it when finished. CI still starts its own server.
+
 Run the broader suite when the change affects several features or a required verification gate calls for it.
 
 ## Project map

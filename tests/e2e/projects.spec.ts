@@ -255,6 +255,23 @@ test('Save retains the current format while Save As offers both project extensio
   await expect(saveOptions).toBeDisabled()
 })
 
+test('explains the photo folder choice before saving a linked project', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'showSaveFilePicker', { value: undefined, configurable: true })
+  })
+  await page.goto('/')
+  await importImage(page, 'original.png', redPng)
+
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  const formatDialog = page.getByRole('dialog', { name: 'Choose how to save' })
+  await formatDialog.getByRole('button', { name: 'Save linked project' }).click()
+  const folderDialog = page.getByRole('dialog', { name: 'Choose the original photo folder' })
+  await expect(folderDialog).toContainText('no files are uploaded')
+  await folderDialog.getByRole('button', { name: 'Cancel save' }).click()
+  await expect(folderDialog).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Save options' })).toBeDisabled()
+})
+
 test('opens a linked project from the .collage.json extension', async ({ page }) => {
   await page.goto('/')
   const linkedDocument = createProject('Linked JSON project')

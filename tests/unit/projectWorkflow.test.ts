@@ -46,6 +46,7 @@ function workflowHost(project: ProjectStore, persistence: { save: ReturnType<typ
       missingAssetIds: () => new Set<string>(),
       chooseProject: () => undefined,
       chooseLinkedFolder: async () => null,
+      chooseLinkedFolderForSave: async () => null,
       chooseFallbackFormat: async () => null,
       installDocument: async (document) => {
         project.replaceDocument(document)
@@ -92,6 +93,7 @@ describe('project workflow lifecycle guards', () => {
       missingAssetIds: () => new Set(),
       chooseProject: () => undefined,
       chooseLinkedFolder: async () => null,
+      chooseLinkedFolderForSave: async () => null,
       chooseFallbackFormat: async () => null,
       installDocument: async () => true,
       preparePageImages: async () => undefined,

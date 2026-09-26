@@ -102,8 +102,10 @@
   let pendingNavigation: 'new' | 'open' | null = null
   let pendingLinkedDocument: typeof document | null = null
   let isSaveFormatOpen = false
+  let isLinkedSaveFolderOpen = false
   let hasSavedProject = false
   let saveFormatResolver: ((format: ProjectSaveFormat | null) => void) | null = null
+  let linkedSaveFolderResolver: ((files: FileList | null) => void) | null = null
   let assetFilter: AssetFilter = 'all'
   let assetQuery = ''
   let assetSort: AssetSort = 'import'
@@ -228,6 +230,7 @@
     missingAssetIds: () => missingAssetIds,
     chooseProject: () => projectFiles.chooseProject(),
     chooseLinkedFolder: () => projectFiles.chooseLinkedFolder(),
+    chooseLinkedFolderForSave,
     chooseFallbackFormat: chooseFallbackSaveFormat,
     installDocument,
     preparePageImages,
@@ -527,6 +530,19 @@
     isSaveFormatOpen = true
     return new Promise((resolve) => (saveFormatResolver = resolve))
   }
+
+  function chooseLinkedFolderForSave(): Promise<FileList | null> {
+    isLinkedSaveFolderOpen = true
+    return new Promise((resolve) => (linkedSaveFolderResolver = resolve))
+  }
+
+  function resolveLinkedSaveFolder(choose: boolean) {
+    const resolve = linkedSaveFolderResolver
+    linkedSaveFolderResolver = null
+    isLinkedSaveFolderOpen = false
+    if (choose) void projectFiles.chooseLinkedFolder().then((files) => resolve?.(files))
+    else resolve?.(null)
+  }
 </script>
 
 <svelte:head>
@@ -727,6 +743,7 @@
     bind:pendingRemovalAssetIds
     {pendingRelinkConfirmation}
     {isSaveFormatOpen}
+    {isLinkedSaveFolderOpen}
     bind:pendingNavigation
     bind:pendingLinkedDocument
     bind:isExportOpen
@@ -743,6 +760,7 @@
     onremoveassets={assetWorkflow.remove}
     onresolverelink={resolveRelinkConfirmation}
     onresolvesaveformat={resolveSaveFormat}
+    onresolvelinkedsavefolder={resolveLinkedSaveFolder}
     oncontinuenavigation={projectWorkflow.continueNavigation}
     onsavethencontinue={projectWorkflow.saveThenContinue}
     onrequestlinkedfolder={projectWorkflow.requestLinkedFolder}
