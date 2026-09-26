@@ -1,5 +1,71 @@
 import { test, expect } from './test-fixtures'
-import { redPng, importImage, chooseTwoColumnLayout, assignSidebarImage } from './test-helpers'
+import {
+  redPng,
+  solidPng,
+  importImage,
+  chooseTwoColumnLayout,
+  assignSidebarImage,
+} from './test-helpers'
+import { createProject } from '../../src/lib/domain/factories'
+
+test('opens a disk project when local recovery was upgraded to version 2', async ({ page }) => {
+  const storedDraft = createProject('Existing local draft')
+  await page.route('**/__db-setup', (route) =>
+    route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Setup</title>' }),
+  )
+  await page.goto('/__db-setup')
+  await page.evaluate(
+    (draft) =>
+      new Promise<void>((resolve, reject) => {
+        const request = indexedDB.open('collage-builder', 2)
+        request.onupgradeneeded = () => {
+          request.result.createObjectStore('projects')
+          request.result.createObjectStore('assetBlobs')
+        }
+        request.onerror = () => reject(request.error)
+        request.onsuccess = () => {
+          const db = request.result
+          const tx = db.transaction('projects', 'readwrite')
+          tx.objectStore('projects').put(draft, draft.projectId)
+          tx.oncomplete = () => {
+            db.close()
+            resolve()
+          }
+          tx.onerror = () => reject(tx.error)
+        }
+      }),
+    storedDraft,
+  )
+
+  await page.goto('/')
+  const recoveryDialog = page.getByRole('dialog', { name: 'Pick up where you left off?' })
+  await expect(recoveryDialog).toContainText('Existing local draft')
+  await recoveryDialog.getByRole('button', { name: 'Start a new collage' }).click()
+  const diskProject = createProject('Project from disk')
+  await page.locator('input[type="file"][accept*=".collage.json"]').setInputFiles({
+    name: 'disk-project.collage.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(diskProject)),
+  })
+  await expect(page.getByRole('textbox', { name: 'Project title' })).toHaveValue(
+    'Project from disk',
+  )
+  await expect(page.getByRole('status')).toContainText('Project opened')
+  expect(
+    await page.evaluate(
+      () =>
+        new Promise<number>((resolve, reject) => {
+          const request = indexedDB.open('collage-builder')
+          request.onerror = () => reject(request.error)
+          request.onsuccess = () => {
+            const db = request.result
+            resolve(db.version)
+            db.close()
+          }
+        }),
+    ),
+  ).toBe(2)
+})
 
 test('startup recovery asks before restoring an unsaved project', async ({ page, browserName }) => {
   await page.goto('/')
@@ -45,6 +111,46 @@ test('startup recovery asks before restoring an unsaved project', async ({ page,
   await recoveryDialog.getByRole('button', { name: 'Continue this collage' }).click()
   await expect(title).toHaveValue('Recovered project')
   await expect(page.getByRole('status')).toContainText('Local recovery restored')
+})
+
+test('portrait draft preview fits inside its thumbnail', async ({ page, browserName }) => {
+  await page.goto('/')
+  if (browserName !== 'webkit') {
+    await chooseTwoColumnLayout(page)
+    await importImage(page, 'portrait.png', solidPng(210, 35, 25, 64, 96))
+    await assignSidebarImage(page, 'portrait.png', 1)
+  }
+  const width = page.getByRole('spinbutton', { name: 'Page width' })
+  const height = page.getByRole('spinbutton', { name: 'Page height' })
+  await width.fill('1800')
+  await width.press('Tab')
+  await height.fill('2400')
+  await height.press('Tab')
+  const title = page.getByRole('textbox', { name: 'Project title' })
+  await title.fill('Portrait draft')
+  await title.press('Tab')
+  await expect(
+    page.getByRole('button', { name: /Saved locally.*Manage local copies/i }),
+  ).toBeVisible()
+
+  await page.reload()
+  const preview = page.getByRole('img', { name: 'Preview of Portrait draft' })
+  await expect(preview).toBeVisible()
+  const dimensions = await preview.evaluate(async (image: HTMLImageElement) => {
+    await image.decode()
+    const imageBox = image.getBoundingClientRect()
+    const thumbnailBox = image.parentElement!.getBoundingClientRect()
+    return {
+      portrait: image.naturalHeight > image.naturalWidth,
+      imageWidth: imageBox.width,
+      imageHeight: imageBox.height,
+      thumbnailWidth: thumbnailBox.width,
+      thumbnailHeight: thumbnailBox.height,
+    }
+  })
+  expect(dimensions.portrait).toBe(true)
+  expect(dimensions.imageWidth).toBeLessThanOrEqual(dimensions.thumbnailWidth)
+  expect(dimensions.imageHeight).toBeLessThanOrEqual(dimensions.thumbnailHeight)
 })
 
 test('viewing saved drafts does not create a recovery for an untouched blank collage', async ({
@@ -176,4 +282,27 @@ test('same-project tabs pause autosave until the user takes over', async ({ page
   await expect(
     page.getByRole('button', { name: /Autosave paused.*Manage local copies/i }),
   ).toBeVisible()
+})
+
+test('different projects can autosave in separate browser tabs', async ({ page, context }) => {
+  await page.goto('/')
+  const firstTitle = page.getByRole('textbox', { name: 'Project title' })
+  await firstTitle.fill('First open project')
+  await firstTitle.press('Tab')
+  const savedLocally = { name: /Saved locally.*Manage local copies/i }
+  await expect(page.getByRole('button', savedLocally)).toBeVisible()
+
+  const secondPage = await context.newPage()
+  await secondPage.goto('/')
+  await secondPage
+    .getByRole('dialog', { name: 'Pick up where you left off?' })
+    .getByRole('button', { name: 'Start a new collage' })
+    .click()
+  const secondTitle = secondPage.getByRole('textbox', { name: 'Project title' })
+  await secondTitle.fill('Second open project')
+  await secondTitle.press('Tab')
+  await expect(secondPage.getByRole('button', savedLocally)).toBeVisible()
+  await expect(page.getByRole('button', savedLocally)).toBeVisible()
+  await expect(firstTitle).toHaveValue('First open project')
+  await expect(secondTitle).toHaveValue('Second open project')
 })

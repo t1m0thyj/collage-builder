@@ -33,11 +33,12 @@ async function sha256(blob: Blob): Promise<string> {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
+// Open the browser's current recovery database version, including older local upgrades.
 const database = () =>
-  openDB('collage-builder', 1, {
+  openDB('collage-builder', undefined, {
     upgrade(db) {
-      db.createObjectStore('projects')
-      db.createObjectStore('assetBlobs')
+      if (!db.objectStoreNames.contains('projects')) db.createObjectStore('projects')
+      if (!db.objectStoreNames.contains('assetBlobs')) db.createObjectStore('assetBlobs')
     },
   })
 

@@ -218,6 +218,7 @@ export class AssetRegistry {
   async ensureImages(
     assetIds: Iterable<AssetId>,
     isCurrent: () => boolean = () => true,
+    onImageReady: () => void = () => undefined,
   ): Promise<boolean> {
     const uniqueAssetIds = [...new Set(assetIds)]
     for (const assetId of uniqueAssetIds) {
@@ -233,6 +234,7 @@ export class AssetRegistry {
     for (const assetId of missingAssetIds) {
       if (!isCurrent()) break
       await this.ensureImage(assetId)
+      if (isCurrent()) onImageReady()
     }
     return missingAssetIds.length > 0
   }

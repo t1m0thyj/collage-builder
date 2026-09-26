@@ -271,6 +271,8 @@
     registry: () => assetRegistry,
     installDocument,
     onRestored: (restored) => {
+      projectPersistence.reset()
+      hasSavedProject = false
       recoveredOnly = true
       activePageId = restored.pages[0].id
       projectTitle = restored.title
@@ -350,9 +352,13 @@
   async function preparePageImages(page: PageV1, registry = assetRegistry): Promise<void> {
     try {
       const isCurrent = () => registry === assetRegistry && page.id === activePageId
-      const changed = await loadPageImages(page, registry, isCurrent, () => (imageRevision += 1))
-      if (registry !== assetRegistry || page.id !== activePageId) return
-      if (changed) imageRevision += 1
+      await loadPageImages(
+        page,
+        registry,
+        isCurrent,
+        () => (imageRevision += 1),
+        () => (imageRevision += 1),
+      )
     } catch (error) {
       announce(error instanceof Error ? error.message : 'Unable to decode a project image')
     }

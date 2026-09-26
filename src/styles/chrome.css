@@ -197,6 +197,39 @@
   color: #68635c;
   white-space: nowrap;
 }
+.save-status-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.recovery-slot {
+  display: flex;
+  flex: 0 1 160px;
+  align-items: center;
+  min-width: 0;
+}
+.recovery-slot .recovery-status-button,
+.recovery-slot .operation-status {
+  width: 100%;
+}
+.deployment-slot {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+}
+.deployment-ready-icon,
+.deployment-dev-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: #315c9c;
+}
+.deployment-dev-icon {
+  color: #68635c;
+}
 .deployment-status {
   padding: 5px 7px;
   border: 0;
@@ -207,6 +240,9 @@
   white-space: nowrap;
 }
 .deployment-status.update-ready {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   cursor: pointer;
   color: #315c9c;
   font-weight: 700;
@@ -238,11 +274,15 @@
   display: block;
   width: 7px;
   height: 7px;
+  flex: 0 0 7px;
   background: #61a16a;
   border-radius: 99px;
 }
 .status-dot.dirty {
   background: #d99328;
+}
+.status-dot.neutral {
+  background: #9ba5b2;
 }
 .status-dot.saving {
   background: #4d82c3;
@@ -253,6 +293,40 @@
 }
 .status-dot.conflict {
   background: #b85f25;
+}
+.operation-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 5px 7px;
+  color: #315c9c;
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.operation-status-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.operation-spinner {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  border: 2px solid #b8cbe4;
+  border-top-color: #315c9c;
+  border-radius: 50%;
+  animation: operation-spin 0.8s linear infinite;
+}
+@keyframes operation-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .operation-spinner {
+    animation: none;
+  }
 }
 @media (max-width: 1050px) {
   .workspace {
@@ -282,7 +356,16 @@
   .topbar .project-title {
     min-width: 140px;
   }
-  .deployment-status {
+  .deployment-slot:not(.development):not(.offline-ready):not(.update-ready) {
+    display: none;
+  }
+  .deployment-slot.update-ready .deployment-status {
+    width: 28px;
+    height: 28px;
+    justify-content: center;
+    padding: 0;
+  }
+  .deployment-slot.update-ready .deployment-status-label {
     display: none;
   }
 }

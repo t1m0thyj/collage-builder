@@ -2,11 +2,14 @@
   import {
     ChevronDown,
     CircleHelp,
+    CodeXml,
     FileImage,
     Files,
+    HardDriveDownload,
     Minus,
     Plus,
     Redo2,
+    RefreshCw,
     Undo2,
   } from '@lucide/svelte'
   import Button from '../ui/button/button.svelte'
@@ -42,14 +45,15 @@
   export let onapplyupdate: () => void
 
   $: saveLabel =
-    operationProgress ??
-    (recoveryState.status === 'idle'
+    recoveryState.status === 'idle'
       ? isDirty
         ? 'Unsaved changes'
         : recoveredOnly
           ? 'Recovered locally'
-          : 'Saved'
-      : recoveryState.message)
+          : hasSavedProject
+            ? 'Saved'
+            : 'No changes'
+      : recoveryState.message
   $: accessibleSaveLabel = saveLabel.replace('Recovered', 'Restored')
 </script>
 
@@ -140,28 +144,70 @@
       title="Quick start"
       onclick={onshowquickstart}><CircleHelp size={16}></CircleHelp></Button
     >
-    <button
-      class="deployment-status"
+    <div
+      class="deployment-slot"
+      class:development={deployment.status === 'development'}
+      class:offline-ready={deployment.status === 'offline-ready'}
       class:update-ready={deployment.status === 'update-ready'}
-      disabled={deployment.status !== 'update-ready'}
-      title={deployment.detail ?? deployment.message}
-      onclick={onapplyupdate}>{deployment.message}</button
     >
-    <button
-      class="save-status recovery-status-button"
-      class:recovery-error={recoveryState.status === 'failed'}
-      class:recovery-conflict={recoveryState.status === 'conflict'}
-      title={recoveryState.detail ?? 'Manage local recovery and browser storage'}
-      aria-label={`${accessibleSaveLabel}. Manage local copies and browser storage`}
-      onclick={onmanagerecovery}
-      ><span
-        class:dirty={isDirty || recoveredOnly || recoveryState.status === 'pending'}
-        class:error={recoveryState.status === 'failed'}
-        class:conflict={recoveryState.status === 'conflict'}
-        class:saving={recoveryState.status === 'saving' || Boolean(operationProgress)}
-        class="status-dot"
-      ></span>{saveLabel}</button
-    >
+      {#if deployment.status === 'development'}
+        <span
+          class="deployment-dev-icon"
+          role="img"
+          aria-label="Development mode: offline support runs in production builds"
+          title="Development mode: offline support runs in production builds"
+          ><CodeXml size={17} aria-hidden="true"></CodeXml></span
+        >
+      {:else if deployment.status === 'offline-ready'}
+        <span
+          class="deployment-ready-icon"
+          role="status"
+          aria-label="App available offline"
+          title="App available offline"
+          ><HardDriveDownload size={17} aria-hidden="true"></HardDriveDownload></span
+        >
+      {:else}
+        <button
+          class="deployment-status"
+          class:update-ready={deployment.status === 'update-ready'}
+          disabled={deployment.status !== 'update-ready'}
+          title={deployment.detail ?? deployment.message}
+          aria-label={deployment.message}
+          onclick={onapplyupdate}
+          >{#if deployment.status === 'update-ready'}<RefreshCw size={14} aria-hidden="true"
+            ></RefreshCw>{/if}<span class="deployment-status-label">{deployment.message}</span
+          ></button
+        >
+      {/if}
+    </div>
+    <div class="recovery-slot">
+      {#if operationProgress}
+        <span class="operation-status" role="status" title={operationProgress}>
+          <span class="operation-spinner" aria-hidden="true"></span>
+          <span class="operation-status-label">{operationProgress}</span>
+        </span>
+      {:else}
+        <button
+          class="save-status recovery-status-button"
+          class:recovery-error={recoveryState.status === 'failed'}
+          class:recovery-conflict={recoveryState.status === 'conflict'}
+          title={recoveryState.detail ?? 'Manage local recovery and browser storage'}
+          aria-label={`${accessibleSaveLabel}. Manage local copies and browser storage`}
+          onclick={onmanagerecovery}
+          ><span
+            class:dirty={isDirty || recoveredOnly || recoveryState.status === 'pending'}
+            class:neutral={!isDirty &&
+              !recoveredOnly &&
+              recoveryState.status === 'idle' &&
+              !hasSavedProject}
+            class:error={recoveryState.status === 'failed'}
+            class:conflict={recoveryState.status === 'conflict'}
+            class:saving={recoveryState.status === 'saving'}
+            class="status-dot"
+          ></span><span class="save-status-label">{saveLabel}</span></button
+        >
+      {/if}
+    </div>
     <DropdownMenu.Root>
       <div class="export-menu">
         <Button class="button button-primary" onclick={() => onexport('current')}>Export…</Button

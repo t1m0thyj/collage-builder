@@ -223,20 +223,21 @@
       />
     </div>
   </section>
-  <footer bind:this={pagebar} class="pagebar" aria-label="Pages">
+  <footer
+    bind:this={pagebar}
+    class="pagebar"
+    class:dragging-page={Boolean(draggedPageId)}
+    aria-label="Pages"
+  >
     <div bind:this={pageTabsMeasure} class="page-tabs-measure" aria-hidden="true">
       {#each document.pages as page (page.id)}
         <div class:active-tab-action={page.id === activePageId} class="page-tab-with-actions">
-          {#if renamingPageId === page.id}
-            <span class="page-tab page-tab-rename"></span>
-          {:else}
-            <button class:active={page.id === activePageId} class="page-tab" tabindex="-1"
-              >{page.name}</button
-            >
-          {/if}
-          {#if page.id === activePageId}
-            <button class="page-actions-button" tabindex="-1" aria-label="Page actions"></button>
-          {/if}
+          <button
+            class:active={page.id === activePageId}
+            class="page-tab"
+            data-title={page.name}
+            tabindex="-1"><span class="page-tab-label">{page.name}</span></button
+          >
         </div>
       {/each}
       <button class="add-page" tabindex="-1" aria-label="Add page"><Plus size={16}></Plus></button>
@@ -264,6 +265,14 @@
       {#each document.pages as page (page.id)}
         <div class:active-tab-action={page.id === activePageId} class="page-tab-with-actions">
           {#if renamingPageId === page.id}
+            <button
+              class:active={page.id === activePageId}
+              class="page-tab page-tab-placeholder"
+              data-page-id={page.id}
+              data-title={page.name}
+              tabindex="-1"
+              aria-hidden="true"><span class="page-tab-label">{page.name}</span></button
+            >
             <input
               bind:this={renameInput}
               bind:value={renameDraft}
@@ -287,6 +296,7 @@
                 pageDropTarget.edge === 'after'}
               class="page-tab"
               data-page-id={page.id}
+              data-title={page.name}
               draggable="true"
               aria-current={page.id === activePageId ? 'page' : undefined}
               onpointerenter={(event) => showPagePreview(page.id, event.currentTarget)}
@@ -303,10 +313,11 @@
               ondrop={(event) => finishPageDrop(event, page.id)}
               ondragend={finishPageDrag}
               ondblclick={() => startRename(page.id)}
-              onclick={() => selectPage(page.id)}>{page.name}</button
+              onclick={() => selectPage(page.id)}
+              ><span class="page-tab-label">{page.name}</span></button
             >
           {/if}
-          {#if page.id === activePageId}
+          {#if page.id === activePageId && renamingPageId !== page.id}
             <PageActions
               bind:open={isPageMenuOpen}
               pageIndex={document.pages.findIndex((candidate) => candidate.id === activePageId)}

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { AssetRegistry, decodedImageBudgetForDevice } from '../../src/lib/render/assetRegistry'
 
 describe('decoded image cache', () => {
@@ -25,5 +25,27 @@ describe('decoded image cache', () => {
     expect(registry.getImage('older')).toBeDefined()
     expect(registry.getImage('active')).toBeDefined()
     expect(registry.decodedImageBytes).toBe(64 * 1024 * 1024)
+  })
+
+  it('reports each decoded image before the rest of the page finishes', async () => {
+    const registry = new AssetRegistry()
+    let finishFirst: (() => void) | undefined
+    let finishSecond: (() => void) | undefined
+    const first = new Promise<void>((resolve) => (finishFirst = resolve))
+    const second = new Promise<void>((resolve) => (finishSecond = resolve))
+    const ensureImage = vi.spyOn(registry, 'ensureImage')
+    ensureImage.mockImplementation(async (assetId) => {
+      await (assetId === 'first' ? first : second)
+      return {} as HTMLImageElement
+    })
+    const ready = vi.fn()
+
+    const loading = registry.ensureImages(['first', 'second'], () => true, ready)
+    finishFirst?.()
+    await vi.waitFor(() => expect(ready).toHaveBeenCalledTimes(1))
+    expect(ensureImage).toHaveBeenCalledTimes(2)
+    finishSecond?.()
+    await loading
+    expect(ready).toHaveBeenCalledTimes(2)
   })
 })

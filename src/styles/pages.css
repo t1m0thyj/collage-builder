@@ -36,9 +36,10 @@
   margin-bottom: 3px;
 }
 .page-tab {
+  position: relative;
   height: 36px;
   min-width: 84px;
-  max-width: 180px;
+  max-width: 240px;
   padding: 0 12px;
   border: 1px solid transparent;
   border-bottom: 0;
@@ -54,6 +55,22 @@
     background-color 120ms ease,
     color 120ms ease;
 }
+.page-tab::before {
+  display: block;
+  visibility: hidden;
+  white-space: nowrap;
+  content: attr(data-title);
+}
+.page-tab-label {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  left: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transform: translateY(-50%);
+}
 .page-tab:hover:not(.active) {
   background: rgba(255, 255, 255, 0.58);
   color: #315c9c;
@@ -62,20 +79,28 @@
   border-color: #9aaccc;
   background: #fff;
   color: #315c9c;
-  font-weight: 750;
   position: relative;
   z-index: 1;
   border-bottom: 1px solid #fff;
   box-shadow: 0 -2px 5px rgba(49, 92, 156, 0.08);
 }
 .page-tab-rename {
-  width: 180px;
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
   border-color: #9aaccc;
   background: #fff;
   color: #315c9c;
   text-align: left;
   outline: 2px solid rgba(49, 92, 156, 0.48);
   outline-offset: -2px;
+}
+.page-tab-placeholder {
+  visibility: hidden;
 }
 .page-tab.page-drag-before {
   box-shadow: inset 3px 0 #315c9c;
@@ -238,10 +263,22 @@
   opacity: 1;
 }
 .page-tab-with-actions.active-tab-action .page-tab {
-  border-right: 0;
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-  padding-right: 5px;
+  padding-right: 12px;
+}
+.page-tab-with-actions.active-tab-action .page-tab-label {
+  right: 32px;
+}
+.page-tab-with-actions.active-tab-action .page-tab-rename {
+  padding-right: 12px;
+}
+.page-tab-with-actions.active-tab-action .page-actions {
+  position: absolute;
+  z-index: 2;
+  right: 0;
+  bottom: 0;
+}
+.pagebar.dragging-page .page-actions {
+  pointer-events: none;
 }
 .page-tab-with-actions.active-tab-action {
   z-index: 1;
@@ -270,6 +307,11 @@
   font-size: 15px;
   font-weight: 800;
   letter-spacing: 0;
+}
+.page-tab-with-actions.active-tab-action .page-actions-button {
+  border: 0;
+  border-radius: 0 6px 0 0;
+  background: transparent;
 }
 .page-picker-with-actions .page-picker {
   height: 36px;

@@ -140,14 +140,23 @@ test('honors reduced-motion preference', async ({ page }) => {
   expect(Number.parseFloat(duration)).toBeLessThanOrEqual(0.001)
 })
 
-test('shows a settled deployment status in development mode', async ({ page }) => {
+test('shows development offline status as a compact icon', async ({ page }) => {
+  await page.setViewportSize({ width: 960, height: 540 })
   await page.goto('/')
-  const status = page.getByRole('button', { name: 'Dev mode' })
+  const status = page.getByRole('img', {
+    name: 'Development mode: offline support runs in production builds',
+  })
   await expect(status).toBeVisible()
   await expect(status).toHaveAttribute(
     'title',
-    'Offline support is enabled in the production build.',
+    'Development mode: offline support runs in production builds',
   )
+  const recoveryStatus = page.getByRole('button', {
+    name: 'No changes. Manage local copies and browser storage',
+  })
+  await expect(recoveryStatus).toBeVisible()
+  await expect(recoveryStatus.locator('.status-dot')).toHaveClass(/neutral/)
+  await expect(page.getByRole('button', { name: 'Dev mode' })).toHaveCount(0)
   await expect(page.getByText('Checking offline support…')).toHaveCount(0)
 })
 

@@ -285,3 +285,55 @@ test('opens a linked project from the .collage.json extension', async ({ page })
   )
   await expect(page.getByRole('status')).toContainText('Project opened')
 })
+
+test('shows progress while saving and opening project files', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'showSaveFilePicker', { value: undefined, configurable: true })
+    const readText = Blob.prototype.text
+    File.prototype.text = function () {
+      return new Promise<string>((resolve, reject) => {
+        Object.assign(window, {
+          resumeProjectRead: () => readText.call(this).then(resolve, reject),
+        })
+      })
+    }
+  })
+  await page.goto('/')
+
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  const progress = page.locator('.topbar .operation-status')
+  await expect(progress).toHaveText('Saving project…')
+  await expect(page.getByRole('button', { name: 'Dev mode' })).toHaveCount(0)
+  await expect(page.locator('.topbar .recovery-status-button')).toHaveCount(0)
+  await page
+    .getByRole('dialog', { name: 'Choose how to save' })
+    .getByRole('button', { name: 'Cancel save' })
+    .click()
+  await expect(progress).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Dev mode' })).toHaveCount(0)
+
+  await page.setViewportSize({ width: 960, height: 720 })
+  const diskProject = createProject('Opening with progress')
+  await page.locator('input[type="file"][accept*=".collage.json"]').setInputFiles({
+    name: 'opening.collage.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(diskProject)),
+  })
+  await expect(progress).toHaveText('Opening project…')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(960)
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => typeof (window as Window & { resumeProjectRead?: () => void }).resumeProjectRead,
+      ),
+    )
+    .toBe('function')
+  await page.evaluate(() =>
+    (window as Window & { resumeProjectRead: () => void }).resumeProjectRead(),
+  )
+  await expect(page.getByRole('textbox', { name: 'Project title' })).toHaveValue(
+    'Opening with progress',
+  )
+  await expect(progress).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Dev mode' })).toHaveCount(0)
+})

@@ -59,6 +59,19 @@
   .deployment-status {
     color: #bfd1e9;
   }
+  .deployment-ready-icon {
+    color: #9fc7ff;
+  }
+  .deployment-dev-icon {
+    color: #bfd1e9;
+  }
+  .operation-status {
+    color: #a9cdfc;
+  }
+  .operation-spinner {
+    border-color: #48678f;
+    border-top-color: #a9cdfc;
+  }
   .deployment-status.update-ready {
     color: #9fc7ff;
   }
@@ -170,6 +183,11 @@
   .page-tab:hover:not(.active) {
     background: #252525;
     color: #a9cdfc;
+  }
+  .page-tab-rename {
+    border-color: #699bd9;
+    background: #213653;
+    color: #b7d5fb;
   }
   .add-page:hover {
     background: rgba(108, 153, 213, 0.18);
@@ -318,6 +336,9 @@
     border-color: #699bd9;
     background: #213653;
     color: #b7d5fb;
+  }
+  .page-tab-with-actions.active-tab-action .page-actions-button {
+    background: transparent;
   }
   .dialog-backdrop {
     background: rgba(0, 0, 0, 0.72);

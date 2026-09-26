@@ -97,7 +97,9 @@ test('the complete production bundle reloads without a network @offline', async 
   await page.evaluate(async () => {
     await navigator.serviceWorker.ready
   })
-  await expect(page.getByRole('button', { name: 'Offline ready' })).toBeVisible()
+  await expect(page.getByRole('status', { name: 'App available offline' })).toBeVisible()
+  await page.setViewportSize({ width: 960, height: 720 })
+  await expect(page.getByRole('status', { name: 'App available offline' })).toBeVisible()
   await page.reload()
   await expect
     .poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller)))
@@ -164,6 +166,8 @@ test('an available deployment update preserves edits before reloading @offline',
 
   const update = page.getByRole('button', { name: 'Update ready' })
   await expect(update).toBeEnabled()
+  await page.setViewportSize({ width: 960, height: 720 })
+  await expect(update).toBeVisible()
   await update.click()
   await expect(page.getByRole('heading', { name: 'Pick up where you left off?' })).toBeVisible({
     timeout: 30_000,

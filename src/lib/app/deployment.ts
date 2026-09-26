@@ -1,6 +1,7 @@
 import { readonly, writable } from 'svelte/store'
 
-export type DeploymentStatus = 'checking' | 'offline-ready' | 'update-ready' | 'online-only'
+export type DeploymentStatus =
+  'development' | 'checking' | 'offline-ready' | 'update-ready' | 'online-only'
 
 export interface DeploymentState {
   status: DeploymentStatus
@@ -8,10 +9,11 @@ export interface DeploymentState {
   detail?: string
 }
 
-const state = writable<DeploymentState>({
-  status: 'checking',
-  message: 'Checking offline support…',
-})
+const state = writable<DeploymentState>(
+  import.meta.env.DEV
+    ? { status: 'development', message: 'Dev mode' }
+    : { status: 'checking', message: 'Checking offline support…' },
+)
 
 export const deploymentState = readonly(state)
 
@@ -39,11 +41,6 @@ function watchRegistration(nextRegistration: ServiceWorkerRegistration): void {
 
 export function registerOfflineSupport(): void {
   if (import.meta.env.DEV) {
-    state.set({
-      status: 'online-only',
-      message: 'Dev mode',
-      detail: 'Offline support is enabled in the production build.',
-    })
     return
   }
   if (!('serviceWorker' in navigator)) {

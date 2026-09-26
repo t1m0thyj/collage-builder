@@ -39,6 +39,72 @@ test('double-click rename saves when focus leaves the tab', async ({ page }) => 
   await expect(nameEditor).toHaveCount(0)
 })
 
+test('renaming a page does not move neighboring tabs', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Add page' }).click()
+  await page.getByRole('button', { name: 'Add page' }).click()
+
+  const tabs = page.locator('.page-tab-viewport > .page-tab-with-actions')
+  const thirdTab = tabs.nth(2)
+  await tabs.nth(1).getByRole('button', { name: 'Page 2' }).click()
+  const before = await thirdTab.boundingBox()
+  expect(before).not.toBeNull()
+
+  await tabs.nth(1).getByRole('button', { name: 'Page 2' }).dblclick()
+  const nameEditor = page.getByRole('textbox', { name: 'Rename page' })
+  await expect(nameEditor).toBeVisible()
+  const during = await thirdTab.boundingBox()
+  expect(during?.x).toBe(before?.x)
+  expect(during?.width).toBe(before?.width)
+
+  await expect(page.getByRole('button', { name: 'Page actions' })).toHaveCount(0)
+  const tab = await tabs.nth(1).boundingBox()
+  const editor = await nameEditor.boundingBox()
+  expect(editor?.width).toBe(tab?.width)
+  await nameEditor.press('Escape')
+  await expect(thirdTab).toBeVisible()
+})
+
+test('switching pages keeps short tab widths stable and actions inside the active tab', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Add page' }).click()
+  await page.getByRole('button', { name: 'Add page' }).click()
+
+  const tabs = page.locator('.page-tab-viewport > .page-tab-with-actions')
+  const boundsBefore = await tabs.evaluateAll((elements) =>
+    elements.map((element) => ({
+      x: element.getBoundingClientRect().x,
+      width: element.getBoundingClientRect().width,
+    })),
+  )
+  await page.getByRole('button', { name: 'Page 1', exact: true }).click()
+  const boundsAfter = await tabs.evaluateAll((elements) =>
+    elements.map((element) => ({
+      x: element.getBoundingClientRect().x,
+      width: element.getBoundingClientRect().width,
+    })),
+  )
+  expect(boundsAfter).toEqual(boundsBefore)
+  const active = await tabs.first().boundingBox()
+  const arrow = await page.getByRole('button', { name: 'Page actions' }).boundingBox()
+  expect(arrow).not.toBeNull()
+  expect(active).not.toBeNull()
+  expect(arrow!.x + arrow!.width).toBeLessThanOrEqual(active!.x + active!.width)
+  await page.getByRole('button', { name: 'Page actions' }).click()
+  await expect(page.getByRole('menuitem', { name: 'Rename' })).toBeVisible()
+
+  await page.getByRole('menuitem', { name: 'Rename' }).click()
+  const editor = page.getByRole('textbox', { name: 'Rename page' })
+  await editor.fill('Summer album')
+  await editor.press('Enter')
+  const namedBounds = await tabs.first().boundingBox()
+  await page.getByRole('button', { name: 'Page 2', exact: true }).click()
+  const inactiveBounds = await tabs.first().boundingBox()
+  expect(inactiveBounds?.width).toBe(namedBounds?.width)
+})
+
 test('page tabs can be reordered by dragging', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Add page' }).click()
@@ -46,7 +112,7 @@ test('page tabs can be reordered by dragging', async ({ page }) => {
 
   const first = page.getByRole('button', { name: 'Page 1', exact: true })
   const third = page.getByRole('button', { name: 'Page 3', exact: true })
-  await first.dragTo(third, { targetPosition: { x: 80, y: 16 } })
+  await first.dragTo(third, { targetPosition: { x: 50, y: 16 } })
 
   await expect(page.locator('.page-tab-viewport > .page-tab-with-actions > .page-tab')).toHaveText([
     'Page 2',
