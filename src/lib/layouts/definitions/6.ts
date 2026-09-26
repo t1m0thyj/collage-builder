@@ -69,9 +69,74 @@ export const layout6Presets: LayoutPresetDefinition[] = [
     }
   },
   {
+    "id": "generated-6-t3715f93019a231b9",
+    "revision": 1,
+    "name": "Grid 2",
+    "frameCount": 6,
+    "tags": [
+      "uniform"
+    ],
+    "root": {
+      "kind": "split",
+      "axis": "x",
+      "weights": [
+        0.5,
+        0.5
+      ],
+      "children": [
+        {
+          "kind": "split",
+          "axis": "y",
+          "weights": [
+            0.3333333333333333,
+            0.3333333333333333,
+            0.33333333333333337
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-1"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-3"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-5"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "y",
+          "weights": [
+            0.3333333333333333,
+            0.3333333333333333,
+            0.33333333333333337
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-2"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-4"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-6"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
     "id": "generated-6-t0b548bffc1dfeb58",
     "revision": 1,
-    "name": "Hero 2",
+    "name": "Hero 3",
     "frameCount": 6,
     "tags": [
       "asymmetric",
@@ -146,7 +211,7 @@ export const layout6Presets: LayoutPresetDefinition[] = [
   {
     "id": "generated-6-t4ec3fa88a1dcc42d",
     "revision": 1,
-    "name": "Center Hero 3",
+    "name": "Center Hero 4",
     "frameCount": 6,
     "tags": [
       "asymmetric",
@@ -212,7 +277,7 @@ export const layout6Presets: LayoutPresetDefinition[] = [
   {
     "id": "generated-6-t01fef652882b441e",
     "revision": 1,
-    "name": "Magazine 4",
+    "name": "Magazine 5",
     "frameCount": 6,
     "tags": [
       "asymmetric",
@@ -287,7 +352,7 @@ export const layout6Presets: LayoutPresetDefinition[] = [
   {
     "id": "generated-6-t4f612d08d14da4a9",
     "revision": 1,
-    "name": "Feature Strip 5",
+    "name": "Feature Strip 6",
     "frameCount": 6,
     "tags": [
       "asymmetric",
@@ -344,7 +409,7 @@ export const layout6Presets: LayoutPresetDefinition[] = [
   {
     "id": "generated-6-tcc5ee11dff851047",
     "revision": 1,
-    "name": "Mosaic 6",
+    "name": "Mosaic 7",
     "frameCount": 6,
     "tags": [
       "asymmetric"
@@ -409,7 +474,7 @@ export const layout6Presets: LayoutPresetDefinition[] = [
   {
     "id": "generated-6-tad185a20dcf36403",
     "revision": 1,
-    "name": "Symmetric 7",
+    "name": "Symmetric 8",
     "frameCount": 6,
     "tags": [
       "asymmetric"
@@ -483,71 +548,6 @@ export const layout6Presets: LayoutPresetDefinition[] = [
                   "key": "cell-5"
                 }
               ]
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "id": "generated-6-t3715f93019a231b9",
-    "revision": 1,
-    "name": "Grid 8",
-    "frameCount": 6,
-    "tags": [
-      "uniform"
-    ],
-    "root": {
-      "kind": "split",
-      "axis": "x",
-      "weights": [
-        0.5,
-        0.5
-      ],
-      "children": [
-        {
-          "kind": "split",
-          "axis": "y",
-          "weights": [
-            0.3333333333333333,
-            0.3333333333333333,
-            0.33333333333333337
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-1"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-3"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-5"
-            }
-          ]
-        },
-        {
-          "kind": "split",
-          "axis": "y",
-          "weights": [
-            0.3333333333333333,
-            0.3333333333333333,
-            0.33333333333333337
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-2"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-4"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-6"
             }
           ]
         }

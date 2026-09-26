@@ -86,6 +86,7 @@
   export let cancelPreparedDividerDrag: () => void
   export let previewDividerDrag: (event: DividerPointerEvent) => void
   export let commitDividerDrag: (event: DividerPointerEvent, divider: Divider) => void
+  export let equalizeDivider: (divider: Divider) => void
 
   function frameEdge(frame: Frame, axis: Divider['axis'], edge: DividerSnapTarget['sourceEdge']) {
     if (axis === 'x') return edge === 'min' ? frame.x : frame.x + frame.width
@@ -399,6 +400,7 @@
         listening={!cropSlotId}
         draggable={!cropSlotId}
         onpointerdown={(event) => prepareDividerDrag(event, divider)}
+        ondblclick={() => equalizeDivider(divider)}
         onpointerup={cancelPreparedDividerDrag}
         onpointercancel={cancelPreparedDividerDrag}
         onpointerenter={(event) => {

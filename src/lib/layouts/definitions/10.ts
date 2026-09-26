@@ -89,9 +89,891 @@ export const layout10Presets: LayoutPresetDefinition[] = [
     }
   },
   {
+    "id": "generated-10-t88417312dbf74689",
+    "revision": 1,
+    "name": "Grid 2",
+    "frameCount": 10,
+    "tags": [
+      "uniform"
+    ],
+    "root": {
+      "kind": "split",
+      "axis": "x",
+      "weights": [
+        0.5,
+        0.5
+      ],
+      "children": [
+        {
+          "kind": "split",
+          "axis": "y",
+          "weights": [
+            0.2,
+            0.2,
+            0.20000000000000007,
+            0.19999999999999996,
+            0.19999999999999996
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-1"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-3"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-5"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-7"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-9"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "y",
+          "weights": [
+            0.2,
+            0.2,
+            0.20000000000000007,
+            0.19999999999999996,
+            0.19999999999999996
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-2"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-4"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-6"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-8"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "generated-10-t4422fc3c502a8fef",
+    "revision": 1,
+    "name": "Grid 3",
+    "frameCount": 10,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "split",
+      "axis": "y",
+      "weights": [
+        0.3333333333333333,
+        0.3333333333333333,
+        0.33333333333333337
+      ],
+      "children": [
+        {
+          "kind": "split",
+          "axis": "x",
+          "weights": [
+            0.3333333333333333,
+            0.3333333333333333,
+            0.33333333333333337
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-1"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-2"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-3"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "x",
+          "weights": [
+            0.3333333333333333,
+            0.3333333333333333,
+            0.33333333333333337
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-4"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-5"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-6"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "x",
+          "weights": [
+            0.25,
+            0.25,
+            0.25,
+            0.25
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-7"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-8"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-9"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "generated-10-teb7741b70d0f75df",
+    "revision": 1,
+    "name": "Grid 4",
+    "frameCount": 10,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "split",
+      "axis": "y",
+      "weights": [
+        0.3333333333333333,
+        0.3333333333333333,
+        0.33333333333333337
+      ],
+      "children": [
+        {
+          "kind": "split",
+          "axis": "x",
+          "weights": [
+            0.25,
+            0.25,
+            0.25,
+            0.25
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-1"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-2"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-3"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-4"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "x",
+          "weights": [
+            0.3333333333333333,
+            0.3333333333333333,
+            0.33333333333333337
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-5"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-6"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-7"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "x",
+          "weights": [
+            0.3333333333333333,
+            0.3333333333333333,
+            0.33333333333333337
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-8"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-9"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "generated-10-t03865cf291e3adad",
+    "revision": 1,
+    "name": "Grid 5",
+    "frameCount": 10,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "split",
+      "axis": "x",
+      "weights": [
+        0.3333333333333333,
+        0.3333333333333334,
+        0.33333333333333326
+      ],
+      "children": [
+        {
+          "kind": "split",
+          "axis": "y",
+          "weights": [
+            0.3333333333333333,
+            0.3333333333333333,
+            0.33333333333333337
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-1"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-5"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-8"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "y",
+          "weights": [
+            0.25,
+            0.25,
+            0.25,
+            0.25
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-2"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-4"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-7"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-10"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "y",
+          "weights": [
+            0.3333333333333333,
+            0.3333333333333333,
+            0.33333333333333337
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-3"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-6"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-9"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "generated-10-t61f2b84fb0ac596d",
+    "revision": 1,
+    "name": "Grid 6",
+    "frameCount": 10,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "split",
+      "axis": "y",
+      "weights": [
+        0.25,
+        0.25,
+        0.25,
+        0.25
+      ],
+      "children": [
+        {
+          "kind": "split",
+          "axis": "x",
+          "weights": [
+            0.5,
+            0.5
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-1"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-2"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "x",
+          "weights": [
+            0.5,
+            0.5
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-3"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-4"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "x",
+          "weights": [
+            0.3333333333333333,
+            0.3333333333333333,
+            0.33333333333333337
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-5"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-6"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-7"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "x",
+          "weights": [
+            0.3333333333333333,
+            0.3333333333333333,
+            0.33333333333333337
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-8"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-9"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "generated-10-t2a8ef4a6f3144c55",
+    "revision": 1,
+    "name": "Grid 7",
+    "frameCount": 10,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "split",
+      "axis": "x",
+      "weights": [
+        0.25,
+        0.25,
+        0.25,
+        0.25
+      ],
+      "children": [
+        {
+          "kind": "split",
+          "axis": "y",
+          "weights": [
+            0.3333333333333333,
+            0.3333333333333333,
+            0.33333333333333337
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-1"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-5"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-9"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "y",
+          "weights": [
+            0.5,
+            0.5
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-2"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-7"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "y",
+          "weights": [
+            0.5,
+            0.5
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-3"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-8"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "y",
+          "weights": [
+            0.3333333333333333,
+            0.3333333333333333,
+            0.33333333333333337
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-4"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-6"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "generated-10-te26aad2db5b61721",
+    "revision": 1,
+    "name": "Grid 8",
+    "frameCount": 10,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "split",
+      "axis": "x",
+      "weights": [
+        0.25,
+        0.25,
+        0.25,
+        0.25
+      ],
+      "children": [
+        {
+          "kind": "split",
+          "axis": "y",
+          "weights": [
+            0.5,
+            0.5
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-1"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-7"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "y",
+          "weights": [
+            0.3333333333333333,
+            0.3333333333333333,
+            0.33333333333333337
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-2"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-5"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-9"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "y",
+          "weights": [
+            0.3333333333333333,
+            0.3333333333333333,
+            0.33333333333333337
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-3"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-6"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-10"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "y",
+          "weights": [
+            0.5,
+            0.5
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-4"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-8"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "generated-10-tc6038fa90150bb3d",
+    "revision": 1,
+    "name": "Grid 9",
+    "frameCount": 10,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "split",
+      "axis": "y",
+      "weights": [
+        0.25,
+        0.25,
+        0.25,
+        0.25
+      ],
+      "children": [
+        {
+          "kind": "split",
+          "axis": "x",
+          "weights": [
+            0.3333333333333333,
+            0.3333333333333333,
+            0.33333333333333337
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-1"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-2"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-3"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "x",
+          "weights": [
+            0.5,
+            0.5
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-4"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-5"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "x",
+          "weights": [
+            0.5,
+            0.5
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-6"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-7"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "x",
+          "weights": [
+            0.3333333333333333,
+            0.3333333333333333,
+            0.33333333333333337
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-8"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-9"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "generated-10-t05a2305c178100c1",
+    "revision": 1,
+    "name": "Grid 10",
+    "frameCount": 10,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "split",
+      "axis": "y",
+      "weights": [
+        0.25,
+        0.25,
+        0.25,
+        0.25
+      ],
+      "children": [
+        {
+          "kind": "split",
+          "axis": "x",
+          "weights": [
+            0.3333333333333333,
+            0.3333333333333333,
+            0.33333333333333337
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-1"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-2"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-3"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "x",
+          "weights": [
+            0.3333333333333333,
+            0.3333333333333333,
+            0.33333333333333337
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-4"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-5"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-6"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "x",
+          "weights": [
+            0.5,
+            0.5
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-7"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-8"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "x",
+          "weights": [
+            0.5,
+            0.5
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-9"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
     "id": "generated-10-td13125394e3b5062",
     "revision": 1,
-    "name": "Hero 2",
+    "name": "Hero 11",
     "frameCount": 10,
     "tags": [
       "asymmetric",
@@ -204,7 +1086,7 @@ export const layout10Presets: LayoutPresetDefinition[] = [
   {
     "id": "generated-10-te802a5908ae98213",
     "revision": 1,
-    "name": "Center Hero 3",
+    "name": "Center Hero 12",
     "frameCount": 10,
     "tags": [
       "asymmetric",
@@ -308,7 +1190,7 @@ export const layout10Presets: LayoutPresetDefinition[] = [
   {
     "id": "generated-10-t9c98bda4f608a052",
     "revision": 1,
-    "name": "Frame 4",
+    "name": "Frame 13",
     "frameCount": 10,
     "tags": [
       "asymmetric",
@@ -412,7 +1294,7 @@ export const layout10Presets: LayoutPresetDefinition[] = [
   {
     "id": "generated-10-tf9b4273b2043e1a2",
     "revision": 1,
-    "name": "Feature Strip 5",
+    "name": "Feature Strip 14",
     "frameCount": 10,
     "tags": [
       "asymmetric",
@@ -525,7 +1407,7 @@ export const layout10Presets: LayoutPresetDefinition[] = [
   {
     "id": "generated-10-t15c5aaa7bfbf77a7",
     "revision": 1,
-    "name": "Mosaic 6",
+    "name": "Mosaic 15",
     "frameCount": 10,
     "tags": [
       "asymmetric"
@@ -646,7 +1528,7 @@ export const layout10Presets: LayoutPresetDefinition[] = [
   {
     "id": "generated-10-ta0707f023a334fe7",
     "revision": 1,
-    "name": "Symmetric 7",
+    "name": "Symmetric 16",
     "frameCount": 10,
     "tags": [
       "asymmetric"
@@ -765,94 +1647,9 @@ export const layout10Presets: LayoutPresetDefinition[] = [
     }
   },
   {
-    "id": "generated-10-t88417312dbf74689",
-    "revision": 1,
-    "name": "Grid 8",
-    "frameCount": 10,
-    "tags": [
-      "uniform"
-    ],
-    "root": {
-      "kind": "split",
-      "axis": "x",
-      "weights": [
-        0.5,
-        0.5
-      ],
-      "children": [
-        {
-          "kind": "split",
-          "axis": "y",
-          "weights": [
-            0.2,
-            0.2,
-            0.20000000000000007,
-            0.19999999999999996,
-            0.19999999999999996
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-1"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-3"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-5"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-7"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-9"
-            }
-          ]
-        },
-        {
-          "kind": "split",
-          "axis": "y",
-          "weights": [
-            0.2,
-            0.2,
-            0.20000000000000007,
-            0.19999999999999996,
-            0.19999999999999996
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-2"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-4"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-6"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-8"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-10"
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
     "id": "generated-10-t7aea6078d16ce579",
     "revision": 1,
-    "name": "Hero 9",
+    "name": "Hero 17",
     "frameCount": 10,
     "tags": [
       "asymmetric",
@@ -938,7 +1735,7 @@ export const layout10Presets: LayoutPresetDefinition[] = [
   {
     "id": "generated-10-te6f31ed19aeb0fab",
     "revision": 1,
-    "name": "Feature Strip 10",
+    "name": "Feature Strip 18",
     "frameCount": 10,
     "tags": [
       "asymmetric",
@@ -1022,29 +1819,30 @@ export const layout10Presets: LayoutPresetDefinition[] = [
     }
   },
   {
-    "id": "generated-10-te26aad2db5b61721",
+    "id": "generated-10-t130af78cafd2ae93",
     "revision": 1,
-    "name": "Mosaic 11",
+    "name": "Mosaic 19",
     "frameCount": 10,
     "tags": [
       "asymmetric"
     ],
     "root": {
       "kind": "split",
-      "axis": "x",
+      "axis": "y",
       "weights": [
-        0.22474487139158905,
-        0.27525512860841095,
-        0.27525512860841095,
-        0.22474487139158905
+        0.36507936507936506,
+        0.2698412698412698,
+        0.3650793650793651
       ],
       "children": [
         {
           "kind": "split",
-          "axis": "y",
+          "axis": "x",
           "weights": [
-            0.5,
-            0.5
+            0.3333333333333333,
+            0.22222222222222227,
+            0.2222222222222222,
+            0.2222222222222222
           ],
           "children": [
             {
@@ -1053,71 +1851,61 @@ export const layout10Presets: LayoutPresetDefinition[] = [
             },
             {
               "kind": "leaf",
-              "key": "cell-7"
-            }
-          ]
-        },
-        {
-          "kind": "split",
-          "axis": "y",
-          "weights": [
-            0.3333333333333333,
-            0.3333333333333333,
-            0.33333333333333337
-          ],
-          "children": [
-            {
-              "kind": "leaf",
               "key": "cell-2"
             },
-            {
-              "kind": "leaf",
-              "key": "cell-5"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-9"
-            }
-          ]
-        },
-        {
-          "kind": "split",
-          "axis": "y",
-          "weights": [
-            0.3333333333333333,
-            0.3333333333333333,
-            0.33333333333333337
-          ],
-          "children": [
             {
               "kind": "leaf",
               "key": "cell-3"
             },
             {
               "kind": "leaf",
-              "key": "cell-6"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-10"
+              "key": "cell-4"
             }
           ]
         },
         {
           "kind": "split",
-          "axis": "y",
+          "axis": "x",
           "weights": [
-            0.5,
-            0.5
+            0.4,
+            0.6
           ],
           "children": [
             {
               "kind": "leaf",
-              "key": "cell-4"
+              "key": "cell-5"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-6"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "x",
+          "weights": [
+            0.2222222222222222,
+            0.2222222222222222,
+            0.2222222222222222,
+            0.33333333333333337
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-7"
             },
             {
               "kind": "leaf",
               "key": "cell-8"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-9"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-10"
             }
           ]
         }
@@ -1127,7 +1915,7 @@ export const layout10Presets: LayoutPresetDefinition[] = [
   {
     "id": "generated-10-t58e257ed91bbf9d9",
     "revision": 1,
-    "name": "Symmetric 12",
+    "name": "Symmetric 20",
     "frameCount": 10,
     "tags": [
       "asymmetric"
@@ -1248,7 +2036,7 @@ export const layout10Presets: LayoutPresetDefinition[] = [
   {
     "id": "generated-10-t6c0c6e375ba92d99",
     "revision": 1,
-    "name": "Hero 13",
+    "name": "Hero 21",
     "frameCount": 10,
     "tags": [
       "asymmetric",
@@ -1334,7 +2122,7 @@ export const layout10Presets: LayoutPresetDefinition[] = [
   {
     "id": "generated-10-t22dfa60f42b42f17",
     "revision": 1,
-    "name": "Feature Strip 14",
+    "name": "Feature Strip 22",
     "frameCount": 10,
     "tags": [
       "asymmetric",
@@ -1454,30 +2242,29 @@ export const layout10Presets: LayoutPresetDefinition[] = [
     }
   },
   {
-    "id": "generated-10-t05a2305c178100c1",
+    "id": "generated-10-t98ef422d781c3227",
     "revision": 1,
-    "name": "Mosaic 15",
+    "name": "Mosaic 23",
     "frameCount": 10,
     "tags": [
       "asymmetric"
     ],
     "root": {
       "kind": "split",
-      "axis": "y",
+      "axis": "x",
       "weights": [
-        0.27525512860841095,
-        0.27525512860841095,
-        0.22474487139158905,
-        0.22474487139158905
+        0.2125,
+        0.2875,
+        0.21250000000000002,
+        0.2875
       ],
       "children": [
         {
           "kind": "split",
-          "axis": "x",
+          "axis": "y",
           "weights": [
-            0.3333333333333333,
-            0.3333333333333333,
-            0.33333333333333337
+            0.6,
+            0.4
           ],
           "children": [
             {
@@ -1486,48 +2273,26 @@ export const layout10Presets: LayoutPresetDefinition[] = [
             },
             {
               "kind": "leaf",
+              "key": "cell-9"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "y",
+          "weights": [
+            0.2857142857142857,
+            0.2857142857142857,
+            0.4285714285714286
+          ],
+          "children": [
+            {
+              "kind": "leaf",
               "key": "cell-2"
             },
             {
               "kind": "leaf",
-              "key": "cell-3"
-            }
-          ]
-        },
-        {
-          "kind": "split",
-          "axis": "x",
-          "weights": [
-            0.3333333333333333,
-            0.3333333333333333,
-            0.33333333333333337
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-4"
-            },
-            {
-              "kind": "leaf",
               "key": "cell-5"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-6"
-            }
-          ]
-        },
-        {
-          "kind": "split",
-          "axis": "x",
-          "weights": [
-            0.5,
-            0.5
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-7"
             },
             {
               "kind": "leaf",
@@ -1537,15 +2302,38 @@ export const layout10Presets: LayoutPresetDefinition[] = [
         },
         {
           "kind": "split",
-          "axis": "x",
+          "axis": "y",
           "weights": [
-            0.5,
-            0.5
+            0.4,
+            0.6
           ],
           "children": [
             {
               "kind": "leaf",
-              "key": "cell-9"
+              "key": "cell-3"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-6"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "y",
+          "weights": [
+            0.42857142857142855,
+            0.28571428571428564,
+            0.2857142857142858
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-4"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-7"
             },
             {
               "kind": "leaf",
@@ -1559,7 +2347,7 @@ export const layout10Presets: LayoutPresetDefinition[] = [
   {
     "id": "generated-10-tf6cc159611a8da9f",
     "revision": 1,
-    "name": "Feature Strip 16",
+    "name": "Feature Strip 24",
     "frameCount": 10,
     "tags": [
       "asymmetric",
@@ -1672,794 +2460,6 @@ export const layout10Presets: LayoutPresetDefinition[] = [
                   "key": "cell-10"
                 }
               ]
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "id": "generated-10-t2a8ef4a6f3144c55",
-    "revision": 1,
-    "name": "Mosaic 17",
-    "frameCount": 10,
-    "tags": [
-      "asymmetric"
-    ],
-    "root": {
-      "kind": "split",
-      "axis": "x",
-      "weights": [
-        0.2752551286084109,
-        0.2247448713915891,
-        0.22474487139158916,
-        0.27525512860841084
-      ],
-      "children": [
-        {
-          "kind": "split",
-          "axis": "y",
-          "weights": [
-            0.3333333333333333,
-            0.3333333333333333,
-            0.33333333333333337
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-1"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-5"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-9"
-            }
-          ]
-        },
-        {
-          "kind": "split",
-          "axis": "y",
-          "weights": [
-            0.5,
-            0.5
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-2"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-7"
-            }
-          ]
-        },
-        {
-          "kind": "split",
-          "axis": "y",
-          "weights": [
-            0.5,
-            0.5
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-3"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-8"
-            }
-          ]
-        },
-        {
-          "kind": "split",
-          "axis": "y",
-          "weights": [
-            0.3333333333333333,
-            0.3333333333333333,
-            0.33333333333333337
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-4"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-6"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-10"
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "id": "generated-10-tc6038fa90150bb3d",
-    "revision": 1,
-    "name": "Mosaic 18",
-    "frameCount": 10,
-    "tags": [
-      "asymmetric"
-    ],
-    "root": {
-      "kind": "split",
-      "axis": "y",
-      "weights": [
-        0.2752551286084109,
-        0.22474487139158905,
-        0.224744871391589,
-        0.27525512860841106
-      ],
-      "children": [
-        {
-          "kind": "split",
-          "axis": "x",
-          "weights": [
-            0.3333333333333333,
-            0.3333333333333333,
-            0.33333333333333337
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-1"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-2"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-3"
-            }
-          ]
-        },
-        {
-          "kind": "split",
-          "axis": "x",
-          "weights": [
-            0.5,
-            0.5
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-4"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-5"
-            }
-          ]
-        },
-        {
-          "kind": "split",
-          "axis": "x",
-          "weights": [
-            0.5,
-            0.5
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-6"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-7"
-            }
-          ]
-        },
-        {
-          "kind": "split",
-          "axis": "x",
-          "weights": [
-            0.3333333333333333,
-            0.3333333333333333,
-            0.33333333333333337
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-8"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-9"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-10"
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "id": "generated-10-t61f2b84fb0ac596d",
-    "revision": 1,
-    "name": "Mosaic 19",
-    "frameCount": 10,
-    "tags": [
-      "asymmetric"
-    ],
-    "root": {
-      "kind": "split",
-      "axis": "y",
-      "weights": [
-        0.22474487139158905,
-        0.22474487139158905,
-        0.27525512860841084,
-        0.27525512860841106
-      ],
-      "children": [
-        {
-          "kind": "split",
-          "axis": "x",
-          "weights": [
-            0.5,
-            0.5
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-1"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-2"
-            }
-          ]
-        },
-        {
-          "kind": "split",
-          "axis": "x",
-          "weights": [
-            0.5,
-            0.5
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-3"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-4"
-            }
-          ]
-        },
-        {
-          "kind": "split",
-          "axis": "x",
-          "weights": [
-            0.3333333333333333,
-            0.3333333333333333,
-            0.33333333333333337
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-5"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-6"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-7"
-            }
-          ]
-        },
-        {
-          "kind": "split",
-          "axis": "x",
-          "weights": [
-            0.3333333333333333,
-            0.3333333333333333,
-            0.33333333333333337
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-8"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-9"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-10"
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "id": "generated-10-teb7741b70d0f75df",
-    "revision": 1,
-    "name": "Mosaic 20",
-    "frameCount": 10,
-    "tags": [
-      "asymmetric"
-    ],
-    "root": {
-      "kind": "split",
-      "axis": "y",
-      "weights": [
-        0.36602540378443865,
-        0.31698729810778065,
-        0.3169872981077807
-      ],
-      "children": [
-        {
-          "kind": "split",
-          "axis": "x",
-          "weights": [
-            0.25,
-            0.25,
-            0.25,
-            0.25
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-1"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-2"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-3"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-4"
-            }
-          ]
-        },
-        {
-          "kind": "split",
-          "axis": "x",
-          "weights": [
-            0.3333333333333333,
-            0.3333333333333333,
-            0.33333333333333337
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-5"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-6"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-7"
-            }
-          ]
-        },
-        {
-          "kind": "split",
-          "axis": "x",
-          "weights": [
-            0.3333333333333333,
-            0.3333333333333333,
-            0.33333333333333337
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-8"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-9"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-10"
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "id": "generated-10-t03865cf291e3adad",
-    "revision": 1,
-    "name": "Mosaic 21",
-    "frameCount": 10,
-    "tags": [
-      "asymmetric"
-    ],
-    "root": {
-      "kind": "split",
-      "axis": "x",
-      "weights": [
-        0.31698729810778065,
-        0.36602540378443876,
-        0.3169872981077806
-      ],
-      "children": [
-        {
-          "kind": "split",
-          "axis": "y",
-          "weights": [
-            0.3333333333333333,
-            0.3333333333333333,
-            0.33333333333333337
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-1"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-5"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-8"
-            }
-          ]
-        },
-        {
-          "kind": "split",
-          "axis": "y",
-          "weights": [
-            0.25,
-            0.25,
-            0.25,
-            0.25
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-2"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-4"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-7"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-10"
-            }
-          ]
-        },
-        {
-          "kind": "split",
-          "axis": "y",
-          "weights": [
-            0.3333333333333333,
-            0.3333333333333333,
-            0.33333333333333337
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-3"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-6"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-9"
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "id": "generated-10-t4422fc3c502a8fef",
-    "revision": 1,
-    "name": "Mosaic 22",
-    "frameCount": 10,
-    "tags": [
-      "asymmetric"
-    ],
-    "root": {
-      "kind": "split",
-      "axis": "y",
-      "weights": [
-        0.31698729810778065,
-        0.31698729810778065,
-        0.3660254037844387
-      ],
-      "children": [
-        {
-          "kind": "split",
-          "axis": "x",
-          "weights": [
-            0.3333333333333333,
-            0.3333333333333333,
-            0.33333333333333337
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-1"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-2"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-3"
-            }
-          ]
-        },
-        {
-          "kind": "split",
-          "axis": "x",
-          "weights": [
-            0.3333333333333333,
-            0.3333333333333333,
-            0.33333333333333337
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-4"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-5"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-6"
-            }
-          ]
-        },
-        {
-          "kind": "split",
-          "axis": "x",
-          "weights": [
-            0.25,
-            0.25,
-            0.25,
-            0.25
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-7"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-8"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-9"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-10"
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "id": "generated-10-t130af78cafd2ae93",
-    "revision": 1,
-    "name": "Mosaic 23",
-    "frameCount": 10,
-    "tags": [
-      "asymmetric"
-    ],
-    "root": {
-      "kind": "split",
-      "axis": "y",
-      "weights": [
-        0.36507936507936506,
-        0.2698412698412698,
-        0.3650793650793651
-      ],
-      "children": [
-        {
-          "kind": "split",
-          "axis": "x",
-          "weights": [
-            0.3333333333333333,
-            0.22222222222222227,
-            0.2222222222222222,
-            0.2222222222222222
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-1"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-2"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-3"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-4"
-            }
-          ]
-        },
-        {
-          "kind": "split",
-          "axis": "x",
-          "weights": [
-            0.4,
-            0.6
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-5"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-6"
-            }
-          ]
-        },
-        {
-          "kind": "split",
-          "axis": "x",
-          "weights": [
-            0.2222222222222222,
-            0.2222222222222222,
-            0.2222222222222222,
-            0.33333333333333337
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-7"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-8"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-9"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-10"
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "id": "generated-10-t98ef422d781c3227",
-    "revision": 1,
-    "name": "Mosaic 24",
-    "frameCount": 10,
-    "tags": [
-      "asymmetric"
-    ],
-    "root": {
-      "kind": "split",
-      "axis": "x",
-      "weights": [
-        0.2125,
-        0.2875,
-        0.21250000000000002,
-        0.2875
-      ],
-      "children": [
-        {
-          "kind": "split",
-          "axis": "y",
-          "weights": [
-            0.6,
-            0.4
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-1"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-9"
-            }
-          ]
-        },
-        {
-          "kind": "split",
-          "axis": "y",
-          "weights": [
-            0.2857142857142857,
-            0.2857142857142857,
-            0.4285714285714286
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-2"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-5"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-8"
-            }
-          ]
-        },
-        {
-          "kind": "split",
-          "axis": "y",
-          "weights": [
-            0.4,
-            0.6
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-3"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-6"
-            }
-          ]
-        },
-        {
-          "kind": "split",
-          "axis": "y",
-          "weights": [
-            0.42857142857142855,
-            0.28571428571428564,
-            0.2857142857142858
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-4"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-7"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-10"
             }
           ]
         }

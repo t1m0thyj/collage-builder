@@ -78,6 +78,54 @@ describe('curated collage catalog', () => {
     }
   })
 
+  it('keeps balanced two-band grids easy to find for odd photo counts', () => {
+    for (const photoCount of [5, 7, 9]) {
+      const presets = generateCuratedPresets(photoCount)
+      const smallerBand = Math.floor(photoCount / 2)
+      const expected = new Map<string, CollageSlot[]>()
+      for (const firstCount of [smallerBand, photoCount - smallerBand]) {
+        const slots: CollageSlot[] = [
+          ...Array.from({ length: firstCount }, (_, index) => ({
+            x: index / firstCount,
+            y: 0,
+            width: 1 / firstCount,
+            height: 0.5,
+          })),
+          ...Array.from({ length: photoCount - firstCount }, (_, index) => ({
+            x: index / (photoCount - firstCount),
+            y: 0.5,
+            width: 1 / (photoCount - firstCount),
+            height: 0.5,
+          })),
+        ]
+        expected.set(stableLayoutId(photoCount, slots), slots)
+        const transposed = slots.map((slot) => ({
+          x: slot.y,
+          y: slot.x,
+          width: slot.height,
+          height: slot.width,
+        }))
+        expected.set(stableLayoutId(photoCount, transposed), transposed)
+      }
+      const familiar = presets.slice(0, photoCount === 9 ? 6 : 5)
+      for (const [id, slots] of expected) {
+        const preset = familiar.find((candidate) => candidate.id === id)
+        expect(preset?.family).toBe('grid')
+        expect(preset?.slots).toHaveLength(photoCount)
+        for (const slot of slots)
+          expect(
+            preset?.slots.some(
+              (actual) =>
+                Math.abs(actual.x - slot.x) < 1e-7 &&
+                Math.abs(actual.y - slot.y) < 1e-7 &&
+                Math.abs(actual.width - slot.width) < 1e-7 &&
+                Math.abs(actual.height - slot.height) < 1e-7,
+            ),
+          ).toBe(true)
+      }
+    }
+  })
+
   it('offers top, bottom, and center hero choices for 12 and 13 photos', () => {
     for (const photoCount of [12, 13]) {
       const positions = new Set(
@@ -153,11 +201,14 @@ describe('curated collage catalog', () => {
     expect(generateCuratedPresets(2)[1].id).not.toBe(rows.id)
   })
 
-  it('puts familiar layouts and featured choices before secondary variants and strips', () => {
+  it('puts balanced grids before featured choices and long strips', () => {
     for (const photoCount of [4, 5, 6, 7, 8, 9, 10]) {
       const presets = generateCuratedPresets(photoCount)
       expect(presets[0].family).toBe('grid')
-      expect(presets[1].family).toBe('hero')
+      const firstNonGrid = presets.findIndex((preset) => preset.family !== 'grid')
+      expect(firstNonGrid).toBeGreaterThan(0)
+      expect(presets[firstNonGrid].family).toBe('hero')
+      expect(presets.slice(firstNonGrid).every((preset) => preset.family !== 'grid')).toBe(true)
       const firstStrip = presets.findIndex(
         (preset) => preset.family === 'rows' || preset.family === 'columns',
       )

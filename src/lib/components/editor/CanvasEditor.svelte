@@ -37,6 +37,7 @@
   export let ondividerchange: (
     changes: Array<{ path: number[]; index: number; position: number }>,
   ) => void
+  export let onequalizesplit: (path: number[]) => void
   export let onframeswap: (sourceSlotId: SlotId, targetSlotId: SlotId) => void
   export let onwheelzoom: (slotId: SlotId, factor: number) => void
   export let onassetdrop: (assetId: AssetId, slotId: SlotId) => void
@@ -485,7 +486,18 @@
     onannounce(`${dividerName(divider)} set to ${position} percent.`)
   }
 
+  function equalizeDivider(divider: Divider) {
+    onequalizesplit(divider.path)
+    onannounce('Frames evenly split.')
+  }
+
   function adjustDividerWithKeyboard(event: KeyboardEvent, divider: (typeof dividers)[number]) {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      event.stopPropagation()
+      equalizeDivider(divider)
+      return
+    }
     const increaseKey = divider.axis === 'x' ? 'ArrowRight' : 'ArrowDown'
     const decreaseKey = divider.axis === 'x' ? 'ArrowLeft' : 'ArrowUp'
     const current = dividerPercent(divider)
@@ -775,6 +787,7 @@
       {beginDividerDrag}
       {previewDividerDrag}
       {commitDividerDrag}
+      {equalizeDivider}
     ></CanvasPageLayer>
     {#if cropFrame && cropContent && cropImage && cropPlacement}
       <CropOverlay
@@ -835,11 +848,11 @@
           aria-valuenow={dividerPercent(divider)}
           aria-valuetext={`${dividerPercent(divider)} percent`}
           aria-keyshortcuts={divider.axis === 'x'
-            ? 'ArrowLeft ArrowRight PageUp PageDown Home End'
-            : 'ArrowUp ArrowDown PageUp PageDown Home End'}
+            ? 'ArrowLeft ArrowRight PageUp PageDown Home End Enter'
+            : 'ArrowUp ArrowDown PageUp PageDown Home End Enter'}
           onkeydown={(event) => adjustDividerWithKeyboard(event, divider)}
         >
-          {name}: {dividerPercent(divider)}%. Use arrow keys to adjust.
+          {name}: {dividerPercent(divider)}%. Use arrow keys to adjust or Enter to split evenly.
         </button>
       {/each}
     </div>

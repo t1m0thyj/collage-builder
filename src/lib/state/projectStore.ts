@@ -381,6 +381,24 @@ export class ProjectStore {
     this.adjustDividers(pageId, [{ path, index: dividerIndex, position }])
   }
 
+  equalizeSplit(pageId: string, path: number[]): void {
+    const splitAtPath = (page: PageV1) => {
+      let node = page.layout.root
+      for (const childIndex of path) {
+        if (node.kind !== 'split' || !node.children[childIndex]) throw new Error('Unknown divider')
+        node = node.children[childIndex]
+      }
+      if (node.kind !== 'split') throw new Error('Unknown divider')
+      return node
+    }
+    const node = splitAtPath(this.findPage(this.snapshot(), pageId))
+    const equalWeight = node.weights.reduce((sum, weight) => sum + weight, 0) / node.weights.length
+    if (node.weights.every((weight) => Math.abs(weight - equalWeight) < 0.000001)) return
+    this.commit((draft) => {
+      splitAtPath(this.findPage(draft, pageId)).weights = node.weights.map(() => equalWeight)
+    })
+  }
+
   adjustDividers(
     pageId: string,
     changes: Array<{ path: number[]; index: number; position: number }>,

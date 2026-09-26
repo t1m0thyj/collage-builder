@@ -36,51 +36,9 @@ export const layout3Presets: LayoutPresetDefinition[] = [
     }
   },
   {
-    "id": "generated-3-tc82b17f212e4d9b0",
-    "revision": 1,
-    "name": "Hero 2",
-    "frameCount": 3,
-    "tags": [
-      "asymmetric",
-      "portrait-led"
-    ],
-    "root": {
-      "kind": "split",
-      "axis": "x",
-      "weights": [
-        0.6666666666666666,
-        0.33333333333333337
-      ],
-      "children": [
-        {
-          "kind": "leaf",
-          "key": "cell-1"
-        },
-        {
-          "kind": "split",
-          "axis": "y",
-          "weights": [
-            0.5,
-            0.5
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-2"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-3"
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
     "id": "generated-3-ted4f14cbbbe7f1c1",
     "revision": 1,
-    "name": "Grid 3",
+    "name": "Grid 2",
     "frameCount": 3,
     "tags": [
       "uniform"
@@ -110,20 +68,60 @@ export const layout3Presets: LayoutPresetDefinition[] = [
     }
   },
   {
-    "id": "generated-3-t04f66dc2a407bd78",
+    "id": "generated-3-tc82b17f212e4d9b0",
     "revision": 1,
-    "name": "Hero 4",
+    "name": "Grid 3",
     "frameCount": 3,
     "tags": [
-      "asymmetric",
-      "landscape-led"
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "split",
+      "axis": "x",
+      "weights": [
+        0.5,
+        0.5
+      ],
+      "children": [
+        {
+          "kind": "leaf",
+          "key": "cell-1"
+        },
+        {
+          "kind": "split",
+          "axis": "y",
+          "weights": [
+            0.5,
+            0.5
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-2"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-3"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "generated-3-t04f66dc2a407bd78",
+    "revision": 1,
+    "name": "Grid 4",
+    "frameCount": 3,
+    "tags": [
+      "asymmetric"
     ],
     "root": {
       "kind": "split",
       "axis": "y",
       "weights": [
-        0.6666666666666666,
-        0.33333333333333337
+        0.5,
+        0.5
       ],
       "children": [
         {
@@ -154,18 +152,17 @@ export const layout3Presets: LayoutPresetDefinition[] = [
   {
     "id": "generated-3-ta35e1ce57691fc66",
     "revision": 1,
-    "name": "Hero 5",
+    "name": "Grid 5",
     "frameCount": 3,
     "tags": [
-      "asymmetric",
-      "portrait-led"
+      "asymmetric"
     ],
     "root": {
       "kind": "split",
       "axis": "x",
       "weights": [
-        0.33333333333333337,
-        0.6666666666666666
+        0.5,
+        0.5
       ],
       "children": [
         {
@@ -196,18 +193,17 @@ export const layout3Presets: LayoutPresetDefinition[] = [
   {
     "id": "generated-3-tfdab8c684c91f4c6",
     "revision": 1,
-    "name": "Hero 6",
+    "name": "Grid 6",
     "frameCount": 3,
     "tags": [
-      "asymmetric",
-      "landscape-led"
+      "asymmetric"
     ],
     "root": {
       "kind": "split",
       "axis": "y",
       "weights": [
-        0.33333333333333337,
-        0.6666666666666666
+        0.5,
+        0.5
       ],
       "children": [
         {

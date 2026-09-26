@@ -649,6 +649,7 @@
       }}
       onviewportzoom={pageActions.applyViewportWheelZoom}
       ondividerchange={(changes) => project.adjustDividers(activePage.id, changes)}
+      onequalizesplit={(path) => project.equalizeSplit(activePage.id, path)}
       onaddpage={pageActions.add}
       onrenamepage={pageActions.rename}
       onduplicatepage={() => project.duplicatePage(activePageId)}

@@ -39,6 +39,7 @@
   export let ondividerchange: (
     changes: Array<{ path: number[]; index: number; position: number }>,
   ) => void
+  export let onequalizesplit: (path: number[]) => void
   export let onaddpage: () => void
   export let onrenamepage: (pageId: string, name: string) => void
   export let onduplicatepage: () => void
@@ -218,6 +219,7 @@
         {onwheelzoom}
         {onviewportzoom}
         {ondividerchange}
+        {onequalizesplit}
       />
     </div>
   </section>

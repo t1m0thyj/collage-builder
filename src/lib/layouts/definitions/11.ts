@@ -96,7 +96,7 @@ export const layout11Presets: LayoutPresetDefinition[] = [
   {
     "id": "generated-11-t8d077ce9cdc94a16",
     "revision": 1,
-    "name": "Mosaic 2",
+    "name": "Grid 2",
     "frameCount": 11,
     "tags": [
       "asymmetric"
@@ -105,10 +105,10 @@ export const layout11Presets: LayoutPresetDefinition[] = [
       "kind": "split",
       "axis": "y",
       "weights": [
-        0.26202041028867284,
-        0.26202041028867284,
-        0.26202041028867284,
-        0.21393876913398147
+        0.25,
+        0.25,
+        0.25,
+        0.25
       ],
       "children": [
         {

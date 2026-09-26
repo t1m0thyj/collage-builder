@@ -719,10 +719,9 @@ function interleaveByFamily(selected: readonly Candidate[]): Candidate[] {
   return result
 }
 
-/** Show one familiar example of each composition before secondary variants and long strips. */
+/** Show balanced, simple grids first, followed by editorial compositions and long strips. */
 function orderForPicker(selected: readonly Candidate[]): Candidate[] {
   const primaryFamilies: readonly LayoutFamily[] = [
-    'grid',
     'hero',
     'center-hero',
     'frame',
@@ -735,6 +734,39 @@ function orderForPicker(selected: readonly Candidate[]): Candidate[] {
     const side = heroSide(candidate)
     return side ? { left: 0, top: 1, right: 2, bottom: 3 }[side] : 4
   }
+  const gridBalance = (candidate: Candidate): number =>
+    sum(
+      candidate.slots.map((slot) => {
+        const areaDifference = slot.width * slot.height - 1 / candidate.slots.length
+        return areaDifference * areaDifference
+      }),
+    )
+  const gridComplexity = (candidate: Candidate): number =>
+    coordinateRanks(candidate.slots.flatMap((slot) => [slot.x, slot.x + slot.width])).length +
+    coordinateRanks(candidate.slots.flatMap((slot) => [slot.y, slot.y + slot.height])).length
+  const gridOrientation = (candidate: Candidate): number =>
+    coordinateRanks(candidate.slots.map((slot) => slot.y)).length -
+    coordinateRanks(candidate.slots.map((slot) => slot.x)).length
+  const gridReadingWeight = (candidate: Candidate): number =>
+    sum(
+      candidate.slots.map((slot) => {
+        const area = slot.width * slot.height
+        return area * area * (slot.x + slot.y)
+      }),
+    )
+  const compareMeasure = (left: number, right: number): number =>
+    Math.abs(left - right) <= EPSILON ? 0 : left - right
+  const grids = selected
+    .filter((candidate) => candidate.family === 'grid')
+    .sort(
+      (left, right) =>
+        compareMeasure(gridBalance(left), gridBalance(right)) ||
+        gridComplexity(left) - gridComplexity(right) ||
+        gridOrientation(left) - gridOrientation(right) ||
+        compareMeasure(gridReadingWeight(left), gridReadingWeight(right)) ||
+        right.score - left.score ||
+        left.signature.localeCompare(right.signature),
+    )
   const groups = new Map(
     primaryFamilies.map((family) => [
       family,
@@ -758,6 +790,7 @@ function orderForPicker(selected: readonly Candidate[]): Candidate[] {
       if (next) ordered.push(next)
     }
   return [
+    ...grids,
     ...ordered,
     ...selected.filter((candidate) => candidate.family === 'rows'),
     ...selected.filter((candidate) => candidate.family === 'columns'),
@@ -798,7 +831,16 @@ export function generateCuratedPresets(photoCount: number): CollagePreset[] {
   const canonicalGrids = ranked.filter(
     (candidate) => candidate.family === 'grid' && regularGridDimensions(candidate.slots),
   )
-  const selected = mergeUniqueTopologies(canonicalGrids, curated)
+  const gridDefaults = new Map<string, Candidate>()
+  for (const candidate of pool.get('grid') ?? []) {
+    const current = gridDefaults.get(candidate.topology)
+    if (!current || candidate.score > current.score) gridDefaults.set(candidate.topology, candidate)
+  }
+  const selected = mergeUniqueTopologies(canonicalGrids, curated).map((candidate) =>
+    candidate.family === 'rows' || candidate.family === 'columns'
+      ? candidate
+      : (gridDefaults.get(candidate.topology) ?? candidate),
+  )
   return orderForPicker(selected).map((candidate) => ({
     id: stableLayoutId(photoCount, candidate.slots),
     photoCount,

@@ -17,14 +17,17 @@ Candidate layouts must pass geometry and basic aesthetic constraints before sele
 that differ only in divider position are grouped as one editable topology, and the best-looking
 default proportions are retained. A divider-pattern similarity filter then removes visually
 redundant topologies without relying on fixed per-photo-count quotas. Every canonical orientation is
-kept for two through four photos, and every useful regular factor grid is guaranteed. Counts above
-ten add only a compact decorative highlight set beyond those grids. When that highlight set contains
-a side hero, its opposite orientation and a center-hero alternative are included as meaningful
-structural choices. The maximum allowed edge-pattern similarity is `min(1, 2.5 / photoCount)`, so the
-library demands progressively more visual difference as layouts become denser. For eight through ten
+kept for two through four photos, and every useful regular factor grid is guaranteed. When a selected
+topology also has a grid candidate, its balanced grid proportions are used as the default. Counts
+above ten add only a compact decorative highlight set beyond those grids. When that highlight set
+contains a side hero, its opposite orientation and a center-hero alternative are included as
+meaningful structural choices. The maximum allowed edge-pattern similarity is
+`min(1, 2.5 / photoCount)`, so the library demands progressively more visual difference as layouts
+become denser. For eight through ten
 photos, the minimum slot area is `0.38 / photoCount`, and no one family may occupy half the result.
-Output ordering and IDs are deterministic. The picker shows a familiar grid first, then cycles
-through featured and editorial compositions before placing long strips at the end.
+Output ordering and IDs are deterministic. The picker groups grids first, ordered by even slot areas
+and simple boundaries, then cycles through featured and editorial compositions before placing long
+strips at the end. This makes familiar row and column arrangements easy to find across photo counts.
 
 Run `npm run generate:layouts` to rebuild the runtime files in
 `src/lib/layouts/definitions/`. The generator requires every tiling to convert to a native split

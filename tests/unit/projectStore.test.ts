@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { createProject } from '../../src/lib/domain/factories'
 import { ProjectStore } from '../../src/lib/state/projectStore'
 import { layout4Presets } from '../../src/lib/layouts/definitions/4'
+import { layout3Presets } from '../../src/lib/layouts/definitions/3'
 
 describe('project history', () => {
   it('does not mark an unchanged project title as a new edit', () => {
@@ -41,6 +42,33 @@ describe('project history', () => {
     expect(get(store.document).pages[0].layout.presetId).toBe(project.pages[0].layout.presetId)
     store.redo()
     expect(get(store.document).title).toBe('Updated')
+  })
+
+  it('equalizes every sibling in a split as one undoable edit', () => {
+    const project = createProject('Even split')
+    const store = new ProjectStore(project)
+    const pageId = project.pages[0].id
+    store.changeLayout(pageId, layout3Presets[0])
+    store.markClean(store.versionedSnapshot())
+    const saved = store.versionedSnapshot()
+
+    store.equalizeSplit(pageId, [])
+    expect(store.isCurrentVersion(saved)).toBe(true)
+    expect(get(store.isDirty)).toBe(false)
+
+    store.adjustDivider(pageId, [], 0, 0.45)
+    const uneven = store.snapshot().pages[0].layout.root
+    expect(uneven.kind).toBe('split')
+    if (uneven.kind !== 'split') return
+    expect(uneven.weights[0]).toBeGreaterThan(uneven.weights[1])
+
+    store.equalizeSplit(pageId, [])
+    const even = store.snapshot().pages[0].layout.root
+    expect(even.kind).toBe('split')
+    if (even.kind !== 'split') return
+    expect(even.weights).toEqual([1 / 3, 1 / 3, 1 / 3])
+    store.undo()
+    expect(store.snapshot().pages[0].layout.root).toEqual(uneven)
   })
 
   it('coalesces each continuous page-style interaction without merging controls', () => {

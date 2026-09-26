@@ -102,6 +102,45 @@ test('dragging a layout splitter re-renders the page', async ({ page }) => {
   await expect.poll(() => canvas.evaluate((element) => element.toDataURL())).not.toBe(before)
 })
 
+test('double-clicking a divider splits three sibling frames evenly', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('tab', { name: '3', exact: true }).click()
+  await page.locator('[data-layout-id="generated-3-t87a383dc470dbd79"]').click()
+  const dividers = page.getByRole('slider', { name: /Vertical divider/ })
+  await expect(dividers).toHaveCount(2)
+  await dividers.first().focus()
+  await page.keyboard.press('PageUp')
+  await expect(dividers.first()).toHaveAttribute('aria-valuenow', '43')
+
+  const host = page.getByRole('region', { name: 'Collage canvas' })
+  const [hitbox] = JSON.parse((await host.getAttribute('data-divider-hitboxes')) ?? '[]') as Array<{
+    x: number
+    y: number
+    width: number
+    height: number
+  }>
+  const point = await canvasDocumentPoint(page, {
+    x: hitbox.x + hitbox.width / 2,
+    y: hitbox.y + hitbox.height / 2,
+  })
+  await page.mouse.dblclick(point.x, point.y)
+  await expect(dividers.first()).toHaveAttribute('aria-valuenow', '33')
+  await expect(dividers.nth(1)).toHaveAttribute('aria-valuenow', '67')
+  await expect(page.locator('.toast')).toHaveText('Frames evenly split.')
+})
+
+test('a horizontal divider can be evenly split with the keyboard', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('tab', { name: '2', exact: true }).click()
+  await page.locator('[data-layout-id="generated-2-t44b67f0379bd3d39"]').click()
+  const divider = page.getByRole('slider', { name: /Horizontal divider/ })
+  await divider.focus()
+  await page.keyboard.press('PageUp')
+  await expect(divider).toHaveAttribute('aria-valuenow', '60')
+  await page.keyboard.press('Enter')
+  await expect(divider).toHaveAttribute('aria-valuenow', '50')
+})
+
 test('divider snapping aligns edges, offers equality, and allows an Alt bypass', async ({
   page,
 }) => {
