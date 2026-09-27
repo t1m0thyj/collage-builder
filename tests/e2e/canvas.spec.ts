@@ -270,7 +270,11 @@ test('dragging crop edges changes zoom', async ({ page }) => {
       return current.width
     })
     .not.toBe(placement.width)
+  const previewWidth = JSON.parse((await host.getAttribute('data-crop-placement'))!).width as number
   await page.mouse.up()
+  await expect
+    .poll(async () => JSON.parse((await host.getAttribute('data-crop-placement'))!).width as number)
+    .toBeCloseTo(previewWidth, 3)
   await expect(cropZoom).not.toHaveValue('1.00')
 })
 
@@ -352,10 +356,24 @@ test('dragging a crop corner previews zoom and commits on release', async ({ pag
   const cropZoom = page.getByRole('spinbutton', { name: 'Crop zoom value' })
   await page.mouse.move(corner.x, corner.y)
   await page.mouse.down()
-  await page.mouse.move(corner.x + 20, corner.y + 20, { steps: 8 })
-  await expect(host).not.toHaveAttribute('data-crop-placement', JSON.stringify(placement))
+  const previewWidths: number[] = []
+  for (const offset of [8, 16, 24]) {
+    await page.mouse.move(corner.x + offset, corner.y + offset, { steps: 4 })
+    await expect
+      .poll(
+        async () => JSON.parse((await host.getAttribute('data-crop-placement'))!).width as number,
+      )
+      .toBeGreaterThan(previewWidths.at(-1) ?? placement.width)
+    previewWidths.push(JSON.parse((await host.getAttribute('data-crop-placement'))!).width)
+  }
+  expect(previewWidths[2] - previewWidths[1]).toBeLessThan(
+    2 * (previewWidths[1] - previewWidths[0]),
+  )
   await expect(cropZoom).toHaveValue('1.00')
   await page.mouse.up()
+  await expect
+    .poll(async () => JSON.parse((await host.getAttribute('data-crop-placement'))!).width as number)
+    .toBeCloseTo(previewWidths[2], 3)
   await expect(cropZoom).not.toHaveValue('1.00')
 })
 

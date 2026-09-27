@@ -69,6 +69,86 @@ test('successful photo imports show a brief toast instead of a sidebar summary',
   await expect(page.locator('.import-summary')).toHaveCount(0)
 })
 
+test('import progress replaces the sidebar actions until the photo finishes loading', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const decode = HTMLImageElement.prototype.decode
+    HTMLImageElement.prototype.decode = function () {
+      return new Promise<void>((resolve, reject) => {
+        Object.assign(window, {
+          resumeImportDecode: () => decode.call(this).then(resolve, reject),
+        })
+      })
+    }
+  })
+  await page.goto('/')
+  await page
+    .locator(
+      'input[type="file"][accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"]',
+    )
+    .first()
+    .setInputFiles({ name: 'slow.png', mimeType: 'image/png', buffer: redPng })
+
+  const actions = page.locator('.image-panel-actions')
+  await expect(actions.locator('.import-progress')).toContainText('Importing 0 of 1')
+  await expect(page.locator('.image-panel > .import-summary')).toHaveCount(0)
+  await expect(actions.getByRole('button', { name: 'Add photos' })).toHaveCount(0)
+  await expect(actions.getByRole('button', { name: 'Manage photos' })).toHaveCount(0)
+
+  await page.evaluate(() =>
+    (window as Window & { resumeImportDecode: () => void }).resumeImportDecode(),
+  )
+  await expect(actions.locator('.import-progress')).toHaveCount(0)
+  await expect(actions.getByRole('button', { name: 'Add photos' })).toBeVisible()
+  await expect(actions.getByRole('button', { name: 'Manage photos' })).toBeVisible()
+  await expect(page.getByText('slow.png', { exact: true })).toBeVisible()
+})
+
+test('import keeps Unused and the sort order, but clears Used when new photos would be hidden', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await importImage(page, 'red.png', redPng)
+  await assignSidebarImage(page, 'red.png', 1)
+  const filters = page.locator('.asset-filters')
+  await filters.getByRole('radio', { name: 'Unused', exact: true }).click()
+  await page.getByRole('button', { name: 'Sort images: Import order' }).click()
+  await page.getByRole('menuitem', { name: 'Filename' }).click()
+
+  await importImage(page, 'blue.png', bluePng)
+  await expect(page.getByText('blue.png', { exact: true })).toBeVisible()
+  await expect(page.getByText('red.png', { exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Sort images: Filename' })).toBeVisible()
+
+  await filters.getByRole('radio', { name: 'Used', exact: true }).click()
+  await importImage(page, 'green.png', solidPng(80, 180, 60))
+  await expect(page.getByText('green.png', { exact: true })).toBeVisible()
+  await expect(page.getByText('blue.png', { exact: true })).toBeVisible()
+  await expect(page.getByText('red.png', { exact: true })).toBeVisible()
+})
+
+test('import keeps a matching search and clears filters that hide new photos', async ({ page }) => {
+  await page.goto('/')
+  await importImage(page, 'photo-red.png', redPng)
+  const search = page.getByRole('textbox', { name: 'Search images' })
+  await search.fill('photo')
+  await importImage(page, 'photo-blue.png', bluePng)
+  await expect(search).toHaveValue('photo')
+
+  await search.fill('red')
+  await importImage(page, 'green.png', solidPng(80, 180, 60))
+  await expect(search).toHaveValue('')
+  await expect(page.getByText('green.png', { exact: true })).toBeVisible()
+
+  await page
+    .locator('.asset-filters')
+    .getByRole('radio', { name: /Missing/ })
+    .click()
+  await importImage(page, 'yellow.png', solidPng(230, 190, 40))
+  await expect(page.getByText('yellow.png', { exact: true })).toBeVisible()
+})
+
 test('imports and removes an image from the project collection', async ({ page }) => {
   await page.goto('/')
   await page
@@ -124,6 +204,9 @@ test('an import opens Images and keeps one batch summary with file errors', asyn
   await expect(page.getByRole('tab', { name: 'Images' })).toHaveAttribute('aria-selected', 'true')
   await expect(page.getByText('good.png', { exact: true })).toBeVisible()
   await expect(page.getByText('1 added · 1 skipped', { exact: true })).toBeVisible()
+  await expect(page.locator('.image-panel > .import-summary')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Add photos' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Manage photos' })).toBeVisible()
   await page.getByText('Review 1 import issue', { exact: true }).click()
   await expect(page.getByText('bad.txt', { exact: true })).toBeVisible()
   await expect(page.getByText(/use a PNG, JPEG, WebP, HEIC, or HEIF image/)).toBeVisible()

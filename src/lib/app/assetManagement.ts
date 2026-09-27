@@ -360,6 +360,7 @@ interface AssetWorkflowHost {
   chooseReplacement: () => void
   chooseRelink: () => void
   showImageLibrary: () => void
+  revealImportedAssets: (assetIds: string[]) => void
   setImportStatus: (status: ImportBatchStatus | null) => void
   setOperationProgress: (message: string | null) => void
   confirmRelink: (message: string) => Promise<boolean>
@@ -588,6 +589,8 @@ export class AssetWorkflowController {
           },
         )
         if (isCurrent()) {
+          if (result.importedAssetIds.length)
+            this.host.revealImportedAssets(result.importedAssetIds)
           this.host.setImportStatus(result.issues.length ? result : null)
           if (result.importedAssetIds.length) this.host.setSelectedAssetIds(result.importedAssetIds)
           if (!result.issues.length && result.added)

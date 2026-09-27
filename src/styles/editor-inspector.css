@@ -159,6 +159,12 @@
   height: 20px;
   background: transparent;
 }
+.crop-zoom-slider {
+  width: 88px;
+  height: 20px;
+  margin: 0;
+  accent-color: #315c9c;
+}
 .inspector-slider-root [data-slot='slider-track'] {
   height: 5px;
   background: #d9d6ce;

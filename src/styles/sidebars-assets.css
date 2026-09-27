@@ -317,6 +317,15 @@ h2 {
   padding: 7px 6px;
   font-size: 11px;
 }
+.image-panel-actions .import-progress {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 4px 8px;
+}
+.image-panel-actions .import-progress progress {
+  height: 5px;
+  margin-top: 3px;
+}
 .asset-list {
   display: grid;
   gap: 6px;

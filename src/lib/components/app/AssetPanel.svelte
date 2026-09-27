@@ -71,7 +71,7 @@
   {ondrop}
 >
   <p class="eyebrow">Photo library</p>
-  {#if importStatus}
+  {#if importStatus?.phase === 'complete'}
     <section
       class:import-has-errors={importStatus.issues.length > 0}
       class="import-summary"
@@ -80,25 +80,13 @@
     >
       <div class="import-summary-heading">
         <strong>
-          {#if importStatus.phase === 'running'}
-            Importing {importStatus.processed} of {importStatus.total}
-          {:else}
-            {importStatus.added} added · {importStatus.skipped} skipped
-          {/if}
+          {importStatus.added} added · {importStatus.skipped} skipped
         </strong>
-        {#if importStatus.phase === 'complete'}
-          <button
-            class="import-dismiss"
-            aria-label="Dismiss import summary"
-            onclick={ondismissimport}>×</button
-          >
-        {/if}
-      </div>
-      {#if importStatus.phase === 'running'}
-        <progress max={importStatus.total} value={importStatus.processed}
-          >{importStatus.processed} of {importStatus.total}</progress
+        <button class="import-dismiss" aria-label="Dismiss import summary" onclick={ondismissimport}
+          >×</button
         >
-      {:else if importStatus.issues.length}
+      </div>
+      {#if importStatus.issues.length}
         <details>
           <summary>
             Review {importStatus.issues.length} import
@@ -223,7 +211,16 @@
     </div>
   {/if}
   <div class="image-panel-actions">
-    <button class="button button-primary" onclick={onchooseimages}>Add photos</button>
-    <button class="button" onclick={onmanageimages}>Manage photos</button>
+    {#if importStatus?.phase === 'running'}
+      <section class="import-summary import-progress" aria-live="polite" aria-atomic="true">
+        <strong>Importing {importStatus.processed} of {importStatus.total}</strong>
+        <progress max={importStatus.total} value={importStatus.processed}
+          >{importStatus.processed} of {importStatus.total}</progress
+        >
+      </section>
+    {:else}
+      <button class="button button-primary" onclick={onchooseimages}>Add photos</button>
+      <button class="button" onclick={onmanageimages}>Manage photos</button>
+    {/if}
   </div>
 </div>

@@ -207,9 +207,19 @@
     chooseRelink: () => projectFiles.chooseRelink(),
     showImageLibrary: () => {
       activeTab = 'images'
-      assetFilter = 'all'
-      assetQuery = ''
-      assetSort = 'import'
+    },
+    revealImportedAssets: (assetIds) => {
+      const imported = assetIds.flatMap((assetId) =>
+        document.assets[assetId] ? [document.assets[assetId]] : [],
+      )
+      if (!imported.length) return
+      if (assetFilter === 'used' || assetFilter === 'missing') assetFilter = 'all'
+      const query = assetQuery.trim().toLocaleLowerCase()
+      if (
+        query &&
+        imported.some((asset) => !asset.originalName.toLocaleLowerCase().includes(query))
+      )
+        assetQuery = ''
     },
     setImportStatus: (status) => (importStatus = status),
     setOperationProgress: (message) => (operationProgress = message),

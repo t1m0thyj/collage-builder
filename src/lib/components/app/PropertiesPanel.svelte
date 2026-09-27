@@ -85,22 +85,22 @@
             <div class="crop-zoom">
               <span>Zoom</span>
               <div class="inspector-slider">
-                <Slider.Root
-                  class="inspector-slider-root"
+                <input
+                  class="crop-zoom-slider"
                   aria-label="Crop zoom"
-                  type="single"
-                  min={1}
-                  max={8}
-                  step={0.05}
+                  type="range"
+                  min="1"
+                  max="8"
+                  step="0.01"
                   value={cropZoom}
-                  onValueChange={onupdatecropzoom}
+                  oninput={(event) => onupdatecropzoom(Number(event.currentTarget.value))}
                 /><input
                   class="slider-value"
                   aria-label="Crop zoom value"
                   type="number"
                   min="1"
                   max="8"
-                  step="0.05"
+                  step="0.01"
                   value={cropZoom.toFixed(2)}
                   onchange={(event) =>
                     onupdatecropzoom(Math.min(8, Math.max(1, Number(event.currentTarget.value))))}
