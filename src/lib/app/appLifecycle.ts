@@ -12,6 +12,8 @@ interface AppLifecycleHost {
   hasSelectedContent: () => boolean
   clearSelectedSlot: () => void
   beginCrop: (slotId: string) => void
+  isCropping: () => boolean
+  finishCrop: () => void
   cancelCrop: () => void
   moveSelection: (key: string) => void
   isDirty: () => boolean
@@ -31,7 +33,12 @@ export function attachAppLifecycle(host: AppLifecycleHost): () => void {
   const keyboard = (event: KeyboardEvent) => {
     if (event.defaultPrevented) return
     const target = event.target as HTMLElement | null
-    if (target?.matches('input, textarea, select, [contenteditable="true"]')) return
+    const cropNumberInput = target?.matches('.crop-controls input[type="number"]') ?? false
+    if (
+      target?.matches('input, textarea, select, [contenteditable="true"]') &&
+      !(event.key === 'Enter' && cropNumberInput && host.isCropping())
+    )
+      return
     const dialog = target?.closest<HTMLElement>('[role="dialog"]')
     if (
       dialog &&
@@ -70,6 +77,13 @@ export function attachAppLifecycle(host: AppLifecycleHost): () => void {
       host.cancelCrop()
       return
     }
+    if (event.key === 'Enter' && cropNumberInput && host.isCropping()) {
+      // Blurring fires the input's change handler before the crop transaction closes.
+      target?.blur()
+      host.finishCrop()
+      event.preventDefault()
+      return
+    }
     // Keep canvas shortcuts off controls whose keys already have a native or
     // component-specific meaning. Frame buttons are the canvas keyboard entry.
     if (
@@ -84,8 +98,14 @@ export function attachAppLifecycle(host: AppLifecycleHost): () => void {
       host.clearSelectedSlot()
       return
     }
+    if (event.key === 'Enter' && host.isCropping()) {
+      host.finishCrop()
+      event.preventDefault()
+      return
+    }
     if (event.key === 'Enter' && host.hasSelectedContent() && selectedSlotId) {
       host.beginCrop(selectedSlotId)
+      event.preventDefault()
       return
     }
     if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {

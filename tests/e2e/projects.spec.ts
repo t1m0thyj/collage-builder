@@ -377,9 +377,10 @@ test('shows progress while saving and opening project files', async ({ page }) =
 
   await page.getByRole('button', { name: 'Save', exact: true }).click()
   const progress = page.locator('.topbar .operation-status')
-  await expect(progress).toHaveText('Saving project…')
+  await expect(progress).toBeHidden()
+  await expect(page.getByRole('dialog', { name: 'Choose how to save' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Dev mode' })).toHaveCount(0)
-  await expect(page.locator('.topbar .recovery-status-button')).toHaveCount(0)
+  await expect(page.locator('.topbar .recovery-status-button')).toBeVisible()
   await page
     .getByRole('dialog', { name: 'Choose how to save' })
     .getByRole('button', { name: 'Cancel save' })
@@ -411,4 +412,58 @@ test('shows progress while saving and opening project files', async ({ page }) =
   )
   await expect(progress).toBeHidden()
   await expect(page.getByRole('button', { name: 'Dev mode' })).toHaveCount(0)
+})
+
+test('shows saving progress only after the native file picker returns', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'showSaveFilePicker', {
+      configurable: true,
+      value: () =>
+        new Promise<FileSystemFileHandle>((resolve) => {
+          Object.assign(window, { resolveProjectPicker: resolve })
+        }),
+    })
+  })
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          typeof (window as Window & { resolveProjectPicker?: () => void }).resolveProjectPicker,
+      ),
+    )
+    .toBe('function')
+  const progress = page.locator('.topbar .operation-status')
+  await expect(progress).toBeHidden()
+
+  await page.evaluate(() => {
+    const picker = window as Window & {
+      resolveProjectPicker: (handle: FileSystemFileHandle) => void
+      finishProjectWrite?: () => void
+    }
+    picker.resolveProjectPicker({
+      name: 'Untitled collage.collage',
+      createWritable: async () => ({
+        write: () =>
+          new Promise<void>((resolve) => {
+            picker.finishProjectWrite = resolve
+          }),
+        close: async () => undefined,
+      }),
+    } as FileSystemFileHandle)
+  })
+  await expect(progress).toHaveText('Saving project…')
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => typeof (window as Window & { finishProjectWrite?: () => void }).finishProjectWrite,
+      ),
+    )
+    .toBe('function')
+  await page.evaluate(() =>
+    (window as Window & { finishProjectWrite: () => void }).finishProjectWrite(),
+  )
+  await expect(progress).toBeHidden()
+  await expect(page.locator('.toast')).toContainText('Embedded project saved')
 })

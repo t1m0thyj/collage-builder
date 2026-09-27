@@ -19,6 +19,7 @@ interface SaveRequest {
   chooseFallback: () => Promise<ProjectSaveFormat | null>
   chooseLinkedFolder: () => Promise<FileList | null>
   isCurrent?: () => boolean
+  onStarted?: () => void
 }
 
 export class ProjectPersistenceController {
@@ -48,13 +49,21 @@ export class ProjectPersistenceController {
     document: CollageDocumentV1,
     chooseLinkedFolder: () => Promise<FileList | null>,
     forceChooseFolder: boolean,
+    onStarted: () => void,
   ) {
     const assetIds = Object.keys(document.assets)
-    if (!assetIds.length) return new Map<string, LinkedAssetMatch>()
+    if (!assetIds.length) {
+      onStarted()
+      return new Map<string, LinkedAssetMatch>()
+    }
     const cachedMatchesAreComplete = assetIds.every((assetId) => this.linkedMatches.has(assetId))
-    if (!forceChooseFolder && cachedMatchesAreComplete) return this.linkedMatches
+    if (!forceChooseFolder && cachedMatchesAreComplete) {
+      onStarted()
+      return this.linkedMatches
+    }
     const files = await chooseLinkedFolder()
     if (!files) return null
+    onStarted()
     this.linkedMatches = await matchProjectAssets(document.assets, files)
     return this.linkedMatches
   }
@@ -67,6 +76,7 @@ export class ProjectPersistenceController {
     chooseFallback,
     chooseLinkedFolder,
     isCurrent = () => true,
+    onStarted = () => undefined,
   }: SaveRequest): Promise<ProjectSaveFormat | null> {
     const choosingDestination = saveAs || !this.hasSavedProject
     const target = choosingDestination
@@ -76,6 +86,7 @@ export class ProjectPersistenceController {
 
     const baseName = projectTitle || 'collage'
     if (target.format === 'embedded') {
+      onStarted()
       const archive = await createEmbeddedProject(document, registry)
       if (!isCurrent()) return null
       await writeProjectBlob(target, archive, `${baseName}.collage`)
@@ -84,6 +95,7 @@ export class ProjectPersistenceController {
         document,
         chooseLinkedFolder,
         choosingDestination,
+        onStarted,
       )
       if (!matches || !isCurrent()) return null
       const linkedProject = await createLinkedProjectFile(document, matches)

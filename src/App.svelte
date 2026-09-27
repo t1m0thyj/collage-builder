@@ -437,6 +437,8 @@
         if (selectedSlotId) project.clearSlot(activePage.id, selectedSlotId)
       },
       beginCrop: (slotId) => editorSession.beginCrop(slotId),
+      isCropping: () => cropModeSlotId !== null,
+      finishCrop: () => editorSession.finishCrop(),
       cancelCrop: () => editorSession.cancelCrop(),
       moveSelection: (key) => editorSession.moveSelection(key),
       isDirty: () => isDirty,

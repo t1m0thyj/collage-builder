@@ -73,8 +73,12 @@ function workflowHost(project: ProjectStore, persistence: { save: ReturnType<typ
 describe('project workflow lifecycle guards', () => {
   it('does not clear an edit made while an older revision is being saved', async () => {
     let finishSave: ((format: 'embedded') => void) | undefined
+    let startSave: (() => void) | undefined
     const persistence = {
-      save: vi.fn(() => new Promise<'embedded'>((resolve) => (finishSave = resolve))),
+      save: vi.fn(({ onStarted }: { onStarted: () => void }) => {
+        startSave = onStarted
+        return new Promise<'embedded'>((resolve) => (finishSave = resolve))
+      }),
     }
     const project = new ProjectStore(createProject('Save race'))
     project.renameProject('Snapshot being saved')
@@ -113,6 +117,8 @@ describe('project workflow lifecycle guards', () => {
     })
 
     const saving = controller.save()
+    expect(operationProgress).toBeNull()
+    startSave?.()
     expect(operationProgress).toBe('Saving project…')
     project.renameProject('Newer unsaved edit')
     finishSave?.('embedded')
@@ -148,8 +154,12 @@ describe('project workflow lifecycle guards', () => {
   it('lets a newer save supersede an older pending save without clearing newer edits', async () => {
     const firstSave = deferred<'embedded'>()
     const secondSave = deferred<'embedded'>()
+    const startSaves: Array<() => void> = []
     const persistence = {
-      save: vi.fn().mockReturnValueOnce(firstSave.promise).mockReturnValueOnce(secondSave.promise),
+      save: vi.fn(({ onStarted }: { onStarted: () => void }) => {
+        startSaves.push(onStarted)
+        return startSaves.length === 1 ? firstSave.promise : secondSave.promise
+      }),
     }
     const project = new ProjectStore(createProject('Overlapping saves'))
     project.renameProject('First revision')
@@ -159,6 +169,9 @@ describe('project workflow lifecycle guards', () => {
     const older = controller.save()
     project.renameProject('Second revision')
     const newer = controller.save()
+    startSaves[0]()
+    expect(operationProgress()).toBeNull()
+    startSaves[1]()
     firstSave.resolve('embedded')
 
     expect(await older).toBe(false)

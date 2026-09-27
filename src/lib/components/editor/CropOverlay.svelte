@@ -179,7 +179,7 @@
         fill="#00FF00"
         stroke="#00FF00"
         strokeWidth={1}
-        hitStrokeWidth={32}
+        hitStrokeWidth={56}
         shadowColor="#126B12"
         shadowOpacity={0.28}
         shadowBlur={2}

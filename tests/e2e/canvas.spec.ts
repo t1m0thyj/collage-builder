@@ -336,6 +336,19 @@ test('dragging a crop corner previews zoom and commits on release', async ({ pag
     x: placement.x + placement.width,
     y: placement.y + placement.height,
   })
+  const nearCorner = await canvasDocumentPoint(page, {
+    x: placement.x + placement.width - 30,
+    y: placement.y + placement.height,
+  })
+  const side = await canvasDocumentPoint(page, {
+    x: placement.x + placement.width - 50,
+    y: placement.y + placement.height,
+  })
+  const stageContainer = page.locator('.konvajs-content').first()
+  await page.mouse.move(nearCorner.x, nearCorner.y)
+  await expect(stageContainer).toHaveCSS('cursor', 'nwse-resize')
+  await page.mouse.move(side.x, side.y)
+  await expect(stageContainer).toHaveCSS('cursor', 'ns-resize')
   const cropZoom = page.getByRole('spinbutton', { name: 'Crop zoom value' })
   await page.mouse.move(corner.x, corner.y)
   await page.mouse.down()
@@ -408,8 +421,10 @@ test('crop changes cancel with Escape and commit as one undo entry', async ({ pa
   await page.getByRole('button', { name: 'Crop image', exact: true }).click()
   await setNumber(page, 'Crop zoom value', '1.60')
   await setNumber(page, 'Crop horizontal position', '30')
-  await setNumber(page, 'Crop vertical position', '65')
-  await page.getByRole('button', { name: 'Done' }).click()
+  const verticalPosition = page.getByRole('spinbutton', { name: 'Crop vertical position' })
+  await verticalPosition.fill('65')
+  await verticalPosition.press('Enter')
+  await expect(page.getByRole('button', { name: 'Crop image', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Undo' }).click()
   await expect(page.getByRole('spinbutton', { name: 'Crop zoom value' })).toHaveValue('1.00')
   await expect(page.getByRole('spinbutton', { name: 'Crop horizontal position' })).toHaveValue('50')
@@ -419,6 +434,15 @@ test('crop changes cancel with Escape and commit as one undo entry', async ({ pa
   await expect(page.getByRole('spinbutton', { name: 'Crop zoom value' })).toHaveValue('1.60')
   await expect(page.getByRole('spinbutton', { name: 'Crop horizontal position' })).toHaveValue('30')
   await expect(page.getByRole('spinbutton', { name: 'Crop vertical position' })).toHaveValue('65')
+
+  await page.getByRole('button', { name: 'Crop image', exact: true }).click()
+  await setNumber(page, 'Crop zoom value', '1.80')
+  const frame = page.getByRole('button', { name: 'Frame 1, transactional-crop.png' })
+  await frame.focus()
+  await frame.press('Enter')
+  await expect(page.getByRole('button', { name: 'Crop image', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Undo' }).click()
+  await expect(page.getByRole('spinbutton', { name: 'Crop zoom value' })).toHaveValue('1.60')
 })
 
 test('page appearance slider drags create one undo entry per control', async ({ page }) => {

@@ -268,10 +268,14 @@
           <Text
             x={frame.x + 16}
             y={frame.y + 16}
-            text={`Frame ${index + 1}`}
+            width={Math.max(1, frame.width - 32)}
+            text={asset?.originalName ?? `Frame ${index + 1}`}
             fill="#315C9C"
             fontStyle="bold"
             fontSize={15}
+            wrap="none"
+            ellipsis
+            listening={false}
           />
         {/if}
         {#if dragTargetSlotId === frame.slotId}

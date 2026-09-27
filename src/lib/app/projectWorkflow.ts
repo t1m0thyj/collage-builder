@@ -93,7 +93,6 @@ export class ProjectWorkflowController {
     const isCurrent = () =>
       operation === this.saveSequence && this.host.project.isCurrentVersion(snapshot)
     try {
-      this.host.setOperationProgress('Saving project…')
       const format = await this.host.persistence.save({
         document: snapshot.document,
         registry: this.host.registry(),
@@ -102,6 +101,9 @@ export class ProjectWorkflowController {
         chooseFallback: this.host.chooseFallbackFormat,
         chooseLinkedFolder: this.host.chooseLinkedFolderForSave,
         isCurrent,
+        onStarted: () => {
+          if (isCurrent()) this.host.setOperationProgress('Saving project…')
+        },
       })
       if (!format || !isCurrent()) return false
       this.host.setHasSavedProject(true)

@@ -581,7 +581,7 @@ export class AssetWorkflowController {
           (status) => {
             this.host.setImportStatus(status)
             this.host.setOperationProgress(
-              `Importing image ${Math.min(status.processed + 1, status.total)} of ${status.total}…`,
+              `Importing ${Math.min(status.processed + 1, status.total)}/${status.total}…`,
             )
             if (status.importedAssetIds.length)
               this.host.setSelectedAssetIds(status.importedAssetIds)
