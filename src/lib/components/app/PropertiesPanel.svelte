@@ -85,8 +85,8 @@
         <Collapsible.Content
           ><div class="crop-controls">
             {#if cropModeSlotId === selectedSlotId}<p class="crop-hint">
-                Crop mode is active. Drag the image, use the corner dots to zoom, or adjust values
-                precisely. Enter accepts; Escape cancels.
+                Crop mode is active. Drag the image, use the corner dots or Alt+wheel to zoom, or
+                adjust values precisely. Enter accepts; Escape cancels.
               </p>{:else}<button class="button" onclick={() => onbegincrop(selectedSlotId!)}
                 >Crop image</button
               >

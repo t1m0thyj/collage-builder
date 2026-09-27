@@ -41,5 +41,7 @@ After one complete production visit, the app can reload offline. See [Offline us
 - `Enter`: open crop controls for a selected image frame
 - `Delete` or `Backspace`: clear the selected frame
 - `Escape`: cancel the current interaction or clear selection
+- `Ctrl/Cmd` + mouse wheel over the canvas: zoom the canvas; use the zoom menu for presets or a custom percentage
+- `Alt` + mouse wheel while cropping: zoom the photo inside its frame
 
 Visible buttons and fields are reachable with `Tab` and `Shift+Tab`. Keyboard divider and crop controls appear near the canvas when the selected layout or frame supports them.

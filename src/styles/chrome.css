@@ -63,6 +63,35 @@
   outline: 2px solid rgba(49, 92, 156, 0.42);
   outline-offset: 1px;
 }
+.zoom-custom-editor {
+  display: flex;
+  align-items: center;
+  width: 72px;
+  height: 26px;
+  padding: 0 5px;
+  border: 1px solid #9aaccc;
+  border-radius: 5px;
+  background: #fff;
+  color: #48453d;
+}
+.zoom-custom-editor input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+  appearance: textfield;
+}
+.zoom-custom-editor input::-webkit-inner-spin-button,
+.zoom-custom-editor input::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+}
 .zoom-menu-content {
   display: grid;
   min-width: 112px;

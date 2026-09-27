@@ -125,6 +125,58 @@ test('Enter on a toolbar button leaves crop mode unchanged', async ({ page }) =>
   await expect(page.getByText('Crop mode is active.', { exact: false })).toHaveCount(0)
 })
 
+test('canvas zoom accepts small presets and a custom percentage', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Canvas zoom: Fit' }).click()
+  await page.getByRole('menuitem', { name: '10%' }).click()
+  await expect(page.getByRole('button', { name: 'Canvas zoom: 10%' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Zoom out' })).toBeDisabled()
+
+  await page.getByRole('button', { name: 'Canvas zoom: 10%' }).click()
+  await page.getByRole('menuitem', { name: 'Custom…' }).click()
+  const customZoom = page.getByRole('spinbutton', { name: 'Custom canvas zoom' })
+  await expect(customZoom).toBeFocused()
+  await customZoom.fill('37')
+  await customZoom.press('Enter')
+  await expect(page.getByRole('button', { name: 'Canvas zoom: 37%' })).toBeVisible()
+})
+
+test('Ctrl+wheel zooms the canvas while the ordinary wheel scrolls it', async ({ page }) => {
+  await page.goto('/')
+  const canvas = page.getByRole('region', { name: 'Collage canvas' })
+  await canvas.hover()
+  await page.mouse.wheel(0, -100)
+  await expect(page.getByRole('button', { name: 'Canvas zoom: Fit' })).toBeVisible()
+
+  await page.keyboard.down('Control')
+  await page.mouse.wheel(0, -100)
+  await page.keyboard.up('Control')
+  await expect(page.getByRole('button', { name: /Canvas zoom: \d+%/ })).toBeVisible()
+
+  await page.getByRole('button', { name: /Canvas zoom: \d+%/ }).click()
+  await page.getByRole('menuitem', { name: '200%' }).click()
+  await canvas.hover()
+  await page.mouse.wheel(0, 120)
+  await expect.poll(() => canvas.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+  await expect(page.getByRole('button', { name: 'Canvas zoom: 200%' })).toBeVisible()
+})
+
+test('Alt+wheel zooms the photo crop without changing canvas zoom', async ({ page }) => {
+  await page.goto('/')
+  await importImage(page, 'crop-wheel.png', redPng)
+  await assignSidebarImage(page, 'crop-wheel.png', 1)
+  await page.getByRole('button', { name: 'Crop image', exact: true }).click()
+  const cropZoom = page.getByRole('spinbutton', { name: 'Crop zoom value' })
+  await expect(cropZoom).toHaveValue('1.00')
+
+  await page.getByRole('region', { name: 'Collage canvas' }).hover()
+  await page.keyboard.down('Alt')
+  await page.mouse.wheel(0, -100)
+  await page.keyboard.up('Alt')
+  await expect(cropZoom).not.toHaveValue('1.00')
+  await expect(page.getByRole('button', { name: 'Canvas zoom: Fit' })).toBeVisible()
+})
+
 test('initial keyboard focus skips hidden file inputs and canvas frames are named', async ({
   page,
 }) => {

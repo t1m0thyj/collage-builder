@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from 'svelte'
   import {
     ChevronDown,
     CircleHelp,
@@ -43,6 +44,25 @@
   export let onmanagerecovery: () => void
   export let onshowquickstart: () => void
   export let onapplyupdate: () => void
+
+  let editingZoom = false
+  let customZoomPercent: number | undefined = 100
+  let customZoomInput: HTMLInputElement | undefined
+
+  async function startCustomZoom() {
+    customZoomPercent = Math.round((isViewportFit ? fittedViewportZoom : viewportZoom) * 100)
+    editingZoom = true
+    await tick()
+    customZoomInput?.focus()
+    customZoomInput?.select()
+  }
+
+  function finishCustomZoom(apply: boolean) {
+    if (!editingZoom) return
+    editingZoom = false
+    if (apply && customZoomPercent !== undefined && Number.isFinite(customZoomPercent))
+      onsetzoom(Math.min(2, Math.max(0.1, Math.round(customZoomPercent) / 100)))
+  }
 
   $: saveLabel =
     recoveryState.status === 'idle'
@@ -104,25 +124,48 @@
       variant="ghost"
       size="icon"
       aria-label="Zoom out"
-      disabled={(isViewportFit ? fittedViewportZoom : viewportZoom) <= 0.5}
+      disabled={(isViewportFit ? fittedViewportZoom : viewportZoom) <= 0.1}
       onclick={() => onzoomstep(-0.1)}><Minus size={15}></Minus></Button
-    ><DropdownMenu.Root
-      ><DropdownMenu.Trigger
-        class="zoom-menu-trigger"
-        aria-label={`Canvas zoom: ${isViewportFit ? 'Fit' : `${Math.round(viewportZoom * 100)}%`}`}
-        >{isViewportFit ? 'Fit' : `${Math.round(viewportZoom * 100)}%`}
-        <ChevronDown size={13} aria-hidden="true"></ChevronDown></DropdownMenu.Trigger
-      ><DropdownMenu.Content class="zoom-menu-content" align="center"
-        ><DropdownMenu.Item onclick={() => (isViewportFit = true)}>Fit</DropdownMenu.Item
-        ><DropdownMenu.Item onclick={() => onsetzoom(0.5)}>50%</DropdownMenu.Item><DropdownMenu.Item
-          onclick={() => onsetzoom(0.75)}>75%</DropdownMenu.Item
-        ><DropdownMenu.Item onclick={() => onsetzoom(1)}>100%</DropdownMenu.Item><DropdownMenu.Item
-          onclick={() => onsetzoom(1.25)}>125%</DropdownMenu.Item
-        ><DropdownMenu.Item onclick={() => onsetzoom(1.5)}>150%</DropdownMenu.Item
-        ><DropdownMenu.Item onclick={() => onsetzoom(2)}>200%</DropdownMenu.Item
-        ></DropdownMenu.Content
-      ></DropdownMenu.Root
-    ><Button
+    >{#if editingZoom}<div class="zoom-custom-editor">
+        <input
+          bind:this={customZoomInput}
+          bind:value={customZoomPercent}
+          aria-label="Custom canvas zoom"
+          type="number"
+          min="10"
+          max="200"
+          step="1"
+          onkeydown={(event) => {
+            if (event.key === 'Enter' || event.key === 'Escape') {
+              event.preventDefault()
+              event.stopPropagation()
+              finishCustomZoom(event.key === 'Enter')
+            }
+          }}
+          onblur={() => finishCustomZoom(true)}
+        /><span aria-hidden="true">%</span>
+      </div>{:else}<DropdownMenu.Root
+        ><DropdownMenu.Trigger
+          class="zoom-menu-trigger"
+          aria-label={`Canvas zoom: ${isViewportFit ? 'Fit' : `${Math.round(viewportZoom * 100)}%`}`}
+          title="Canvas zoom (Ctrl/Cmd + wheel)"
+          >{isViewportFit ? 'Fit' : `${Math.round(viewportZoom * 100)}%`}
+          <ChevronDown size={13} aria-hidden="true"></ChevronDown></DropdownMenu.Trigger
+        ><DropdownMenu.Content class="zoom-menu-content" align="center"
+          ><DropdownMenu.Item onclick={() => (isViewportFit = true)}>Fit</DropdownMenu.Item
+          ><DropdownMenu.Item onclick={() => onsetzoom(0.1)}>10%</DropdownMenu.Item
+          ><DropdownMenu.Item onclick={() => onsetzoom(0.25)}>25%</DropdownMenu.Item
+          ><DropdownMenu.Item onclick={() => onsetzoom(0.5)}>50%</DropdownMenu.Item
+          ><DropdownMenu.Item onclick={() => onsetzoom(0.75)}>75%</DropdownMenu.Item
+          ><DropdownMenu.Item onclick={() => onsetzoom(1)}>100%</DropdownMenu.Item
+          ><DropdownMenu.Item onclick={() => onsetzoom(1.25)}>125%</DropdownMenu.Item
+          ><DropdownMenu.Item onclick={() => onsetzoom(1.5)}>150%</DropdownMenu.Item
+          ><DropdownMenu.Item onclick={() => onsetzoom(2)}>200%</DropdownMenu.Item
+          ><DropdownMenu.Separator /><DropdownMenu.Item onclick={startCustomZoom}
+            >Custom…</DropdownMenu.Item
+          ></DropdownMenu.Content
+        ></DropdownMenu.Root
+      >{/if}<Button
       class="icon-button"
       variant="ghost"
       size="icon"

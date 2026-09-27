@@ -550,12 +550,18 @@
     event.target.getStage()?.container().style.setProperty('cursor', cursor)
   }
   function handleWheel(event: { evt: WheelEvent }) {
-    event.evt.preventDefault()
-    if (cropSlotId && (event.evt.ctrlKey || event.evt.metaKey)) {
-      onwheelzoom(cropSlotId, event.evt.deltaY < 0 ? 1.08 : 1 / 1.08)
-      return
+    const wheel = event.evt
+    if (wheel.deltaY === 0) return
+    const pixels =
+      wheel.deltaY * (wheel.deltaMode === 1 ? 16 : wheel.deltaMode === 2 ? viewportHeight : 1)
+    const factor = Math.exp(-pixels * 0.0015)
+    if (wheel.ctrlKey || wheel.metaKey) {
+      wheel.preventDefault()
+      onviewportzoom(factor)
+    } else if (wheel.altKey && cropSlotId) {
+      wheel.preventDefault()
+      onwheelzoom(cropSlotId, factor)
     }
-    onviewportzoom(event.evt.deltaY < 0 ? 1.08 : 1 / 1.08)
   }
   function dropAsset(event: DragEvent) {
     event.preventDefault()

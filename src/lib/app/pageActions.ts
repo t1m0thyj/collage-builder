@@ -9,5 +9,5 @@ export type PageStyleControl =
   | 'shadow.angle'
 
 export function clampViewportZoom(zoom: number): number {
-  return Math.min(2, Math.max(0.5, zoom))
+  return Math.min(2, Math.max(0.1, zoom))
 }
