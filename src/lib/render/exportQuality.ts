@@ -22,9 +22,9 @@ export function resolveExportRange(
 export function countUpscaledPlacements(
   page: PageV1,
   assets: Record<string, AssetRecordV1>,
-  exportWidth: number,
+  longSide: number,
 ): number {
-  const scale = exportWidth / page.width
+  const scale = exportDimensions(page, longSide).width / page.width
   return resolveLayout(page).filter((frame) => {
     const content = page.slots[frame.slotId]
     if (!content) return false
@@ -39,4 +39,18 @@ export function countUpscaledPlacements(
     )
     return placement.width * scale > asset.width || placement.height * scale > asset.height
   }).length
+}
+
+export function exportDimensions(
+  page: PageV1,
+  longSide: number,
+): { width: number; height: number } {
+  if (!Number.isInteger(longSide) || longSide < 1 || longSide > 8192)
+    throw new Error('Export size exceeds the 8192 px / 64 megapixel limit')
+  const scale = longSide / Math.max(page.width, page.height)
+  const width = Math.round(page.width * scale)
+  const height = Math.round(page.height * scale)
+  if (width < 1 || height < 1 || width * height > 64_000_000)
+    throw new Error('Export size exceeds the 8192 px / 64 megapixel limit')
+  return { width, height }
 }

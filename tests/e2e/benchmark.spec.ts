@@ -86,7 +86,7 @@ test('100 images and 25 pages @benchmark', async ({ page, browser, browserName }
   await page.getByRole('button', { name: 'Choose export scope' }).click()
   await page.getByRole('menuitem', { name: 'All pages (ZIP)' }).click()
   const exportDialog = page.getByRole('dialog', { name: 'Export pages' })
-  await exportDialog.getByRole('spinbutton', { name: 'Width (px)' }).fill('1920')
+  await exportDialog.getByRole('spinbutton', { name: 'Long side (px)' }).fill('1920')
   const downloadPromise = page.waitForEvent('download')
   await exportDialog.getByRole('button', { name: 'Export', exact: true }).click()
   const download = await downloadPromise

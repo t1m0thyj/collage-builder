@@ -6,7 +6,7 @@ import type { ExportFormat } from '../render/exportPng'
 export interface ExportSettings {
   scope: 'current' | 'all' | 'range'
   range: string
-  width: number
+  longSide: number
   format: ExportFormat
   quality: number
 }
@@ -17,7 +17,7 @@ export interface ProjectExportRequest {
   activePageId: string
   scope: ExportSettings['scope']
   range: ExportSettings['range']
-  width: ExportSettings['width']
+  longSide: ExportSettings['longSide']
   format: ExportSettings['format']
   quality: ExportSettings['quality']
   baseName: string
@@ -41,7 +41,7 @@ export async function renderProjectExport({
   activePageId,
   scope,
   range,
-  width,
+  longSide,
   format,
   quality,
   baseName,
@@ -60,7 +60,7 @@ export async function renderProjectExport({
       page,
       document.assets,
       (assetId) => registry.getImage(assetId),
-      width,
+      longSide,
       format,
       quality,
       (assetId) => registry.getRenderableBlob(assetId),
@@ -111,7 +111,7 @@ interface ExportWorkflowHost {
   activePageId: () => string
   scope: () => 'current' | 'all' | 'range'
   range: () => string
-  width: () => number
+  longSide: () => number
   format: () => ExportFormat
   quality: () => number
   projectTitle: () => string
@@ -143,7 +143,7 @@ export class ExportWorkflowController {
       ).reduce(
         (count, index) =>
           count +
-          countUpscaledPlacements(document.pages[index], document.assets, this.host.width()),
+          countUpscaledPlacements(document.pages[index], document.assets, this.host.longSide()),
         0,
       )
     } catch {
@@ -151,7 +151,7 @@ export class ExportWorkflowController {
     }
   }
 
-  export = async ({ scope, range, width, format, quality }: ExportSettings) => {
+  export = async ({ scope, range, longSide, format, quality }: ExportSettings) => {
     try {
       this.host.setExporting(true)
       this.host.resetCancellation()
@@ -161,7 +161,7 @@ export class ExportWorkflowController {
         activePageId: this.host.activePageId(),
         scope,
         range,
-        width,
+        longSide,
         format,
         quality,
         baseName: this.host.projectTitle() || 'collage',

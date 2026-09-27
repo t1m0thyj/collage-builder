@@ -18,7 +18,7 @@
   export let isExportOpen: boolean
   export let exportScope: 'current' | 'all' | 'range'
   export let exportRange: string
-  export let exportWidth: number
+  export let exportLongSide: number
   export let exportFormat: 'png' | 'jpeg'
   export let exportQuality: number
   export let isExporting: boolean
@@ -311,11 +311,11 @@
       >{#if exportScope === 'range'}<label
           >Range <input bind:value={exportRange} placeholder="1-3" disabled={isExporting} /></label
         >{/if}<label
-        >Width (px) <input
+        >Long side (px) <input
           type="number"
           min="1"
           max="8192"
-          bind:value={exportWidth}
+          bind:value={exportLongSide}
           disabled={isExporting}
         /></label
       >
@@ -324,7 +324,13 @@
             JPEG does not support transparency. Transparent areas will be exported as white.
           </p>{/if}
       {/if}
-      <p>Height: {Math.round((exportWidth * activePage.height) / activePage.width)} px</p>
+      <p>
+        {exportScope === 'current' ? 'Output' : 'Current page output'}: {Math.round(
+          (exportLongSide * activePage.width) / Math.max(activePage.width, activePage.height),
+        )} × {Math.round(
+          (exportLongSide * activePage.height) / Math.max(activePage.width, activePage.height),
+        )} px
+      </p>
       {#if exportUpscaleCount() > 0}<p class="export-warning" role="note">
           {exportUpscaleCount()} placed image{exportUpscaleCount() === 1 ? '' : 's'} will be enlarged
           beyond their original resolution and may look soft.
@@ -343,7 +349,7 @@
             onexport({
               scope: exportScope,
               range: exportRange,
-              width: exportWidth,
+              longSide: exportLongSide,
               format: exportFormat,
               quality: exportQuality,
             })}>Export</button

@@ -1,10 +1,11 @@
 import type { AssetRecordV1, PageV1 } from '../domain/types'
 import { resolveLayout } from '../domain/geometry'
+import { exportDimensions } from './exportQuality'
 import { zipBlobs } from '../persistence/zipStreams'
 import { drawExportFrameImage, drawExportPage, prepareExportPage } from './exportCanvas'
 import { renderPageInWorker, supportsWorkerExport } from './exportWorkerClient'
 
-export { resolveExportRange } from './exportQuality'
+export { exportDimensions, resolveExportRange } from './exportQuality'
 
 export type ExportFormat = 'png' | 'jpeg'
 
@@ -12,19 +13,6 @@ export function jpegQuality(quality: number): number {
   if (!Number.isFinite(quality) || quality < 1 || quality > 100)
     throw new Error('JPEG quality must be between 1 and 100')
   return quality / 100
-}
-
-export function exportDimensions(page: PageV1, width: number): { width: number; height: number } {
-  const height = Math.round((width * page.height) / page.width)
-  if (
-    !Number.isInteger(width) ||
-    width < 1 ||
-    width > 8192 ||
-    height > 8192 ||
-    width * height > 64_000_000
-  )
-    throw new Error('Export size exceeds the 8192 px / 64 megapixel limit')
-  return { width, height }
 }
 
 export interface ExportRenderMeasurement {
@@ -81,7 +69,18 @@ async function renderPageImageOnMainThread(
         const asset = assets[content.assetId]
         const source = getRenderableBlob(content.assetId)
         if (!asset || !source) throw new Error('An image is not available for export')
-        const bitmap = await createImageBitmap(source)
+        let bitmap: ImageBitmap
+        try {
+          bitmap = await createImageBitmap(source)
+        } catch (error) {
+          // The saved original can be valid while a full-size bitmap decode fails
+          // (for example under memory pressure). The registry already decoded a
+          // bounded preview when the project opened, so keep export usable.
+          const preview = getImage(content.assetId)
+          if (!preview) throw error
+          drawExportFrameImage(context, page, frame, asset, preview)
+          continue
+        }
         try {
           drawExportFrameImage(context, page, frame, asset, bitmap)
         } finally {
@@ -114,12 +113,12 @@ export async function renderPageImageMeasured(
   assets: Record<string, AssetRecordV1>,
   getImage: (assetId: string) => HTMLImageElement | undefined,
   getRenderableBlob: ((assetId: string) => Blob | undefined) | undefined,
-  width: number,
+  longSide: number,
   format: ExportFormat,
   quality = 90,
   ensureImages?: (assetIds: Iterable<string>) => Promise<unknown>,
 ): Promise<RenderedPageImage> {
-  const { height } = exportDimensions(page, width)
+  const { width, height } = exportDimensions(page, longSide)
   const outputQuality = format === 'jpeg' ? jpegQuality(quality) : quality
   const startedAt = performance.now()
   let renderer: ExportRenderMeasurement['renderer'] = 'main-thread'
@@ -193,7 +192,7 @@ export async function renderPageImage(
   page: PageV1,
   assets: Record<string, AssetRecordV1>,
   getImage: (assetId: string) => HTMLImageElement | undefined,
-  width: number,
+  longSide: number,
   format: ExportFormat,
   quality = 90,
   getRenderableBlob?: (assetId: string) => Blob | undefined,
@@ -205,7 +204,7 @@ export async function renderPageImage(
       assets,
       getImage,
       getRenderableBlob,
-      width,
+      longSide,
       format,
       quality,
       ensureImages,

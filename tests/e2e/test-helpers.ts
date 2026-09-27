@@ -262,10 +262,10 @@ export async function sampleDownloadedPng(
     { encoded: [...bytes], points },
   )
 }
-export async function exportCurrentPng(page: BrowserPage, width: number) {
+export async function exportCurrentPng(page: BrowserPage, longSide: number) {
   await page.getByRole('button', { name: 'Export…' }).click()
   const dialog = page.getByRole('dialog', { name: 'Export pages' })
-  await dialog.getByRole('spinbutton', { name: 'Width (px)' }).fill(String(width))
+  await dialog.getByRole('spinbutton', { name: 'Long side (px)' }).fill(String(longSide))
   const downloadPromise = page.waitForEvent('download')
   await dialog.getByRole('button', { name: 'Export', exact: true }).click()
   return downloadPromise

@@ -2,6 +2,7 @@ import { test, expect } from './test-fixtures'
 import {
   redPng,
   bluePng,
+  encodedRaster,
   importImage,
   downloadBytes,
   comparableProjectDocument,
@@ -20,6 +21,80 @@ import {
   createProject,
   collageMimeType,
 } from './test-helpers'
+
+for (const [name, mimeType] of [
+  ['photo.jpg', 'image/jpeg'],
+  ['photo.png', 'image/png'],
+  ['photo.webp', 'image/webp'],
+] as const) {
+  test(`exports a reopened ${mimeType} project when full-size bitmap decode fails`, async ({
+    page,
+    browser,
+    browserName,
+  }) => {
+    test.skip(
+      browserName === 'webkit' && process.platform === 'win32',
+      'Playwright WebKit on Windows exhausts canvas encoders across test contexts',
+    )
+    await page.addInitScript(() => {
+      Object.defineProperty(window, 'showSaveFilePicker', { value: undefined, configurable: true })
+    })
+    await page.goto('/')
+    const bytes = await encodedRaster(page, mimeType)
+    await importImage(page, name, bytes, mimeType)
+    await page.getByRole('tab', { name: 'Images' }).click()
+    await assignSidebarImage(page, name, 1)
+    await page.getByRole('button', { name: 'Add page' }).click()
+    await assignSidebarImage(page, name, 1)
+
+    const save = page.waitForEvent('download')
+    await page.getByRole('button', { name: 'Save', exact: true }).click()
+    await page
+      .getByRole('dialog', { name: 'Choose how to save' })
+      .getByRole('button', { name: 'Save with photos' })
+      .click()
+    const archive = await downloadBytes(await save)
+
+    const reopenedContext = await browser.newContext()
+    await reopenedContext.addInitScript(() => {
+      localStorage.setItem('collage-builder:onboarding-complete:v1', 'true')
+      Object.defineProperty(window, 'OffscreenCanvas', { value: undefined, configurable: true })
+    })
+    const reopened = await reopenedContext.newPage()
+    try {
+      await reopened.goto('/')
+      await reopened.locator('input[type="file"][accept*=".collage.json"]').setInputFiles({
+        name: 'saved-photo.collage',
+        mimeType: collageMimeType,
+        buffer: archive,
+      })
+      await expect(reopened.locator('.toast')).toContainText('Project opened')
+      await reopened.evaluate(() => {
+        const decode = createImageBitmap
+        let fullSizeDecodes = 0
+        window.createImageBitmap = ((source: ImageBitmapSource, options?: ImageBitmapOptions) => {
+          if (source instanceof Blob && !options && ++fullSizeDecodes === 2)
+            return Promise.reject(new DOMException('The source image could not be decoded'))
+          return decode(source, options!)
+        }) as typeof createImageBitmap
+      })
+
+      await reopened.getByRole('button', { name: 'Choose export scope' }).click()
+      await reopened.getByRole('menuitem', { name: 'All pages (ZIP)' }).click()
+      const dialog = reopened.getByRole('dialog', { name: 'Export pages' })
+      await dialog.getByRole('spinbutton', { name: 'Long side (px)' }).fill('400')
+      const downloadPromise = reopened.waitForEvent('download')
+      await dialog.getByRole('button', { name: 'Export', exact: true }).click()
+      const entries = Object.values(unzipSync(await downloadBytes(await downloadPromise)))
+      expect(entries).toHaveLength(2)
+      for (const image of entries)
+        expect(image.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+      await expect(reopened.locator('.toast')).toContainText('Exported 2 pages')
+    } finally {
+      await reopenedContext.close()
+    }
+  })
+}
 
 test('New protects unsaved work and Escape cancels navigation', async ({ page }) => {
   await page.goto('/')

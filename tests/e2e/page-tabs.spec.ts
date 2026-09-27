@@ -39,6 +39,43 @@ test('double-click rename saves when focus leaves the tab', async ({ page }) => 
   await expect(nameEditor).toHaveCount(0)
 })
 
+test('a longer page name expands its tab enough to show the name', async ({ page }) => {
+  await page.goto('/')
+  const tab = page.getByRole('button', { name: 'Page 1' })
+  const originalWidth = (await tab.boundingBox())!.width
+  expect(originalWidth).toBeLessThanOrEqual(85)
+
+  await tab.dblclick()
+  const nameEditor = page.getByRole('textbox', { name: 'Rename page' })
+  await nameEditor.fill('Summer vacation photos')
+  await nameEditor.press('Enter')
+
+  const renamedTab = page.getByRole('button', { name: 'Summer vacation photos' })
+  await expect(renamedTab).toBeVisible()
+  await expect
+    .poll(async () => (await renamedTab.boundingBox())!.width)
+    .toBeGreaterThan(originalWidth)
+  const label = renamedTab.locator('.page-tab-label')
+  expect(
+    await label.evaluate((element) => element.scrollWidth - element.clientWidth),
+  ).toBeLessThanOrEqual(1)
+
+  const longWidth = (await renamedTab.boundingBox())!.width
+  await renamedTab.dblclick()
+  await nameEditor.fill('A')
+  await nameEditor.press('Enter')
+  const shortTab = page.getByRole('button', { name: 'A', exact: true })
+  await expect.poll(async () => (await shortTab.boundingBox())!.width).toBeLessThan(longWidth)
+  const shortWidth = (await shortTab.boundingBox())!.width
+  expect(shortWidth).toBeLessThanOrEqual(85)
+
+  await page.getByRole('button', { name: 'Undo', exact: true }).click()
+  await expect.poll(async () => (await renamedTab.boundingBox())!.width).toBeGreaterThan(shortWidth)
+  await expect
+    .poll(() => label.evaluate((element) => element.scrollWidth - element.clientWidth))
+    .toBeLessThanOrEqual(1)
+})
+
 test('renaming a page does not move neighboring tabs', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Add page' }).click()
@@ -186,6 +223,17 @@ test('overflowing page tabs scroll with arrows and keep the active page in view'
     'aria-current',
     'page',
   )
+  const activeLabel = page
+    .getByRole('button', { name: 'Page 10', exact: true })
+    .locator('.page-tab-label')
+  await expect
+    .poll(() => activeLabel.evaluate((element) => element.scrollWidth - element.clientWidth))
+    .toBeLessThanOrEqual(1)
+  await page.getByRole('button', { name: 'Page 9', exact: true }).click()
+  await page.getByRole('button', { name: 'Page 10', exact: true }).click()
+  await expect
+    .poll(() => activeLabel.evaluate((element) => element.scrollWidth - element.clientWidth))
+    .toBeLessThanOrEqual(1)
   await expect(rightArrow).toBeDisabled()
   await expect(leftArrow).toBeEnabled()
 

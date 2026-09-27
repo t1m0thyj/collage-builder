@@ -40,7 +40,7 @@ describe('project export', () => {
       activePageId: document.pages[0].id,
       scope: 'all',
       range: '',
-      width: 800,
+      longSide: 800,
       format: 'png',
       quality: 90,
       baseName: 'test',

@@ -17,6 +17,7 @@ import {
   setNumber,
   expectOnTop,
   collageMimeType,
+  unzipSync,
 } from './test-helpers'
 
 test('page-range export dialog overlays the editor', async ({ page }) => {
@@ -40,7 +41,7 @@ test('page-range export validates input and downloads the requested pages', asyn
   await page.getByRole('button', { name: 'Choose export scope' }).click()
   await page.getByRole('menuitem', { name: 'Page range…' }).click()
   const exportDialog = page.getByRole('dialog', { name: 'Export pages' })
-  await exportDialog.getByRole('spinbutton', { name: 'Width (px)' }).fill('400')
+  await exportDialog.getByRole('spinbutton', { name: 'Long side (px)' }).fill('400')
   const range = exportDialog.getByPlaceholder('1-3')
   await range.fill('2-1')
   await exportDialog.getByRole('button', { name: 'Export', exact: true }).click()
@@ -70,7 +71,7 @@ test('exports current-page PNGs at normal and default 4K resolutions', async ({
 
   await page.getByRole('button', { name: 'Export…' }).click()
   const dialog = page.getByRole('dialog', { name: 'Export pages' })
-  const width = dialog.getByRole('spinbutton', { name: 'Width (px)' })
+  const width = dialog.getByRole('spinbutton', { name: 'Long side (px)' })
   await width.fill('800')
   const normalDownload = page.waitForEvent('download')
   await dialog.getByRole('button', { name: 'Export', exact: true }).click()
@@ -98,6 +99,53 @@ test('exports current-page PNGs at normal and default 4K resolutions', async ({
     expect(renderMeasurements.every(({ renderer }) => renderer === 'worker')).toBe(true)
 })
 
+test('portrait export uses the requested long side as its height', async ({ page }) => {
+  await page.goto('/')
+  const pageWidth = page.getByRole('spinbutton', { name: 'Page width' })
+  const pageHeight = page.getByRole('spinbutton', { name: 'Page height' })
+  await pageWidth.fill('600')
+  await pageWidth.press('Tab')
+  await pageHeight.fill('800')
+  await pageHeight.press('Tab')
+
+  await page.getByRole('button', { name: 'Export…' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Export pages' })
+  await dialog.getByRole('spinbutton', { name: 'Long side (px)' }).fill('1000')
+  await expect(dialog).toContainText('Output: 750 × 1000 px')
+  const downloadPromise = page.waitForEvent('download')
+  await dialog.getByRole('button', { name: 'Export', exact: true }).click()
+  await expect(await pngDimensions(await downloadPromise)).toEqual({ width: 750, height: 1000 })
+})
+
+test('all-page export applies the long side to each page orientation', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Add page' }).click()
+  const pageWidth = page.getByRole('spinbutton', { name: 'Page width' })
+  const pageHeight = page.getByRole('spinbutton', { name: 'Page height' })
+  await pageWidth.fill('600')
+  await pageWidth.press('Tab')
+  await pageHeight.fill('800')
+  await pageHeight.press('Tab')
+
+  await page.getByRole('button', { name: 'Choose export scope' }).click()
+  await page.getByRole('menuitem', { name: 'All pages (ZIP)' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Export pages' })
+  await dialog.getByRole('spinbutton', { name: 'Long side (px)' }).fill('1000')
+  await expect(dialog).toContainText('Current page output: 750 × 1000 px')
+  const downloadPromise = page.waitForEvent('download')
+  await dialog.getByRole('button', { name: 'Export', exact: true }).click()
+  const images = Object.values(unzipSync(await downloadBytes(await downloadPromise)))
+  expect(
+    images.map((image) => {
+      const png = Buffer.from(image)
+      return [png.readUInt32BE(16), png.readUInt32BE(20)]
+    }),
+  ).toEqual([
+    [1000, 750],
+    [750, 1000],
+  ])
+})
+
 test('exports JPEG with configurable quality', async ({ page }) => {
   await page.goto('/')
   await importImage(page, 'export.png', redPng)
@@ -112,7 +160,7 @@ test('exports JPEG with configurable quality', async ({ page }) => {
   const dialog = page.getByRole('dialog', { name: 'Export pages' })
   await dialog.getByRole('button', { name: 'Export format' }).click()
   await page.getByRole('option', { name: 'JPEG', exact: true }).click()
-  await dialog.getByRole('spinbutton', { name: 'Width (px)' }).fill('800')
+  await dialog.getByRole('spinbutton', { name: 'Long side (px)' }).fill('800')
   await dialog.getByRole('spinbutton', { name: 'JPEG quality (%)' }).fill('72')
   const downloadPromise = page.waitForEvent('download')
   await dialog.getByRole('button', { name: 'Export', exact: true }).click()
@@ -135,7 +183,7 @@ test('export pixels preserve image colors and the configured page gap', async ({
 
   await page.getByRole('button', { name: 'Export…' }).click()
   const dialog = page.getByRole('dialog', { name: 'Export pages' })
-  await dialog.getByRole('spinbutton', { name: 'Width (px)' }).fill('400')
+  await dialog.getByRole('spinbutton', { name: 'Long side (px)' }).fill('400')
   const downloadPromise = page.waitForEvent('download')
   await dialog.getByRole('button', { name: 'Export', exact: true }).click()
   const [leftPixel, gapPixel, rightPixel] = await sampleDownloadedPng(page, await downloadPromise, [
@@ -226,7 +274,7 @@ test('real photo import, crop, thumbnail, and export stay visually consistent', 
 
   await page.getByRole('button', { name: 'Export…' }).click()
   const dialog = page.getByRole('dialog', { name: 'Export pages' })
-  await dialog.getByRole('spinbutton', { name: 'Width (px)' }).fill('600')
+  await dialog.getByRole('spinbutton', { name: 'Long side (px)' }).fill('600')
   const downloadPromise = page.waitForEvent('download')
   await dialog.getByRole('button', { name: 'Export', exact: true }).click()
   const [exportedPixel] = await sampleDownloadedPng(page, await downloadPromise, [

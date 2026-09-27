@@ -117,7 +117,7 @@
   let isExportOpen = false
   let exportScope: 'current' | 'all' | 'range' = 'current'
   let exportRange = '1-1'
-  let exportWidth = 3840
+  let exportLongSide = 3840
   let exportFormat: ExportFormat = 'png'
   let exportQuality = 90
   let isExporting = false
@@ -254,7 +254,7 @@
     activePageId: () => activePageId,
     scope: () => exportScope,
     range: () => exportRange,
-    width: () => exportWidth,
+    longSide: () => exportLongSide,
     format: () => exportFormat,
     quality: () => exportQuality,
     projectTitle: () => projectTitle,
@@ -770,7 +770,7 @@
     bind:isExportOpen
     bind:exportScope
     bind:exportRange
-    bind:exportWidth
+    bind:exportLongSide
     bind:exportFormat
     bind:exportQuality
     {isExporting}

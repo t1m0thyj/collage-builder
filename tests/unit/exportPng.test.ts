@@ -15,6 +15,10 @@ describe('export ranges', () => {
 describe('export dimensions', () => {
   it('preserves page aspect ratio and rejects unsafe canvases', () => {
     expect(exportDimensions(createPage(), 3840)).toEqual({ width: 3840, height: 2880 })
+    const portrait = createPage()
+    portrait.width = 3000
+    portrait.height = 4000
+    expect(exportDimensions(portrait, 3840)).toEqual({ width: 2880, height: 3840 })
     expect(() => exportDimensions(createPage(), 9000)).toThrow('limit')
   })
 
@@ -45,6 +49,9 @@ describe('export dimensions', () => {
       placement: { zoom: 1, positionX: 0.5, positionY: 0.5 },
     }
     expect(countUpscaledPlacements(page, document.assets, 3840)).toBe(1)
+    expect(countUpscaledPlacements(page, document.assets, 64)).toBe(0)
+    page.width = 3000
+    page.height = 4000
     expect(countUpscaledPlacements(page, document.assets, 64)).toBe(0)
   })
 })

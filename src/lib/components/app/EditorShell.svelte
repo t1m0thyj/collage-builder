@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte'
+  import { afterUpdate, onMount, tick } from 'svelte'
   import { ChevronLeft, ChevronRight, Plus } from '@lucide/svelte'
   import type {
     AssetId,
@@ -61,10 +61,36 @@
   let renamingPageId: string | null = null
   let renameDraft = ''
   let renameInput: HTMLInputElement | undefined
+  let fittedTabWidths: Record<string, number> = {}
+  let sizedPageNames: Record<string, string> = {}
+  let lastSizedActivePageId: string | null = null
+  let lastSizedActivePageName: string | null = null
+  let activeTabSizingTimer: ReturnType<typeof setTimeout> | undefined
   let draggedPageId: string | null = null
   let pageDropTarget: { pageId: string; edge: 'before' | 'after' } | null = null
   $: previewPage = document.pages.find((page) => page.id === previewPageId)
   $: if (activePageId && pageTabsViewport) void tick().then(ensureActiveTabVisible)
+
+  afterUpdate(() => {
+    const pageName = document.pages.find((page) => page.id === activePageId)?.name
+    if (
+      !activePageId ||
+      !pageName ||
+      (activePageId === lastSizedActivePageId && pageName === lastSizedActivePageName)
+    )
+      return
+    lastSizedActivePageId = activePageId
+    lastSizedActivePageName = pageName
+    clearTimeout(activeTabSizingTimer)
+    const pageId = activePageId
+    activeTabSizingTimer = setTimeout(() => {
+      if (
+        activePageId === pageId &&
+        document.pages.find((page) => page.id === pageId)?.name === pageName
+      )
+        void resizePageTab(pageId, false)
+    }, 0)
+  })
 
   function updateScrollState() {
     canScrollLeft = pageTabsViewport.scrollLeft > 1
@@ -124,7 +150,10 @@
     observer.observe(pagebar)
     observer.observe(pageTabsMeasure)
     updatePageTabs()
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      clearTimeout(activeTabSizingTimer)
+    }
   })
 
   function selectPage(pageId: string) {
@@ -149,13 +178,54 @@
     const pageId = renamingPageId
     if (!pageId) return
     renamingPageId = null
-    if (save) onrenamepage(pageId, renameDraft)
-    if (restoreFocus)
-      void tick().then(() =>
-        [...pageTabsViewport.querySelectorAll<HTMLButtonElement>('.page-tab')]
-          .find((tab) => tab.dataset.pageId === pageId)
-          ?.focus(),
+    if (save) {
+      onrenamepage(pageId, renameDraft)
+      void resizePageTab(pageId, true, restoreFocus)
+    } else if (restoreFocus) void tick().then(() => findPageTab(pageId)?.focus())
+  }
+
+  function findPageTab(pageId: string) {
+    return [...pageTabsViewport.querySelectorAll<HTMLButtonElement>('.page-tab')].find(
+      (tab) => tab.dataset.pageId === pageId,
+    )
+  }
+
+  async function resizePageTab(pageId: string, resetWidth: boolean, restoreFocus = false) {
+    const pageName = document.pages.find((page) => page.id === pageId)?.name
+    if (!pageName) return
+    if (resetWidth || sizedPageNames[pageId] !== pageName)
+      fittedTabWidths = Object.fromEntries(
+        Object.entries(fittedTabWidths).filter(([id]) => id !== pageId),
       )
+    sizedPageNames = { ...sizedPageNames, [pageId]: pageName }
+    await tick()
+    const tab = findPageTab(pageId)
+    const label = tab?.querySelector<HTMLElement>('.page-tab-label')
+    if (tab && label) {
+      const activeTab = pageTabsViewport.querySelector<HTMLElement>(
+        '.page-tab-with-actions.active-tab-action .page-tab',
+      )
+      const activeLabel = activeTab?.querySelector<HTMLElement>('.page-tab-label')
+      const activeInset =
+        activeTab && activeLabel
+          ? activeTab.getBoundingClientRect().width - activeLabel.clientWidth
+          : tab.getBoundingClientRect().width - label.clientWidth
+      const textRange = globalThis.document.createRange()
+      textRange.selectNodeContents(label)
+      const neededWidth = Math.min(
+        240,
+        Math.max(84, Math.ceil(textRange.getBoundingClientRect().width + activeInset)),
+      )
+      if (neededWidth > tab.getBoundingClientRect().width + 0.5) {
+        fittedTabWidths = {
+          ...fittedTabWidths,
+          [pageId]: neededWidth,
+        }
+        await tick()
+      }
+    }
+    ensureActiveTabVisible()
+    if (restoreFocus) findPageTab(pageId)?.focus()
   }
 
   function startPageDrag(event: DragEvent, pageId: string) {
@@ -236,6 +306,7 @@
             class:active={page.id === activePageId}
             class="page-tab"
             data-title={page.name}
+            style:width={fittedTabWidths[page.id] ? `${fittedTabWidths[page.id]}px` : undefined}
             tabindex="-1"><span class="page-tab-label">{page.name}</span></button
           >
         </div>
@@ -270,6 +341,7 @@
               class="page-tab page-tab-placeholder"
               data-page-id={page.id}
               data-title={page.name}
+              style:width={fittedTabWidths[page.id] ? `${fittedTabWidths[page.id]}px` : undefined}
               tabindex="-1"
               aria-hidden="true"><span class="page-tab-label">{page.name}</span></button
             >
@@ -298,6 +370,7 @@
               class="page-tab"
               data-page-id={page.id}
               data-title={page.name}
+              style:width={fittedTabWidths[page.id] ? `${fittedTabWidths[page.id]}px` : undefined}
               draggable="true"
               aria-current={page.id === activePageId ? 'page' : undefined}
               onpointerenter={(event) => showPagePreview(page.id, event.currentTarget)}
