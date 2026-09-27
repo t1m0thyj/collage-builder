@@ -1,4 +1,4 @@
-import { resolveCoverPlacement } from '../domain/crop'
+import { resolveCoverPlacement, rotatedDimensions } from '../domain/crop'
 import { resolveLayout } from '../domain/geometry'
 import type { AssetRecordV1, PageV1 } from '../domain/types'
 
@@ -37,7 +37,10 @@ export function countUpscaledPlacements(
       asset.height,
       content.placement,
     )
-    return placement.width * scale > asset.width || placement.height * scale > asset.height
+    const dimensions = rotatedDimensions(asset.width, asset.height, content.placement.rotation)
+    return (
+      placement.width * scale > dimensions.width || placement.height * scale > dimensions.height
+    )
   }).length
 }
 

@@ -54,4 +54,27 @@ describe('export dimensions', () => {
     page.height = 4000
     expect(countUpscaledPlacements(page, document.assets, 64)).toBe(0)
   })
+
+  it('compares rotated images against their oriented dimensions', () => {
+    const document = createProject()
+    const page = document.pages[0]
+    page.width = 200
+    page.height = 400
+    const assetId = '11111111-1111-4111-8111-111111111111'
+    document.assets[assetId] = {
+      id: assetId,
+      originalName: 'landscape.png',
+      mediaType: 'image/png',
+      byteLength: 1,
+      width: 400,
+      height: 200,
+      sha256: 'a'.repeat(64),
+      storage: { kind: 'embedded', archivePath: `assets/${assetId}` },
+    }
+    page.slots[Object.keys(page.slots)[0]] = {
+      assetId,
+      placement: { zoom: 1, positionX: 0.5, positionY: 0.5, rotation: 90 },
+    }
+    expect(countUpscaledPlacements(page, document.assets, 400)).toBe(0)
+  })
 })

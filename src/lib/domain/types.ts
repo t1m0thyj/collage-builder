@@ -63,7 +63,14 @@ export interface LayoutSnapshotV1 {
 
 export interface SlotContentV1 {
   assetId: AssetId
-  placement: { zoom: number; positionX: number; positionY: number }
+  placement: {
+    zoom: number
+    positionX: number
+    positionY: number
+    rotation?: 0 | 90 | 180 | 270
+    flipHorizontal?: boolean
+    flipVertical?: boolean
+  }
 }
 
 export interface AssetRecordV1 {

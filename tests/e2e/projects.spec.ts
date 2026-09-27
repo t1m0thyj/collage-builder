@@ -4,6 +4,8 @@ import {
   bluePng,
   encodedRaster,
   importImage,
+  dropLocalFiles,
+  canvasDocumentPoint,
   downloadBytes,
   comparableProjectDocument,
   sampleDownloadedPng,
@@ -21,6 +23,70 @@ import {
   createProject,
   collageMimeType,
 } from './test-helpers'
+
+test('frame rotation and flip survive saving and reopening the project', async ({
+  page,
+  browser,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'showSaveFilePicker', { value: undefined, configurable: true })
+  })
+  await page.goto('/')
+  const host = page.getByRole('region', { name: 'Collage canvas' })
+  const [frame] = JSON.parse((await host.getAttribute('data-frame-hitboxes'))!) as Array<{
+    x: number
+    y: number
+    width: number
+    height: number
+  }>
+  const center = await canvasDocumentPoint(page, {
+    x: frame.x + frame.width / 2,
+    y: frame.y + frame.height / 2,
+  })
+  await dropLocalFiles(host, [{ name: 'turn-me.png', buffer: redPng }], center)
+  await expect(page.getByRole('button', { name: 'Frame 1, turn-me.png' })).toBeAttached()
+  await page.getByRole('button', { name: 'Rotate photo right 90 degrees' }).click()
+  await page.getByRole('button', { name: 'Flip photo horizontally' }).click()
+
+  const save = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await page
+    .getByRole('dialog', { name: 'Choose how to save' })
+    .getByRole('button', { name: 'Save with photos' })
+    .click()
+  const archive = await downloadBytes(await save)
+  const savedDocument = JSON.parse(strFromU8(unzipSync(archive)['document.json']))
+  expect(Object.values(savedDocument.pages[0].slots)[0]).toMatchObject({
+    placement: { rotation: 90, flipHorizontal: true },
+  })
+
+  const reopenedContext = await browser.newContext()
+  await reopenedContext.addInitScript(() => {
+    localStorage.setItem('collage-builder:onboarding-complete:v1', 'true')
+  })
+  const reopened = await reopenedContext.newPage()
+  try {
+    await reopened.goto('/')
+    await reopened.locator('input[type="file"][accept*=".collage.json"]').setInputFiles({
+      name: 'rotated.collage',
+      mimeType: collageMimeType,
+      buffer: archive,
+    })
+    await expect(reopened.locator('.toast')).toContainText('Project opened')
+    const reopenedFrame = reopened.getByRole('button', { name: 'Frame 1, turn-me.png' })
+    await reopenedFrame.focus()
+    await reopenedFrame.press('Space')
+    await expect(
+      reopened.getByRole('group', { name: 'Photo orientation' }).locator('output'),
+    ).toHaveText('90°')
+    await expect(reopened.getByRole('button', { name: 'Flip photo horizontally' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+  } finally {
+    await reopenedContext.close()
+  }
+})
 
 for (const [name, mimeType] of [
   ['photo.jpg', 'image/jpeg'],

@@ -9,6 +9,7 @@
     SlotId,
   } from '../../domain/types'
   import { resolveLayout } from '../../domain/geometry'
+  import { sourceImagePosition } from '../../domain/crop'
   import type { AssetRegistry } from '../../render/assetRegistry'
   import CanvasEditor from '../editor/CanvasEditor.svelte'
   import PageActions from '../PageActions.svelte'
@@ -429,13 +430,15 @@
         >
           {#each resolveLayout(previewPage) as frame (frame.slotId)}
             {@const content = previewPage.slots[frame.slotId]}
+            {@const rotation = content?.placement.rotation ?? 0}
+            {@const sourcePosition = content ? sourceImagePosition(content.placement) : undefined}
             <i
               class:populated={Boolean(content)}
               style={`left:${(frame.x / previewPage.width) * 100}%;top:${(frame.y / previewPage.height) * 100}%;width:${(frame.width / previewPage.width) * 100}%;height:${(frame.height / previewPage.height) * 100}%;border-radius:${Math.min(previewPage.style.cornerRadius / Math.max(previewPage.width, previewPage.height), 0.1) * 100}%`}
               >{#if content && assetRegistry.getThumbnailUrl(content.assetId)}<img
                   src={assetRegistry.getThumbnailUrl(content.assetId)}
                   alt=""
-                  style={`object-position:${content.placement.positionX * 100}% ${content.placement.positionY * 100}%;transform:scale(${content.placement.zoom});transform-origin:${content.placement.positionX * 100}% ${content.placement.positionY * 100}%`}
+                  style={`width:${rotation === 90 || rotation === 270 ? (frame.height / frame.width) * 100 : 100}%;height:${rotation === 90 || rotation === 270 ? (frame.width / frame.height) * 100 : 100}%;object-position:${sourcePosition!.x * 100}% ${sourcePosition!.y * 100}%;transform:translate(-50%, -50%) scaleX(${content.placement.flipHorizontal ? -1 : 1}) scaleY(${content.placement.flipVertical ? -1 : 1}) rotate(${rotation}deg) scale(${content.placement.zoom})`}
                 />{/if}</i
             >{/each}
         </div>

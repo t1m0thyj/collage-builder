@@ -1,6 +1,7 @@
 import { resolveCoverPlacement } from '../domain/crop'
 import { resolveLayout } from '../domain/geometry'
 import type { AssetRecordV1, PageV1, ResolvedFrame } from '../domain/types'
+import { drawPlacedImage } from './drawPlacedImage'
 
 type ExportContext = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
 
@@ -100,12 +101,6 @@ export function drawExportFrameImage(
   context.save()
   framePath(context, frame, page.style.cornerRadius)
   context.clip()
-  context.drawImage(
-    image,
-    frame.x + placement.x,
-    frame.y + placement.y,
-    placement.width,
-    placement.height,
-  )
+  drawPlacedImage(context, image, frame.x, frame.y, placement, content.placement)
   context.restore()
 }

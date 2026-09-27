@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Circle, Group, Image, Layer, Line, Rect, Text } from 'svelte-konva'
   import type { SceneContext } from 'konva/lib/Context'
-  import { resolveCoverPlacement } from '../../domain/crop'
+  import { resolveCoverPlacement, rotatedImageGeometry } from '../../domain/crop'
   import { dividerCenter, type DividerSnapTarget } from '../../domain/dividerSnapping'
   import { resolveDividers } from '../../domain/geometry'
   import { createPageRenderModel } from '../../render/pageRenderer'
@@ -156,6 +156,9 @@
               content.placement,
             )
           : undefined}
+      {@const imageGeometry = placement
+        ? rotatedImageGeometry(placement, content!.placement)
+        : undefined}
       <Group>
         {#if frame.polygon}<Line
             points={polygonPoints(frame)}
@@ -181,14 +184,19 @@
             shadowOffsetY={page.style.shadow.offsetY}
             onpointerclick={() => onselect(frame.slotId)}
           />{/if}
-        {#if image && placement}
+        {#if image && placement && imageGeometry}
           <Group clipFunc={roundedClip(frame.x, frame.y, frame.width, frame.height, frame.polygon)}>
             <Image
               {image}
-              x={frame.x + placement.x}
-              y={frame.y + placement.y}
-              width={placement.width}
-              height={placement.height}
+              x={frame.x + imageGeometry.x}
+              y={frame.y + imageGeometry.y}
+              width={imageGeometry.width}
+              height={imageGeometry.height}
+              offsetX={imageGeometry.offsetX}
+              offsetY={imageGeometry.offsetY}
+              rotation={imageGeometry.rotation}
+              scaleX={imageGeometry.scaleX}
+              scaleY={imageGeometry.scaleY}
               draggable={cropSlotId === frame.slotId}
               dragBoundFunc={(position) => cropDragBound(position, frame, placement)}
               onpointerclick={() => selectOrCropFrame(frame.slotId)}

@@ -1,5 +1,14 @@
 <script lang="ts">
-  import { ChevronDown, Link2, Link2Off, Palette } from '@lucide/svelte'
+  import {
+    ChevronDown,
+    FlipHorizontal,
+    FlipVertical,
+    Link2,
+    Link2Off,
+    Palette,
+    RotateCcw,
+    RotateCw,
+  } from '@lucide/svelte'
   import type { PageStyleControl } from '../../app/pageActions'
   import type { PageV1, SlotContentV1 } from '../../domain/types'
   import * as Collapsible from '../ui/collapsible'
@@ -32,6 +41,8 @@
   export let onrequestimage: (slotId: string) => void
   export let onbegincrop: (slotId: string) => void
   export let onupdatecropzoom: (zoom: number) => void
+  export let onrotatephoto: (quarterTurns: -1 | 1) => void
+  export let onflipphoto: (axis: 'horizontal' | 'vertical') => void
   export let onupdatecropposition: (axis: 'positionX' | 'positionY', percent: number) => void
   export let onfinishcrop: () => void
   export let onresetcrop: () => void
@@ -106,6 +117,38 @@
                     onupdatecropzoom(Math.min(8, Math.max(1, Number(event.currentTarget.value))))}
                 />
               </div>
+            </div>
+            <div class="crop-orientation" role="group" aria-label="Photo orientation">
+              <span>Orient</span>
+              <button
+                class="button"
+                aria-label="Rotate photo left 90 degrees"
+                title="Rotate left 90°"
+                onclick={() => onrotatephoto(-1)}><RotateCcw size={15}></RotateCcw></button
+              >
+              <output>{selectedContent.placement.rotation ?? 0}°</output>
+              <button
+                class="button"
+                aria-label="Rotate photo right 90 degrees"
+                title="Rotate right 90°"
+                onclick={() => onrotatephoto(1)}><RotateCw size={15}></RotateCw></button
+              >
+              <button
+                class="button"
+                aria-label="Flip photo horizontally"
+                title="Flip horizontally"
+                aria-pressed={selectedContent.placement.flipHorizontal ?? false}
+                onclick={() => onflipphoto('horizontal')}
+                ><FlipHorizontal size={15}></FlipHorizontal></button
+              >
+              <button
+                class="button"
+                aria-label="Flip photo vertically"
+                title="Flip vertically"
+                aria-pressed={selectedContent.placement.flipVertical ?? false}
+                onclick={() => onflipphoto('vertical')}
+                ><FlipVertical size={15}></FlipVertical></button
+              >
             </div>
             <div class="crop-coordinates">
               <label

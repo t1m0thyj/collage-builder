@@ -1,4 +1,5 @@
 import { resolveLayout } from '../domain/geometry'
+import { flipPlacement, rotatePlacement } from '../domain/crop'
 import type { PageV1, SlotContentV1 } from '../domain/types'
 import type { ProjectStore } from '../state/projectStore'
 
@@ -83,6 +84,26 @@ export class EditorSessionController {
     else this.host.project.setSlotContent(this.host.page().id, slotId, content)
   }
 
+  rotateSelected(quarterTurns: -1 | 1) {
+    const slotId = this.host.selectedSlotId()
+    const content = this.host.selectedContent()
+    if (!slotId || !content) return
+    const next = { ...content, placement: rotatePlacement(content.placement, quarterTurns) }
+    if (this.host.cropModeSlotId() === slotId)
+      this.host.project.previewSlotContent(this.host.page().id, slotId, next)
+    else this.host.project.setSlotContent(this.host.page().id, slotId, next)
+  }
+
+  flipSelected(axis: 'horizontal' | 'vertical') {
+    const slotId = this.host.selectedSlotId()
+    const content = this.host.selectedContent()
+    if (!slotId || !content) return
+    const next = { ...content, placement: flipPlacement(content.placement, axis) }
+    if (this.host.cropModeSlotId() === slotId)
+      this.host.project.previewSlotContent(this.host.page().id, slotId, next)
+    else this.host.project.setSlotContent(this.host.page().id, slotId, next)
+  }
+
   updatePosition(axis: 'positionX' | 'positionY', percent: number) {
     const slotId = this.host.selectedSlotId()
     const selectedContent = this.host.selectedContent()
@@ -111,7 +132,14 @@ export class EditorSessionController {
     if (!slotId || !selectedContent) return
     this.host.project.setSlotContent(this.host.page().id, slotId, {
       ...selectedContent,
-      placement: { zoom: 1, positionX: 0.5, positionY: 0.5 },
+      placement: {
+        zoom: 1,
+        positionX: 0.5,
+        positionY: 0.5,
+        rotation: selectedContent.placement.rotation,
+        flipHorizontal: selectedContent.placement.flipHorizontal,
+        flipVertical: selectedContent.placement.flipVertical,
+      },
     })
   }
 

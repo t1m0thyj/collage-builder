@@ -74,6 +74,11 @@ export const collageDocumentSchema = z.object({
                 zoom: finiteNumber.min(1).max(8),
                 positionX: finiteNumber.min(0).max(1),
                 positionY: finiteNumber.min(0).max(1),
+                rotation: z
+                  .union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)])
+                  .default(0),
+                flipHorizontal: z.boolean().default(false),
+                flipVertical: z.boolean().default(false),
               }),
             })
             .nullable(),

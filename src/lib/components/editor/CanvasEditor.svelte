@@ -265,16 +265,16 @@
     placement: ReturnType<typeof resolveCoverPlacement>,
   ) {
     placement = panCropDrag?.dimensions ?? placement
-    const documentX = (position.x - stageX) / fitScale
-    const documentY = (position.y - stageY) / fitScale
+    const documentX = (position.x - stageX) / fitScale - placement.width / 2
+    const documentY = (position.y - stageY) / fitScale - placement.height / 2
     const boundedX = Math.min(frame.x, Math.max(frame.x + frame.width - placement.width, documentX))
     const boundedY = Math.min(
       frame.y,
       Math.max(frame.y + frame.height - placement.height, documentY),
     )
     return {
-      x: stageX + boundedX * fitScale,
-      y: stageY + boundedY * fitScale,
+      x: stageX + (boundedX + placement.width / 2) * fitScale,
+      y: stageY + (boundedY + placement.height / 2) * fitScale,
     }
   }
 

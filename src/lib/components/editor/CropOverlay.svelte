@@ -2,7 +2,7 @@
   import { Circle, Group, Image, Layer, Line, Rect } from 'svelte-konva'
   import type { SceneContext } from 'konva/lib/Context'
   import { createPageRenderModel } from '../../render/pageRenderer'
-  import { resolveCoverPlacement } from '../../domain/crop'
+  import { resolveCoverPlacement, rotatedImageGeometry } from '../../domain/crop'
   import type { SlotContentV1 } from '../../domain/types'
 
   type Frame = ReturnType<typeof createPageRenderModel>['frames'][number]
@@ -75,16 +75,22 @@
   ) => void
   export let previewCornerZoom: (event: StagePointerEvent) => void
   export let finishCornerZoom: (event: StagePointerEvent) => void
+  $: imageGeometry = rotatedImageGeometry(placement, content.placement)
 </script>
 
 <Layer>
   <Group x={stageX} y={stageY} scaleX={fitScale} scaleY={fitScale}>
     <Image
       {image}
-      x={frame.x + placement.x}
-      y={frame.y + placement.y}
-      width={placement.width}
-      height={placement.height}
+      x={frame.x + imageGeometry.x}
+      y={frame.y + imageGeometry.y}
+      width={imageGeometry.width}
+      height={imageGeometry.height}
+      offsetX={imageGeometry.offsetX}
+      offsetY={imageGeometry.offsetY}
+      rotation={imageGeometry.rotation}
+      scaleX={imageGeometry.scaleX}
+      scaleY={imageGeometry.scaleY}
       draggable
       dragBoundFunc={(position) => cropDragBound(position, frame, placement)}
       onpointerdown={(event) => beginPan(event, frame, placement, content, frame.slotId)}
@@ -102,10 +108,15 @@
     <Group clipFunc={roundedClip(frame.x, frame.y, frame.width, frame.height, frame.polygon)}
       ><Image
         {image}
-        x={frame.x + placement.x}
-        y={frame.y + placement.y}
-        width={placement.width}
-        height={placement.height}
+        x={frame.x + imageGeometry.x}
+        y={frame.y + imageGeometry.y}
+        width={imageGeometry.width}
+        height={imageGeometry.height}
+        offsetX={imageGeometry.offsetX}
+        offsetY={imageGeometry.offsetY}
+        rotation={imageGeometry.rotation}
+        scaleX={imageGeometry.scaleX}
+        scaleY={imageGeometry.scaleY}
         draggable
         dragBoundFunc={(position) => cropDragBound(position, frame, placement)}
         onpointerdown={(event) => beginPan(event, frame, placement, content, frame.slotId)}

@@ -1,4 +1,5 @@
 import { resolveCoverPlacement } from '../domain/crop'
+import { drawPlacedImage } from './drawPlacedImage'
 import { resolveLayout } from '../domain/geometry'
 import type { CollageDocumentV1, ResolvedFrame } from '../domain/types'
 
@@ -114,12 +115,13 @@ export async function createRecoveryPreview(
             bitmap.height,
             content.placement,
           )
-          context.drawImage(
+          drawPlacedImage(
+            context,
             bitmap,
-            frame.x * scale + placement.x,
-            frame.y * scale + placement.y,
-            placement.width,
-            placement.height,
+            frame.x * scale,
+            frame.y * scale,
+            placement,
+            content.placement,
           )
         } finally {
           bitmap.close()

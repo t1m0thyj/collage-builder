@@ -15,7 +15,79 @@ export const defaultPlacement = (): SlotContentV1['placement'] => ({
   zoom: 1,
   positionX: 0.5,
   positionY: 0.5,
+  rotation: 0,
+  flipHorizontal: false,
+  flipVertical: false,
 })
+
+export function rotatedDimensions(width: number, height: number, rotation = 0) {
+  return rotation === 90 || rotation === 270 ? { width: height, height: width } : { width, height }
+}
+
+export function rotatedImageGeometry(
+  placement: ImagePlacement,
+  transform: Pick<SlotContentV1['placement'], 'rotation' | 'flipHorizontal' | 'flipVertical'>,
+) {
+  const rotation = transform.rotation ?? 0
+  const { width, height } = rotatedDimensions(placement.width, placement.height, rotation)
+  const quarterTurn = rotation === 90 || rotation === 270
+  return {
+    x: placement.x + placement.width / 2,
+    y: placement.y + placement.height / 2,
+    width,
+    height,
+    offsetX: width / 2,
+    offsetY: height / 2,
+    rotation,
+    scaleX: (quarterTurn ? transform.flipVertical : transform.flipHorizontal) ? -1 : 1,
+    scaleY: (quarterTurn ? transform.flipHorizontal : transform.flipVertical) ? -1 : 1,
+  }
+}
+
+export function rotatePlacement(placement: SlotContentV1['placement'], quarterTurns: -1 | 1) {
+  const rotation = (((placement.rotation ?? 0) + quarterTurns * 90 + 360) % 360) as
+    0 | 90 | 180 | 270
+  return {
+    ...placement,
+    rotation,
+    flipHorizontal: placement.flipVertical ?? false,
+    flipVertical: placement.flipHorizontal ?? false,
+    positionX: quarterTurns === 1 ? 1 - placement.positionY : placement.positionY,
+    positionY: quarterTurns === 1 ? placement.positionX : 1 - placement.positionX,
+  }
+}
+
+export function flipPlacement(
+  placement: SlotContentV1['placement'],
+  axis: 'horizontal' | 'vertical',
+) {
+  return axis === 'horizontal'
+    ? {
+        ...placement,
+        flipHorizontal: !placement.flipHorizontal,
+        positionX: 1 - placement.positionX,
+      }
+    : {
+        ...placement,
+        flipVertical: !placement.flipVertical,
+        positionY: 1 - placement.positionY,
+      }
+}
+
+export function sourceImagePosition(placement: SlotContentV1['placement']) {
+  const x = placement.flipHorizontal ? 1 - placement.positionX : placement.positionX
+  const y = placement.flipVertical ? 1 - placement.positionY : placement.positionY
+  switch (placement.rotation ?? 0) {
+    case 90:
+      return { x: y, y: 1 - x }
+    case 180:
+      return { x: 1 - x, y: 1 - y }
+    case 270:
+      return { x: 1 - y, y: x }
+    default:
+      return { x, y }
+  }
+}
 
 export function resolveCoverPlacement(
   frameWidth: number,
@@ -24,9 +96,10 @@ export function resolveCoverPlacement(
   imageHeight: number,
   placement: SlotContentV1['placement'],
 ): ImagePlacement {
-  const cover = Math.max(frameWidth / imageWidth, frameHeight / imageHeight)
-  const width = imageWidth * cover * placement.zoom
-  const height = imageHeight * cover * placement.zoom
+  const oriented = rotatedDimensions(imageWidth, imageHeight, placement.rotation)
+  const cover = Math.max(frameWidth / oriented.width, frameHeight / oriented.height)
+  const width = oriented.width * cover * placement.zoom
+  const height = oriented.height * cover * placement.zoom
   const overflowX = Math.max(0, width - frameWidth)
   const overflowY = Math.max(0, height - frameHeight)
   return {
@@ -48,6 +121,9 @@ export function panPlacement(
 ): SlotContentV1['placement'] {
   return {
     zoom: placement.zoom,
+    rotation: placement.rotation,
+    flipHorizontal: placement.flipHorizontal,
+    flipVertical: placement.flipVertical,
     positionX:
       dimensions.overflowX === 0
         ? 0.5
@@ -77,6 +153,9 @@ export function zoomPlacement(
   const nextOverflowY = Math.max(0, nextHeight - frameHeight)
   return {
     zoom,
+    rotation: placement.rotation,
+    flipHorizontal: placement.flipHorizontal,
+    flipVertical: placement.flipVertical,
     positionX:
       nextOverflowX === 0
         ? 0.5

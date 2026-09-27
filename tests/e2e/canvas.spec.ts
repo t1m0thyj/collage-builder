@@ -10,8 +10,195 @@ import {
   twoColumnFrameCenters,
   assignSidebarImage,
   sampleStageColor,
+  sampleStagePixel,
+  sampleDownloadedPng,
+  exportCurrentPng,
   setNumber,
 } from './test-helpers'
+
+test('horizontal and vertical flips mirror the selected frame in preview and export', async ({
+  page,
+}) => {
+  await page.goto('/')
+  const imageBase64 = await page.evaluate(() => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 400
+    canvas.height = 400
+    const context = canvas.getContext('2d')!
+    for (const [x, y, color] of [
+      [0, 0, '#ff0000'],
+      [200, 0, '#00ff00'],
+      [0, 200, '#0000ff'],
+      [200, 200, '#ffff00'],
+    ] as const) {
+      context.fillStyle = color
+      context.fillRect(x, y, 200, 200)
+    }
+    return canvas.toDataURL('image/png').split(',')[1]
+  })
+  const host = page.getByRole('region', { name: 'Collage canvas' })
+  const [frame] = JSON.parse((await host.getAttribute('data-frame-hitboxes'))!) as Array<{
+    x: number
+    y: number
+    width: number
+    height: number
+  }>
+  const point = (x: number, y: number) => ({
+    x: frame.x + frame.width * x,
+    y: frame.y + frame.height * y,
+  })
+  await dropLocalFiles(
+    host,
+    [{ name: 'quadrants.png', buffer: Buffer.from(imageBase64, 'base64') }],
+    await canvasDocumentPoint(page, point(0.5, 0.5)),
+  )
+  await page.locator('.workspace').evaluate((element) => {
+    ;(element as HTMLElement).style.setProperty('--right-sidebar-width', '210px')
+  })
+  const orientation = page.getByRole('group', { name: 'Photo orientation' })
+  expect(
+    await orientation.evaluate((element) => {
+      const row = element.getBoundingClientRect()
+      return [...element.children].every((child) => {
+        const bounds = child.getBoundingClientRect()
+        return bounds.left >= row.left && bounds.right <= row.right
+      })
+    }),
+  ).toBe(true)
+  const sampleColor = (pixel: number[]) => {
+    const [red, green, blue] = pixel
+    if (red > 200 && green < 80 && blue < 80) return 'red'
+    if (green > 200 && red < 80 && blue < 80) return 'green'
+    if (blue > 200 && red < 80 && green < 80) return 'blue'
+    if (red > 200 && green > 200 && blue < 80) return 'yellow'
+    return 'other'
+  }
+  const quadrants = [point(0.2, 0.2), point(0.8, 0.2), point(0.2, 0.8), point(0.8, 0.8)]
+  const stageColors = async () =>
+    Promise.all(
+      quadrants.map(async (position) =>
+        sampleColor(await sampleStagePixel(page, await canvasDocumentPoint(page, position))),
+      ),
+    )
+
+  const horizontal = page.getByRole('button', { name: 'Flip photo horizontally' })
+  const vertical = page.getByRole('button', { name: 'Flip photo vertically' })
+  await horizontal.click()
+  await expect(horizontal).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(stageColors).toEqual(['green', 'red', 'yellow', 'blue'])
+  await page.getByRole('button', { name: 'Rotate photo right 90 degrees' }).click()
+  await expect.poll(stageColors).toEqual(['yellow', 'green', 'blue', 'red'])
+  await page.getByRole('button', { name: 'Rotate photo left 90 degrees' }).click()
+  await vertical.click()
+  await expect(vertical).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(stageColors).toEqual(['yellow', 'blue', 'green', 'red'])
+
+  const exportPoints = quadrants.map(({ x, y }) => ({ x: x / 9.6, y: y / 9.6 }))
+  const pixels = await sampleDownloadedPng(page, await exportCurrentPng(page, 400), exportPoints)
+  expect(pixels.map(sampleColor)).toEqual(['yellow', 'blue', 'green', 'red'])
+
+  await page.getByRole('button', { name: 'Rotate photo right 90 degrees' }).click()
+  await expect.poll(stageColors).toEqual(['green', 'yellow', 'red', 'blue'])
+  const rotatedPixels = await sampleDownloadedPng(
+    page,
+    await exportCurrentPng(page, 400),
+    exportPoints,
+  )
+  expect(rotatedPixels.map(sampleColor)).toEqual(['green', 'yellow', 'red', 'blue'])
+})
+
+test('rotation affects only the selected frame and appears in export', async ({ page }) => {
+  await page.goto('/')
+  await chooseTwoColumnLayout(page)
+  const imageBase64 = await page.evaluate(() => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 600
+    canvas.height = 300
+    const context = canvas.getContext('2d')!
+    context.fillStyle = '#ff0000'
+    context.fillRect(0, 0, 300, 300)
+    context.fillStyle = '#0000ff'
+    context.fillRect(300, 0, 300, 300)
+    return canvas.toDataURL('image/png').split(',')[1]
+  })
+  const host = page.getByRole('region', { name: 'Collage canvas' })
+  const frames = JSON.parse((await host.getAttribute('data-frame-hitboxes'))!) as Array<{
+    x: number
+    y: number
+    width: number
+    height: number
+  }>
+  const center = await canvasDocumentPoint(page, {
+    x: frames[0].x + frames[0].width / 2,
+    y: frames[0].y + frames[0].height / 2,
+  })
+  await dropLocalFiles(
+    host,
+    [{ name: 'halves.png', buffer: Buffer.from(imageBase64, 'base64') }],
+    center,
+  )
+  await expect(page.getByRole('button', { name: 'Frame 1, halves.png' })).toBeAttached()
+  await page.getByRole('button', { name: 'Actions for halves.png' }).click()
+  await page.getByRole('menuitem', { name: 'Add to page' }).click()
+  await expect(page.getByRole('button', { name: 'Frame 2, halves.png' })).toBeAttached()
+
+  const firstFrame = page.getByRole('button', { name: 'Frame 1, halves.png' })
+  await firstFrame.focus()
+  await firstFrame.press('Space')
+  await expect(firstFrame).toHaveAttribute('aria-pressed', 'true')
+  await page.getByRole('button', { name: 'Rotate photo right 90 degrees' }).click()
+  await expect(page.getByRole('group', { name: 'Photo orientation' }).locator('output')).toHaveText(
+    '90°',
+  )
+  await page.getByRole('button', { name: 'Undo' }).click()
+  await expect(page.getByRole('group', { name: 'Photo orientation' }).locator('output')).toHaveText(
+    '0°',
+  )
+  await page.getByRole('button', { name: 'Redo' }).click()
+  await expect(page.getByRole('group', { name: 'Photo orientation' }).locator('output')).toHaveText(
+    '90°',
+  )
+
+  const documentPoints = [
+    { x: frames[0].x + frames[0].width / 2, y: frames[0].y + frames[0].height * 0.2 },
+    { x: frames[0].x + frames[0].width / 2, y: frames[0].y + frames[0].height * 0.8 },
+    { x: frames[1].x + frames[1].width * 0.2, y: frames[1].y + frames[1].height / 2 },
+    { x: frames[1].x + frames[1].width * 0.8, y: frames[1].y + frames[1].height / 2 },
+  ]
+  for (const [index, color] of ['red', 'blue', 'red', 'blue'].entries())
+    await expect
+      .poll(async () =>
+        sampleStageColor(page, await canvasDocumentPoint(page, documentPoints[index])),
+      )
+      .toBe(color)
+  const exportScale = 400 / 3840
+  const points = documentPoints.map(({ x, y }) => ({ x: x * exportScale, y: y * exportScale }))
+  const pixels = await sampleDownloadedPng(page, await exportCurrentPng(page, 400), points)
+  expect(pixels[0][0]).toBeGreaterThan(200)
+  expect(pixels[1][2]).toBeGreaterThan(200)
+  expect(pixels[2][0]).toBeGreaterThan(200)
+  expect(pixels[3][2]).toBeGreaterThan(200)
+
+  await page.getByRole('button', { name: 'Crop image', exact: true }).click()
+  const beforePan = JSON.parse((await host.getAttribute('data-crop-placement'))!) as { y: number }
+  const panPoint = await canvasDocumentPoint(page, {
+    x: frames[0].x + frames[0].width / 2,
+    y: frames[0].y + frames[0].height / 2,
+  })
+  await page.mouse.move(panPoint.x, panPoint.y)
+  await page.mouse.down()
+  await page.mouse.move(panPoint.x, panPoint.y + 30, { steps: 6 })
+  await page.mouse.up()
+  await expect
+    .poll(
+      async () =>
+        (JSON.parse((await host.getAttribute('data-crop-placement'))!) as { y: number }).y,
+    )
+    .not.toBe(beforePan.y)
+  await expect(page.getByRole('group', { name: 'Photo orientation' }).locator('output')).toHaveText(
+    '90°',
+  )
+})
 
 test('dropping one local photo onto a frame imports and assigns it', async ({ page }) => {
   await page.goto('/')

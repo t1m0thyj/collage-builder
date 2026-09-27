@@ -84,10 +84,13 @@ export function attachAppLifecycle(host: AppLifecycleHost): () => void {
       event.preventDefault()
       return
     }
-    // Keep canvas shortcuts off controls whose keys already have a native or
-    // component-specific meaning. Frame buttons are the canvas keyboard entry.
+    if (event.key === 'Enter' && host.isCropping() && target?.closest('.canvas-frame-controls')) {
+      host.finishCrop()
+      event.preventDefault()
+      return
+    }
+    // Let focused controls handle their own keys, including frame buttons.
     if (
-      !target?.closest('.canvas-frame-controls') &&
       target?.closest(
         'button, a, summary, [role="tablist"], [role="menuitem"], [role="option"], [role="radio"], [role="slider"], [role="switch"], [role="checkbox"]',
       )

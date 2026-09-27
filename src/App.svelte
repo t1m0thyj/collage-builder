@@ -739,6 +739,8 @@
       onrequestimage={pageActions.requestImage}
       onbegincrop={(slotId) => editorSession.beginCrop(slotId)}
       onupdatecropzoom={(zoom) => editorSession.updateZoom(zoom)}
+      onrotatephoto={(quarterTurns) => editorSession.rotateSelected(quarterTurns)}
+      onflipphoto={(axis) => editorSession.flipSelected(axis)}
       onupdatecropposition={(axis, percent) => editorSession.updatePosition(axis, percent)}
       onfinishcrop={() => editorSession.finishCrop()}
       onresetcrop={() => editorSession.resetCrop()}
