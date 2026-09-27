@@ -9,6 +9,27 @@ test('opening tab actions does not remove the active page', async ({ page }) => 
   await expect(page.getByRole('button', { name: 'Page 2' })).toBeVisible()
 })
 
+test('right-clicking a tab opens its page menu, including on an inactive page', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Page 1' }).click({ button: 'right' })
+  await expect(page.getByRole('menuitem', { name: 'Rename' })).toBeVisible()
+  await page.keyboard.press('Escape')
+
+  await page.getByRole('button', { name: 'Add page' }).click()
+  const firstTab = page.getByRole('button', { name: 'Page 1', exact: true })
+  await firstTab.click({ button: 'right' })
+  await expect(firstTab).toHaveAttribute('aria-current', 'page')
+  await expect(page.getByRole('menuitem', { name: 'Rename' })).toBeVisible()
+  await page.getByRole('menuitem', { name: 'Rename' }).click()
+  const nameEditor = page.getByRole('textbox', { name: 'Rename page' })
+  await nameEditor.fill('Cover')
+  await nameEditor.press('Enter')
+  await expect(page.getByRole('button', { name: 'Cover' })).toHaveAttribute('aria-current', 'page')
+  await expect(page.getByRole('button', { name: 'Page 2' })).toBeVisible()
+})
+
 test('page actions rename and duplicate without accidental deletion', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Page actions' }).click()
@@ -139,7 +160,9 @@ test('switching pages keeps short tab widths stable and actions inside the activ
   const namedBounds = await tabs.first().boundingBox()
   await page.getByRole('button', { name: 'Page 2', exact: true }).click()
   const inactiveBounds = await tabs.first().boundingBox()
-  expect(inactiveBounds?.width).toBe(namedBounds?.width)
+  expect(inactiveBounds!.width).toBeLessThan(namedBounds!.width)
+  await page.getByRole('button', { name: 'Summer album' }).click()
+  await expect.poll(async () => (await tabs.first().boundingBox())!.width).toBe(namedBounds!.width)
 })
 
 test('page tabs can be reordered by dragging', async ({ page }) => {
@@ -167,9 +190,12 @@ test('page tabs remain visible while they fit and gain scroll arrows when space 
     await page.getByRole('button', { name: 'Add page' }).click()
 
   const tabs = page.locator('.page-tab-viewport > .page-tab-with-actions > .page-tab')
+  const pagebar = page.locator('.pagebar')
+  const tabViewport = page.locator('.page-tab-viewport')
   const addPage = page.getByRole('button', { name: 'Add page' })
   await expect(tabs).toHaveText(['Page 1', 'Page 2', 'Page 3', 'Page 4', 'Page 5', 'Page 6'])
   await expect(page.getByRole('button', { name: 'Scroll tabs left' })).toHaveCount(0)
+  expect((await tabViewport.boundingBox())!.x).toBe((await pagebar.boundingBox())!.x)
   await expect
     .poll(async () => {
       const tabBounds = await tabs.evaluateAll((elements) =>
@@ -206,6 +232,34 @@ test('page tabs remain visible while they fit and gain scroll arrows when space 
   await page.setViewportSize({ width: 1800, height: 900 })
   await expect(page.getByRole('button', { name: 'Scroll tabs left' })).toHaveCount(0)
   await expect(tabs).toHaveCount(6)
+})
+
+test('focused tabs stay fully visible at both ends of an overflowing strip', async ({ page }) => {
+  await page.goto('/')
+  for (let pageNumber = 2; pageNumber <= 10; pageNumber += 1)
+    await page.getByRole('button', { name: 'Add page' }).click()
+
+  const viewport = page.locator('.page-tab-viewport')
+  for (const name of ['Page 1', 'Page 10']) {
+    const tab = page.getByRole('button', { name, exact: true })
+    await tab.click()
+    await tab.focus()
+    await expect
+      .poll(async () => {
+        const visible = await viewport.boundingBox()
+        const bounds = await tab.boundingBox()
+        return Boolean(
+          visible &&
+          bounds &&
+          bounds.x >= visible.x &&
+          bounds.x + bounds.width <= visible.x + visible.width,
+        )
+      })
+      .toBe(true)
+    expect(
+      await tab.locator('..').evaluate((element) => getComputedStyle(element).outlineOffset),
+    ).toBe('-2px')
+  }
 })
 
 test('overflowing page tabs scroll with arrows and keep the active page in view', async ({

@@ -63,35 +63,16 @@
   let renamingPageId: string | null = null
   let renameDraft = ''
   let renameInput: HTMLInputElement | undefined
-  let fittedTabWidths: Record<string, number> = {}
-  let sizedPageNames: Record<string, string> = {}
-  let lastSizedActivePageId: string | null = null
-  let lastSizedActivePageName: string | null = null
-  let activeTabSizingTimer: ReturnType<typeof setTimeout> | undefined
   let draggedPageId: string | null = null
   let pageDropTarget: { pageId: string; edge: 'before' | 'after' } | null = null
+  let lastVisiblePageId: string | null = null
   $: previewPage = document.pages.find((page) => page.id === previewPageId)
-  $: if (activePageId && pageTabsViewport) void tick().then(ensureActiveTabVisible)
 
   afterUpdate(() => {
-    const pageName = document.pages.find((page) => page.id === activePageId)?.name
-    if (
-      !activePageId ||
-      !pageName ||
-      (activePageId === lastSizedActivePageId && pageName === lastSizedActivePageName)
-    )
-      return
-    lastSizedActivePageId = activePageId
-    lastSizedActivePageName = pageName
-    clearTimeout(activeTabSizingTimer)
-    const pageId = activePageId
-    activeTabSizingTimer = setTimeout(() => {
-      if (
-        activePageId === pageId &&
-        document.pages.find((page) => page.id === pageId)?.name === pageName
-      )
-        void resizePageTab(pageId, false)
-    }, 0)
+    if (activePageId !== lastVisiblePageId && pageTabsViewport) {
+      lastVisiblePageId = activePageId
+      ensureActiveTabVisible()
+    }
   })
 
   function updateScrollState() {
@@ -108,9 +89,9 @@
     const viewportBounds = pageTabsViewport.getBoundingClientRect()
     const tabBounds = activeTab.getBoundingClientRect()
     if (tabBounds.left < viewportBounds.left) {
-      pageTabsViewport.scrollLeft += tabBounds.left - viewportBounds.left
+      pageTabsViewport.scrollLeft -= Math.ceil(viewportBounds.left - tabBounds.left)
     } else if (tabBounds.right > viewportBounds.right) {
-      pageTabsViewport.scrollLeft += tabBounds.right - viewportBounds.right
+      pageTabsViewport.scrollLeft += Math.ceil(tabBounds.right - viewportBounds.right)
     }
     updateScrollState()
   }
@@ -154,13 +135,21 @@
     updatePageTabs()
     return () => {
       observer.disconnect()
-      clearTimeout(activeTabSizingTimer)
     }
   })
 
   function selectPage(pageId: string) {
     onactivepagechange(pageId)
     onselectedslotchange(null)
+  }
+
+  async function openPageMenuFromTab(event: MouseEvent, pageId: string) {
+    event.preventDefault()
+    previewPageId = null
+    isPageMenuOpen = false
+    if (pageId !== activePageId) selectPage(pageId)
+    await tick()
+    isPageMenuOpen = true
   }
 
   function startRename(pageId: string) {
@@ -182,7 +171,10 @@
     renamingPageId = null
     if (save) {
       onrenamepage(pageId, renameDraft)
-      void resizePageTab(pageId, true, restoreFocus)
+      void tick().then(() => {
+        ensureActiveTabVisible()
+        if (restoreFocus) findPageTab(pageId)?.focus()
+      })
     } else if (restoreFocus) void tick().then(() => findPageTab(pageId)?.focus())
   }
 
@@ -190,44 +182,6 @@
     return [...pageTabsViewport.querySelectorAll<HTMLButtonElement>('.page-tab')].find(
       (tab) => tab.dataset.pageId === pageId,
     )
-  }
-
-  async function resizePageTab(pageId: string, resetWidth: boolean, restoreFocus = false) {
-    const pageName = document.pages.find((page) => page.id === pageId)?.name
-    if (!pageName) return
-    if (resetWidth || sizedPageNames[pageId] !== pageName)
-      fittedTabWidths = Object.fromEntries(
-        Object.entries(fittedTabWidths).filter(([id]) => id !== pageId),
-      )
-    sizedPageNames = { ...sizedPageNames, [pageId]: pageName }
-    await tick()
-    const tab = findPageTab(pageId)
-    const label = tab?.querySelector<HTMLElement>('.page-tab-label')
-    if (tab && label) {
-      const activeTab = pageTabsViewport.querySelector<HTMLElement>(
-        '.page-tab-with-actions.active-tab-action .page-tab',
-      )
-      const activeLabel = activeTab?.querySelector<HTMLElement>('.page-tab-label')
-      const activeInset =
-        activeTab && activeLabel
-          ? activeTab.getBoundingClientRect().width - activeLabel.clientWidth
-          : tab.getBoundingClientRect().width - label.clientWidth
-      const textRange = globalThis.document.createRange()
-      textRange.selectNodeContents(label)
-      const neededWidth = Math.min(
-        240,
-        Math.max(84, Math.ceil(textRange.getBoundingClientRect().width + activeInset)),
-      )
-      if (neededWidth > tab.getBoundingClientRect().width + 0.5) {
-        fittedTabWidths = {
-          ...fittedTabWidths,
-          [pageId]: neededWidth,
-        }
-        await tick()
-      }
-    }
-    ensureActiveTabVisible()
-    if (restoreFocus) findPageTab(pageId)?.focus()
   }
 
   function startPageDrag(event: DragEvent, pageId: string) {
@@ -309,7 +263,6 @@
             class:active={page.id === activePageId}
             class="page-tab"
             data-title={page.name}
-            style:width={fittedTabWidths[page.id] ? `${fittedTabWidths[page.id]}px` : undefined}
             tabindex="-1"><span class="page-tab-label">{page.name}</span></button
           >
         </div>
@@ -344,7 +297,6 @@
               class="page-tab page-tab-placeholder"
               data-page-id={page.id}
               data-title={page.name}
-              style:width={fittedTabWidths[page.id] ? `${fittedTabWidths[page.id]}px` : undefined}
               tabindex="-1"
               aria-hidden="true"><span class="page-tab-label">{page.name}</span></button
             >
@@ -373,7 +325,6 @@
               class="page-tab"
               data-page-id={page.id}
               data-title={page.name}
-              style:width={fittedTabWidths[page.id] ? `${fittedTabWidths[page.id]}px` : undefined}
               draggable="true"
               aria-current={page.id === activePageId ? 'page' : undefined}
               onpointerenter={(event) => showPagePreview(page.id, event.currentTarget)}
@@ -390,6 +341,7 @@
               ondrop={(event) => finishPageDrop(event, page.id)}
               ondragend={finishPageDrag}
               ondblclick={() => startRename(page.id)}
+              oncontextmenu={(event) => void openPageMenuFromTab(event, page.id)}
               onclick={() => selectPage(page.id)}
               ><span class="page-tab-label">{page.name}</span></button
             >

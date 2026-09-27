@@ -5,7 +5,7 @@
   align-items: flex-end;
   min-width: 0;
   gap: 0;
-  padding: 0 12px;
+  padding: 0;
   border-top: 1px solid #cfd8e6;
   background: #e9eef6;
 }
@@ -264,7 +264,7 @@
   opacity: 1;
 }
 .page-tab-with-actions.active-tab-action .page-tab {
-  padding-right: 12px;
+  padding-right: 32px;
 }
 .page-tab-with-actions.active-tab-action .page-tab-label {
   right: 32px;
@@ -287,7 +287,11 @@
 .page-tab-with-actions.active-tab-action:focus-within {
   border-radius: 7px 7px 0 0;
   outline: 2px solid rgba(49, 92, 156, 0.48);
-  outline-offset: 1px;
+  outline-offset: -2px;
+}
+.page-tab:focus-visible {
+  outline: 2px solid rgba(49, 92, 156, 0.48);
+  outline-offset: -2px;
 }
 .page-tab-with-actions.active-tab-action .page-tab:focus-visible,
 .page-tab-with-actions.active-tab-action .page-actions-button:focus-visible {
