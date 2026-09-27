@@ -688,6 +688,8 @@
       onrequestimage={pageActions.requestImage}
       onplacementchange={(slotId, placement) => editorSession.commitPan(slotId, placement)}
       onassetdrop={pageActions.assignAsset}
+      onfiledrop={(files, slotId) =>
+        void assetWorkflow.import(files, slotId ? { pageId: activePage.id, slotId } : undefined)}
       onframeswap={(sourceSlotId, targetSlotId) =>
         project.moveOrSwapSlots(activePage.id, sourceSlotId, targetSlotId)}
       onwheelzoom={(slotId, factor) => {

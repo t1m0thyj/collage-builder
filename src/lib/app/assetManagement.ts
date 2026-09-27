@@ -79,7 +79,7 @@ export function filterAssets(
 }
 
 export async function importProjectAssets(
-  files: FileList | null,
+  files: FileList | readonly File[] | null,
   document: CollageDocumentV1,
   registry: AssetRegistry,
   project: ProjectStore,
@@ -563,8 +563,9 @@ export class AssetWorkflowController {
     }
   }
 
-  import = (files: FileList | null): Promise<void> => {
-    if (!files?.length) return Promise.resolve()
+  import = (files: FileList | null, target?: { pageId: string; slotId: string }): Promise<void> => {
+    const selectedFiles = files ? [...files] : []
+    if (!selectedFiles.length) return Promise.resolve()
     this.host.showImageLibrary()
     const version = this.host.project.versionedSnapshot()
     const registry = this.host.registry()
@@ -574,7 +575,7 @@ export class AssetWorkflowController {
       if (!isCurrent()) return
       try {
         const result = await importProjectAssets(
-          files,
+          selectedFiles,
           this.host.document(),
           registry,
           this.host.project,
@@ -589,21 +590,35 @@ export class AssetWorkflowController {
           },
         )
         if (isCurrent()) {
+          let assignedToFrame = false
+          if (target && result.importedAssetIds.length === 1) {
+            const page = this.host.document().pages.find((page) => page.id === target.pageId)
+            if (page && target.slotId in page.slots) {
+              this.host.project.assignAsset(page.id, target.slotId, result.importedAssetIds[0])
+              this.host.setSelectedSlotId(target.slotId)
+              this.host.setLibraryTargetSlotId(null)
+              assignedToFrame = true
+            }
+          }
           if (result.importedAssetIds.length)
             this.host.revealImportedAssets(result.importedAssetIds)
           this.host.setImportStatus(result.issues.length ? result : null)
           if (result.importedAssetIds.length) this.host.setSelectedAssetIds(result.importedAssetIds)
           if (!result.issues.length && result.added)
-            this.host.announce(`${result.added} photo${result.added === 1 ? '' : 's'} added.`)
+            this.host.announce(
+              assignedToFrame
+                ? 'Photo added to frame.'
+                : `${result.added} photo${result.added === 1 ? '' : 's'} added.`,
+            )
         }
       } catch (error) {
         if (isCurrent())
           this.host.setImportStatus({
             phase: 'complete',
-            total: files.length,
-            processed: files.length,
+            total: selectedFiles.length,
+            processed: selectedFiles.length,
             added: 0,
-            skipped: files.length,
+            skipped: selectedFiles.length,
             issues: [
               {
                 fileName: 'Selected files',

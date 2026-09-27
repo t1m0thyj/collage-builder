@@ -54,7 +54,12 @@
   }
 </script>
 
-<aside class="sidebar left-panel" aria-label="Layouts and images">
+<aside
+  class="sidebar left-panel"
+  aria-label="Layouts and images"
+  ondragover={(event) => event.preventDefault()}
+  {ondrop}
+>
   <div class="panel-tabs" role="tablist" aria-label="Editor panel">
     <button
       id="editor-layouts-tab"
@@ -108,7 +113,6 @@
         bind:assetQuery
         bind:assetSort
         bind:assetFilter
-        {ondrop}
         {onselectasset}
         {onstartdrag}
         {onaddtopage}

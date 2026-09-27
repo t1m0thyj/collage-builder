@@ -25,7 +25,6 @@
   export let assetQuery: string
   export let assetSort: 'import' | 'name' | 'size' | 'usage'
   export let assetFilter: 'all' | 'used' | 'unused' | 'missing'
-  export let ondrop: (event: DragEvent) => void
   export let onselectasset: (assetId: string, multi: boolean) => void
   export let onstartdrag: (event: DragEvent, assetId: string) => void
   export let onaddtopage: (assetId: string) => void
@@ -63,13 +62,7 @@
   }
 </script>
 
-<div
-  class="panel-body image-panel"
-  role="region"
-  aria-label="Photo library drop zone"
-  ondragover={(event) => event.preventDefault()}
-  {ondrop}
->
+<div class="panel-body image-panel" role="region" aria-label="Photo library drop zone">
   <p class="eyebrow">Photo library</p>
   {#if importStatus?.phase === 'complete'}
     <section

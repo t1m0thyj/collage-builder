@@ -7,6 +7,42 @@ import { createProject } from '../../src/lib/domain/factories'
 import { collageMimeType } from '../../src/lib/persistence/archive'
 
 export type BrowserPage = import('@playwright/test').Page
+type Locator = import('@playwright/test').Locator
+
+export async function dropLocalFiles(
+  target: Locator,
+  files: Array<{ name: string; buffer: Buffer; mimeType?: string }>,
+  point?: { x: number; y: number },
+) {
+  await target.evaluate(
+    (element, { files, point }) => {
+      const transfer = new DataTransfer()
+      for (const file of files)
+        transfer.items.add(
+          new File([new Uint8Array(file.bytes)], file.name, { type: file.mimeType }),
+        )
+      const bounds = element.getBoundingClientRect()
+      const eventOptions = {
+        bubbles: true,
+        cancelable: true,
+        dataTransfer: transfer,
+        clientX: point?.x ?? bounds.left + bounds.width / 2,
+        clientY: point?.y ?? bounds.top + bounds.height / 2,
+      }
+      element.dispatchEvent(new DragEvent('dragover', eventOptions))
+      element.dispatchEvent(new DragEvent('drop', eventOptions))
+    },
+    {
+      files: files.map((file) => ({
+        name: file.name,
+        bytes: [...file.buffer],
+        mimeType: file.mimeType ?? 'image/png',
+      })),
+      point,
+    },
+  )
+}
+
 export function crc32(buffer: Buffer) {
   let crc = 0xffffffff
   for (const byte of buffer) {

@@ -33,6 +33,7 @@
   export let onrequestimage: (slotId: SlotId) => void
   export let onplacementchange: (slotId: SlotId, placement: SlotContentV1['placement']) => void
   export let onassetdrop: (assetId: AssetId, slotId: SlotId) => void
+  export let onfiledrop: (files: FileList, slotId: SlotId | null) => void
   export let onframeswap: (sourceSlotId: SlotId, targetSlotId: SlotId) => void
   export let onwheelzoom: (slotId: SlotId, factor: number) => void
   export let onviewportzoom: (factor: number) => void
@@ -285,6 +286,7 @@
         {onrequestimage}
         {onplacementchange}
         {onassetdrop}
+        {onfiledrop}
         {onframeswap}
         {onwheelzoom}
         {onviewportzoom}

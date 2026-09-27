@@ -41,6 +41,7 @@
   export let onframeswap: (sourceSlotId: SlotId, targetSlotId: SlotId) => void
   export let onwheelzoom: (slotId: SlotId, factor: number) => void
   export let onassetdrop: (assetId: AssetId, slotId: SlotId) => void
+  export let onfiledrop: (files: FileList, slotId: SlotId | null) => void
   export let viewportZoom = 1
   export let fitToViewport = true
   export let darkMode = false
@@ -559,7 +560,8 @@
   function dropAsset(event: DragEvent) {
     event.preventDefault()
     const assetId = event.dataTransfer?.getData('application/x-collage-asset')
-    if (!assetId) return
+    const files = event.dataTransfer?.files
+    if (!assetId && !files?.length) return
     const bounds = host.getBoundingClientRect()
     const x = (event.clientX - bounds.left + host.scrollLeft - stageX) / fitScale
     const y = (event.clientY - bounds.top + host.scrollTop - stageY) / fitScale
@@ -570,7 +572,8 @@
         candidate.y <= y &&
         y <= candidate.y + candidate.height,
     )
-    if (frame) onassetdrop(assetId, frame.slotId)
+    if (assetId && frame) onassetdrop(assetId, frame.slotId)
+    else if (files?.length) onfiledrop(files, files.length === 1 ? (frame?.slotId ?? null) : null)
   }
   function frameAtPoint(x: number, y: number) {
     return model.frames.find(

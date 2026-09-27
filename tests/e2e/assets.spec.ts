@@ -6,6 +6,7 @@ import {
   bluePng,
   missingPhotoArchive,
   importImage,
+  dropLocalFiles,
   encodedRaster,
   chooseTwoColumnLayout,
   twoColumnFrameCenters,
@@ -15,6 +16,20 @@ import {
   exportCurrentPng,
   collageMimeType,
 } from './test-helpers'
+
+test('dropping multiple files into the sidebar imports the batch with Layouts open', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await dropLocalFiles(page.getByRole('complementary', { name: 'Layouts and images' }), [
+    { name: 'dropped-red.png', buffer: redPng },
+    { name: 'dropped-blue.png', buffer: bluePng },
+  ])
+  await expect(page.locator('.toast')).toHaveText('2 photos added.')
+  await expect(page.getByRole('tab', { name: 'Images' })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByText('dropped-red.png', { exact: true })).toBeVisible()
+  await expect(page.getByText('dropped-blue.png', { exact: true })).toBeVisible()
+})
 
 test('undoing photo removal restores its original bytes', async ({ page }) => {
   await page.goto('/')

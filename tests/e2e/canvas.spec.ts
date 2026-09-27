@@ -4,6 +4,7 @@ import {
   redPng,
   bluePng,
   importImage,
+  dropLocalFiles,
   chooseTwoColumnLayout,
   canvasDocumentPoint,
   twoColumnFrameCenters,
@@ -11,6 +12,53 @@ import {
   sampleStageColor,
   setNumber,
 } from './test-helpers'
+
+test('dropping one local photo onto a frame imports and assigns it', async ({ page }) => {
+  await page.goto('/')
+  const host = page.getByRole('region', { name: 'Collage canvas' })
+  const [frame] = JSON.parse((await host.getAttribute('data-frame-hitboxes'))!) as Array<{
+    x: number
+    y: number
+    width: number
+    height: number
+  }>
+  const center = await canvasDocumentPoint(page, {
+    x: frame.x + frame.width / 2,
+    y: frame.y + frame.height / 2,
+  })
+  await dropLocalFiles(host, [{ name: 'dropped.png', buffer: redPng }], center)
+  await expect(page.getByRole('button', { name: 'Frame 1, dropped.png' })).toBeAttached()
+  await expect(page.locator('.toast')).toHaveText('Photo added to frame.')
+})
+
+test('dropping several local photos onto a frame imports the batch without assigning it', async ({
+  page,
+}) => {
+  await page.goto('/')
+  const host = page.getByRole('region', { name: 'Collage canvas' })
+  const [frame] = JSON.parse((await host.getAttribute('data-frame-hitboxes'))!) as Array<{
+    x: number
+    y: number
+    width: number
+    height: number
+  }>
+  const center = await canvasDocumentPoint(page, {
+    x: frame.x + frame.width / 2,
+    y: frame.y + frame.height / 2,
+  })
+  await dropLocalFiles(
+    host,
+    [
+      { name: 'one.png', buffer: redPng },
+      { name: 'two.png', buffer: bluePng },
+    ],
+    center,
+  )
+  await expect(page.locator('.toast')).toHaveText('2 photos added.')
+  await expect(page.getByRole('button', { name: 'Frame 1, empty' })).toBeAttached()
+  await expect(page.getByText('one.png', { exact: true })).toBeVisible()
+  await expect(page.getByText('two.png', { exact: true })).toBeVisible()
+})
 
 test('normal-mode frame dragging swaps images without enabling crop', async ({ page }) => {
   await page.goto('/')
