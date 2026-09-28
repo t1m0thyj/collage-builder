@@ -283,6 +283,7 @@
   .asset-filters [role='radio'],
   .manager-view [role='radio'],
   .color-trigger,
+  .background-suggest-button,
   .asset-search,
   .asset-sort,
   .slider-value,
@@ -296,6 +297,13 @@
   }
   .color-trigger:disabled {
     background: #161616;
+  }
+  .background-suggest-button {
+    color: #a9cbf3;
+  }
+  .background-suggest-button:hover:not(:disabled) {
+    border-color: #699bd9;
+    background: #213653;
   }
   .aspect-ratio-toggle {
     border-color: #4a4a4a;

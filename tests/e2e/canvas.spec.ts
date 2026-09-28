@@ -391,6 +391,67 @@ test('double-clicking a divider splits three sibling frames evenly', async ({ pa
   await expect(page.locator('.toast')).toHaveText('Frames evenly split.')
 })
 
+test('Shift-dragging a divider equalizes its nearest pair without changing the third frame', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await page.getByRole('tab', { name: '3', exact: true }).click()
+  await page.locator('[data-layout-id="generated-3-t87a383dc470dbd79"]').click()
+  const sliders = page.getByRole('slider', { name: /Vertical divider/ })
+  await sliders.first().focus()
+  await page.keyboard.press('PageDown')
+  await sliders.nth(1).focus()
+  await page.keyboard.press('PageDown')
+
+  const host = page.getByRole('region', { name: 'Collage canvas' })
+  const frames = (
+    JSON.parse((await host.getAttribute('data-frame-hitboxes')) ?? '[]') as Array<{
+      x: number
+      y: number
+      width: number
+      height: number
+    }>
+  ).sort((left, right) => left.x - right.x)
+  const dividers = (
+    JSON.parse((await host.getAttribute('data-divider-hitboxes')) ?? '[]') as Array<{
+      x: number
+      y: number
+      width: number
+      height: number
+    }>
+  ).sort((left, right) => left.x - right.x)
+  expect(frames).toHaveLength(3)
+  expect(dividers).toHaveLength(2)
+  const start = await canvasDocumentPoint(page, {
+    x: dividers[0].x + dividers[0].width / 2,
+    y: dividers[0].y + dividers[0].height / 2,
+  })
+  const target = await canvasDocumentPoint(page, {
+    x: (frames[0].x + frames[1].x + frames[1].width) / 2,
+    y: dividers[0].y + dividers[0].height / 2,
+  })
+
+  await page.mouse.move(start.x, start.y)
+  await page.keyboard.down('Shift')
+  await page.mouse.down()
+  try {
+    await page.mouse.move(target.x, target.y, { steps: 8 })
+    await expect(host).toHaveAttribute('data-snap-target', 'equal-size')
+  } finally {
+    await page.mouse.up()
+    await page.keyboard.up('Shift')
+  }
+
+  const after = (
+    JSON.parse((await host.getAttribute('data-frame-hitboxes')) ?? '[]') as Array<{
+      x: number
+      width: number
+    }>
+  ).sort((left, right) => left.x - right.x)
+  expect(after[0].width).toBeCloseTo(after[1].width, 6)
+  expect(after[2].width).toBeCloseTo(frames[2].width, 6)
+})
+
 test('a horizontal divider can be evenly split with the keyboard', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('tab', { name: '2', exact: true }).click()

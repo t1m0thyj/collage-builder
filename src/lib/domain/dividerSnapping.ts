@@ -98,21 +98,21 @@ function sourceAtDivider(
   gap: number,
   selectedSlotId: SlotId | null,
   pointerPerpendicularCoordinate: number,
-): { frame: ResolvedFrame; edge: FrameEdge; isSelected: boolean } | undefined {
+): { frame: ResolvedFrame; edge: FrameEdge } | undefined {
   const selected = selectedSlotId
     ? frames.find((frame) => frame.slotId === selectedSlotId)
     : undefined
   const center = dividerCenter(divider)
   if (selected) {
     if (Math.abs(frameMax(selected, divider.axis) - (center - gap / 2)) < 1)
-      return { frame: selected, edge: 'max', isSelected: true }
+      return { frame: selected, edge: 'max' }
     if (Math.abs(frameMin(selected, divider.axis) - (center + gap / 2)) < 1)
-      return { frame: selected, edge: 'min', isSelected: true }
+      return { frame: selected, edge: 'min' }
   }
   const leading = frameAtDividerSide(frames, divider, gap, 'max', pointerPerpendicularCoordinate)
-  if (leading) return { frame: leading, edge: 'max', isSelected: false }
+  if (leading) return { frame: leading, edge: 'max' }
   const trailing = frameAtDividerSide(frames, divider, gap, 'min', pointerPerpendicularCoordinate)
-  return trailing ? { frame: trailing, edge: 'min', isSelected: false } : undefined
+  return trailing ? { frame: trailing, edge: 'min' } : undefined
 }
 
 function targetIsReachable(page: PageV1, divider: ResolvedDivider, target: DividerSnapTarget) {
@@ -178,65 +178,86 @@ export function findDividerSnapTargets(
     selectedSlotId,
     pointerPerpendicularCoordinate,
   )
-  if (!source) return []
-
   const targets: DividerSnapTarget[] = []
-  const sourcePerpendicularStart = perpendicularMin(source.frame, divider.axis)
-  const sourcePerpendicularEnd = perpendicularMax(source.frame, divider.axis)
+  if (source) {
+    const sourcePerpendicularStart = perpendicularMin(source.frame, divider.axis)
+    const sourcePerpendicularEnd = perpendicularMax(source.frame, divider.axis)
 
-  for (const frame of frames) {
-    if (frame.slotId === source.frame.slotId) continue
-    const framePerpendicularStart = perpendicularMin(frame, divider.axis)
-    const framePerpendicularEnd = perpendicularMax(frame, divider.axis)
-    const separation = intervalDistance(
-      sourcePerpendicularStart,
-      sourcePerpendicularEnd,
-      framePerpendicularStart,
-      framePerpendicularEnd,
+    for (const frame of frames) {
+      if (frame.slotId === source.frame.slotId) continue
+      const framePerpendicularStart = perpendicularMin(frame, divider.axis)
+      const framePerpendicularEnd = perpendicularMax(frame, divider.axis)
+      const separation = intervalDistance(
+        sourcePerpendicularStart,
+        sourcePerpendicularEnd,
+        framePerpendicularStart,
+        framePerpendicularEnd,
+      )
+      if (separation < 0.001 || separation > page.style.gap + 1) continue
+      for (const targetEdge of ['min', 'max'] as const) {
+        const targetCoordinate =
+          targetEdge === 'min' ? frameMin(frame, divider.axis) : frameMax(frame, divider.axis)
+        const coordinate =
+          targetCoordinate + (source.edge === 'max' ? page.style.gap / 2 : -page.style.gap / 2)
+        targets.push({
+          id: `edge:${source.frame.slotId}:${source.edge}:${frame.slotId}:${targetEdge}`,
+          kind: 'edge',
+          coordinate,
+          sourceSlotId: source.frame.slotId,
+          targetSlotId: frame.slotId,
+          sourceEdge: source.edge,
+          targetEdge,
+          label: 'Aligned edges',
+        })
+      }
+    }
+  }
+
+  const center = dividerCenter(divider)
+  const equalPairs = frames
+    .filter((frame) => Math.abs(frameMax(frame, divider.axis) - (center - page.style.gap / 2)) < 1)
+    .flatMap((leading) =>
+      oppositeFrames(frames, divider, leading, 'max', page.style.gap).map((trailing) => {
+        const overlapStart = Math.max(
+          perpendicularMin(leading, divider.axis),
+          perpendicularMin(trailing, divider.axis),
+        )
+        const overlapEnd = Math.min(
+          perpendicularMax(leading, divider.axis),
+          perpendicularMax(trailing, divider.axis),
+        )
+        const target: DividerSnapTarget = {
+          id: `equal:${leading.slotId}:${trailing.slotId}`,
+          kind: 'equal-size',
+          coordinate: (frameMin(leading, divider.axis) + frameMax(trailing, divider.axis)) / 2,
+          sourceSlotId: leading.slotId,
+          targetSlotId: trailing.slotId,
+          sourceEdge: 'max',
+          targetEdge: 'min',
+          label: divider.axis === 'x' ? 'Equal width' : 'Equal height',
+        }
+        return {
+          target,
+          distance: intervalDistance(
+            pointerPerpendicularCoordinate,
+            pointerPerpendicularCoordinate,
+            overlapStart,
+            overlapEnd,
+          ),
+          centerDistance: Math.abs(
+            (overlapStart + overlapEnd) / 2 - pointerPerpendicularCoordinate,
+          ),
+        }
+      }),
     )
-    if (separation < 0.001 || separation > page.style.gap + 1) continue
-    for (const targetEdge of ['min', 'max'] as const) {
-      const targetCoordinate =
-        targetEdge === 'min' ? frameMin(frame, divider.axis) : frameMax(frame, divider.axis)
-      const coordinate =
-        targetCoordinate + (source.edge === 'max' ? page.style.gap / 2 : -page.style.gap / 2)
-      targets.push({
-        id: `edge:${source.frame.slotId}:${source.edge}:${frame.slotId}:${targetEdge}`,
-        kind: 'edge',
-        coordinate,
-        sourceSlotId: source.frame.slotId,
-        targetSlotId: frame.slotId,
-        sourceEdge: source.edge,
-        targetEdge,
-        label: 'Aligned edges',
-      })
-    }
-  }
-
-  if (source.isSelected) {
-    for (const adjacent of oppositeFrames(
-      frames,
-      divider,
-      source.frame,
-      source.edge,
-      page.style.gap,
-    )) {
-      const coordinate =
-        source.edge === 'max'
-          ? (frameMin(source.frame, divider.axis) + frameMax(adjacent, divider.axis)) / 2
-          : (frameMin(adjacent, divider.axis) + frameMax(source.frame, divider.axis)) / 2
-      targets.push({
-        id: `equal:${source.frame.slotId}:${adjacent.slotId}`,
-        kind: 'equal-size',
-        coordinate,
-        sourceSlotId: source.frame.slotId,
-        targetSlotId: adjacent.slotId,
-        sourceEdge: source.edge,
-        targetEdge: source.edge === 'max' ? 'min' : 'max',
-        label: divider.axis === 'x' ? 'Equal width' : 'Equal height',
-      })
-    }
-  }
+    .filter(({ target }) => targetIsReachable(page, divider, target))
+    .sort(
+      (left, right) =>
+        left.distance - right.distance ||
+        left.centerDistance - right.centerDistance ||
+        left.target.id.localeCompare(right.target.id),
+    )
+  if (equalPairs[0]) targets.push(equalPairs[0].target)
 
   return targets
     .filter((target, index) => targets.findIndex(({ id }) => id === target.id) === index)

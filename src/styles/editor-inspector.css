@@ -255,6 +255,41 @@
   color: #403d37;
   font-size: 12px;
 }
+.background-color-row {
+  flex-wrap: wrap;
+}
+.background-color-row > span {
+  flex: 1 0 auto;
+}
+.background-color-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.background-suggest-button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid #d6d3ca;
+  border-radius: 6px;
+  background: #fff;
+  color: #315c9c;
+  cursor: pointer;
+}
+.background-suggest-button:hover:not(:disabled) {
+  border-color: #7896bb;
+  background: #edf3fa;
+}
+.background-suggest-button:focus-visible {
+  outline: 3px solid #315c9c;
+  outline-offset: 2px;
+}
+.background-suggest-button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
 .color-trigger i {
   width: 16px;
   height: 16px;

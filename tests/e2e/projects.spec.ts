@@ -24,6 +24,34 @@ import {
   collageMimeType,
 } from './test-helpers'
 
+test('magic background color uses the photos on the current page', async ({ page }) => {
+  await page.goto('/')
+  const suggest = page.getByRole('button', { name: 'Suggest background color from page photos' })
+  await expect(suggest).toBeDisabled()
+  await chooseTwoColumnLayout(page)
+  await importImage(page, 'red.png', redPng)
+  await importImage(page, 'blue.png', bluePng)
+  await assignSidebarImage(page, 'red.png', 1)
+  await assignSidebarImage(page, 'blue.png', 2)
+  await expect(suggest).toBeEnabled()
+  const picker = page.getByRole('button', { name: 'Choose background color' })
+  const pickerBox = await picker.boundingBox()
+  const suggestBox = await suggest.boundingBox()
+  expect(pickerBox).not.toBeNull()
+  expect(suggestBox).not.toBeNull()
+  expect(Math.abs(pickerBox!.y - suggestBox!.y)).toBeLessThan(4)
+  await suggest.click()
+
+  await expect(picker).not.toContainText('#808080')
+  const color = (await picker.textContent())?.trim()
+  expect(color).toMatch(/^#[0-9A-F]{6}$/)
+  const rgb = [1, 3, 5].map((index) => parseInt(color!.slice(index, index + 2), 16))
+  const pixels = await sampleDownloadedPng(page, await exportCurrentPng(page, 400), [
+    { x: 0, y: 0 },
+  ])
+  expect(pixels[0]).toEqual([...rgb, 255])
+})
+
 test('frame rotation and flip survive saving and reopening the project', async ({
   page,
   browser,

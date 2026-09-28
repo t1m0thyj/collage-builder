@@ -8,6 +8,7 @@
     Palette,
     RotateCcw,
     RotateCw,
+    WandSparkles,
   } from '@lucide/svelte'
   import type { PageStyleControl } from '../../app/pageActions'
   import type { PageV1, SlotContentV1 } from '../../domain/types'
@@ -29,6 +30,8 @@
   export let onpreviewstyle: (control: PageStyleControl, patch: Partial<PageV1['style']>) => void
   export let oncommitstyle: (control: PageStyleControl) => void
   export let onsetbackground: (color: string, rememberCustom?: boolean) => void
+  export let onsuggestbackground: () => void
+  export let suggestingBackground: boolean
   export let onsetshadow: (color: string, rememberCustom?: boolean) => void
   export let shadowDistance: () => number
   export let shadowAngle: () => number
@@ -260,48 +263,62 @@
       </div>
       <Collapsible.Content
         ><div class="property-list">
-          <div>
-            <span>Background</span><Popover.Root
-              ><Popover.Trigger
-                class="color-trigger"
-                aria-label="Choose background color"
-                disabled={activePage.style.transparentBackground}
-                ><i style={`background:${activePage.style.backgroundColor.slice(0, 7)}`}></i><span
-                  >{activePage.style.backgroundColor.slice(0, 7)}</span
-                ></Popover.Trigger
-              ><Popover.Content class="color-popover"
-                ><p class="color-popover-label">Presets</p>
-                <div class="color-presets" aria-label="Background color presets">
-                  {#each colorPresets as color (color)}<button
-                      class:active={activePage.style.backgroundColor.slice(0, 7) === color}
-                      class="color-preset"
-                      aria-label={`Set background to ${color}`}
-                      title={color}
-                      style={`background:${color}`}
-                      onclick={() => onsetbackground(color)}
-                    ></button>{/each}
-                </div>
-                <div class="color-picker-footer">
-                  <div class="color-recents" aria-label="Recently used background colors">
-                    {#each recentColors as color (color)}<button
+          <div class="background-color-row">
+            <span>Background</span>
+            <div class="background-color-controls">
+              <Popover.Root
+                ><Popover.Trigger
+                  class="color-trigger"
+                  aria-label="Choose background color"
+                  disabled={activePage.style.transparentBackground}
+                  ><i style={`background:${activePage.style.backgroundColor.slice(0, 7)}`}></i><span
+                    >{activePage.style.backgroundColor.slice(0, 7)}</span
+                  ></Popover.Trigger
+                ><Popover.Content class="color-popover"
+                  ><p class="color-popover-label">Presets</p>
+                  <div class="color-presets" aria-label="Background color presets">
+                    {#each colorPresets as color (color)}<button
+                        class:active={activePage.style.backgroundColor.slice(0, 7) === color}
                         class="color-preset"
-                        aria-label={`Set background to recent ${color}`}
+                        aria-label={`Set background to ${color}`}
                         title={color}
                         style={`background:${color}`}
                         onclick={() => onsetbackground(color)}
                       ></button>{/each}
                   </div>
-                  <label class="color-custom"
-                    ><Palette size={15} aria-hidden="true" /><span>Custom</span><input
-                      aria-label="Background color"
-                      type="color"
-                      value={activePage.style.backgroundColor.slice(0, 7)}
-                      onchange={(event) => onsetbackground(event.currentTarget.value, true)}
-                    /></label
-                  >
-                </div></Popover.Content
-              ></Popover.Root
-            >
+                  <div class="color-picker-footer">
+                    <div class="color-recents" aria-label="Recently used background colors">
+                      {#each recentColors as color (color)}<button
+                          class="color-preset"
+                          aria-label={`Set background to recent ${color}`}
+                          title={color}
+                          style={`background:${color}`}
+                          onclick={() => onsetbackground(color)}
+                        ></button>{/each}
+                    </div>
+                    <label class="color-custom"
+                      ><Palette size={15} aria-hidden="true" /><span>Custom</span><input
+                        aria-label="Background color"
+                        type="color"
+                        value={activePage.style.backgroundColor.slice(0, 7)}
+                        onchange={(event) => onsetbackground(event.currentTarget.value, true)}
+                      /></label
+                    >
+                  </div></Popover.Content
+                ></Popover.Root
+              ><button
+                class="background-suggest-button"
+                type="button"
+                aria-label="Suggest background color from page photos"
+                title="Suggest a background color from page photos"
+                aria-busy={suggestingBackground}
+                disabled={activePage.style.transparentBackground ||
+                  suggestingBackground ||
+                  !Object.values(activePage.slots).some(Boolean)}
+                onclick={onsuggestbackground}
+                ><WandSparkles size={16} aria-hidden="true"></WandSparkles></button
+              >
+            </div>
           </div>
           <div>
             <span>Outer margin</span>

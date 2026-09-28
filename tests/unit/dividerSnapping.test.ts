@@ -6,6 +6,7 @@ import {
 } from '../../src/lib/domain/dividerSnapping'
 import { resolveDividers, resolveLayout } from '../../src/lib/domain/geometry'
 import { createPage } from '../../src/lib/domain/factories'
+import { layout3Presets } from '../../src/lib/layouts/definitions/3'
 import { layout4Presets } from '../../src/lib/layouts/definitions/4'
 
 function asymmetricFourFramePage() {
@@ -98,7 +99,7 @@ describe('divider snapping', () => {
     expect(next.layout.root.children[1]).toEqual(page.layout.root.children[1])
   })
 
-  it('only offers equal-size snapping when the selected frame touches the active divider', () => {
+  it('offers equal-size snapping even when another frame is selected', () => {
     const page = asymmetricFourFramePage()
     const divider = resolveDividers(page).find(
       (candidate) => candidate.axis === 'y' && candidate.path.join('.') === '0',
@@ -112,8 +113,71 @@ describe('divider snapping', () => {
     expect(unrelatedSlotId).toBeDefined()
 
     const targets = findDividerSnapTargets(page, divider!, unrelatedSlotId!, divider!.parentX + 20)
-    expect(targets.some((target) => target.kind === 'equal-size')).toBe(false)
+    expect(targets.some((target) => target.kind === 'equal-size')).toBe(true)
   })
+
+  it('uses the pair closest to the cursor when several pairs touch a divider', () => {
+    const page = asymmetricFourFramePage()
+    const divider = resolveDividers(page).find((candidate) => candidate.axis === 'x')
+    expect(divider).toBeDefined()
+    const selectedSlotId = topLeftSlotId(page)
+    const upper = findDividerSnapTargets(
+      page,
+      divider!,
+      selectedSlotId,
+      divider!.parentY + 20,
+    ).find((target) => target.kind === 'equal-size')
+    const lower = findDividerSnapTargets(
+      page,
+      divider!,
+      selectedSlotId,
+      divider!.parentY + divider!.parentHeight - 20,
+    ).find((target) => target.kind === 'equal-size')
+    expect(upper).toBeDefined()
+    expect(lower).toBeDefined()
+    expect(upper!.sourceSlotId).not.toBe(lower!.sourceSlotId)
+    expect(upper!.targetSlotId).not.toBe(lower!.targetSlotId)
+  })
+
+  it.each(['x', 'y'] as const)(
+    'equalizes only the two frames beside either %s divider in a three-frame split',
+    (axis) => {
+      const preset = layout3Presets.find(
+        (candidate) =>
+          candidate.root.kind === 'split' &&
+          candidate.root.axis === axis &&
+          candidate.root.children.length === 3 &&
+          candidate.root.children.every((child) => child.kind === 'leaf'),
+      )
+      if (!preset) throw new Error('Three-frame split unavailable')
+      const page = createPage('Three frames', preset)
+      if (page.layout.root.kind !== 'split') throw new Error('Split expected')
+      page.layout.root.weights = [0.2, 0.3, 0.5]
+      const size = (frame: ReturnType<typeof resolveLayout>[number]) =>
+        axis === 'x' ? frame.width : frame.height
+      const ordered = (frames: ReturnType<typeof resolveLayout>) =>
+        frames.sort((left, right) => (axis === 'x' ? left.x - right.x : left.y - right.y))
+      const before = ordered(resolveLayout(page))
+
+      for (const divider of resolveDividers(page)) {
+        const target = findDividerSnapTargets(
+          page,
+          divider,
+          null,
+          axis === 'x' ? divider.parentY + 20 : divider.parentX + 20,
+        ).find((candidate) => candidate.kind === 'equal-size')
+        expect(target).toBeDefined()
+        const after = ordered(
+          resolveLayout(
+            applyDividerChange(page, dividerChangeForCoordinate(page, divider, target!.coordinate)),
+          ),
+        )
+        expect(size(after[divider.index])).toBeCloseTo(size(after[divider.index + 1]), 6)
+        const untouchedIndex = divider.index === 0 ? 2 : 0
+        expect(size(after[untouchedIndex])).toBeCloseTo(size(before[untouchedIndex]), 6)
+      }
+    },
+  )
 
   it('only returns targets that the constrained divider can actually satisfy', () => {
     const page = asymmetricFourFramePage()

@@ -43,6 +43,7 @@
   import { ProjectWorkflowController } from './lib/app/projectWorkflow'
   import { attachAppLifecycle } from './lib/app/appLifecycle'
   import { UiPreferencesController } from './lib/app/uiPreferences'
+  import { suggestBackgroundFromImages } from './lib/app/backgroundSuggestion'
   import { clampViewportZoom, type PageStyleControl, type SidebarTab } from './lib/app/pageActions'
   import { layoutShapeSummary } from './lib/layouts/displayName'
   import { completeOnboarding, hasCompletedOnboarding } from './lib/app/onboarding'
@@ -86,6 +87,7 @@
   ]
   let document = project.snapshot()
   let recentColors: string[] = []
+  let suggestingBackground = false
   let activePageId = document.pages[0].id
   let activePage: PageV1 = document.pages[0]
   let selectedSlotId: string | null = null
@@ -490,6 +492,37 @@
     }, 3200)
   }
 
+  async function suggestBackground() {
+    if (suggestingBackground) return
+    const page = activePage
+    const registry = assetRegistry
+    const assetIds = Object.values(page.slots).flatMap((content) =>
+      content ? [content.assetId] : [],
+    )
+    if (!assetIds.length) return
+    suggestingBackground = true
+    try {
+      await registry.ensureThumbnailImages(assetIds)
+      if (page.id !== activePageId || registry !== assetRegistry) return
+      const images = assetIds.map((assetId) => registry.getImage(assetId))
+      if (images.some((image) => !image)) {
+        announce('Wait for all page photos to load before suggesting a background.')
+        return
+      }
+      const color = suggestBackgroundFromImages(images as HTMLImageElement[])
+      if (!color) {
+        announce('Could not find colors in the page photos.')
+        return
+      }
+      uiPreferences.setBackground(color, true)
+      announce(`Suggested background: ${color}.`)
+    } catch {
+      announce('Could not analyze the page photos.')
+    } finally {
+      suggestingBackground = false
+    }
+  }
+
   function focusCanvas() {
     globalThis.document.getElementById('collage-canvas')?.focus()
   }
@@ -748,6 +781,8 @@
       onpreviewstyle={pageActions.previewStyle}
       oncommitstyle={pageActions.commitStyle}
       onsetbackground={uiPreferences.setBackground}
+      onsuggestbackground={suggestBackground}
+      {suggestingBackground}
       onsetshadow={uiPreferences.setShadow}
       shadowDistance={() => getShadowDistance(activePage)}
       shadowAngle={() => getShadowAngle(activePage)}
