@@ -52,10 +52,25 @@ test('horizontal and vertical flips mirror the selected frame in preview and exp
     [{ name: 'quadrants.png', buffer: Buffer.from(imageBase64, 'base64') }],
     await canvasDocumentPoint(page, point(0.5, 0.5)),
   )
+  const orientation = page.getByRole('group', { name: 'Photo orientation' })
+  const label = orientation.locator(':scope > span')
+  const actions = orientation.locator('.crop-orientation-actions')
+  await expect(label).toHaveText('Orientation')
+  expect(await label.evaluate((element) => getComputedStyle(element).fontSize)).toBe(
+    await page
+      .locator('.crop-zoom > span')
+      .evaluate((element) => getComputedStyle(element).fontSize),
+  )
+  const defaultLabel = (await label.boundingBox())!
+  const defaultActions = (await actions.boundingBox())!
+  expect(
+    Math.abs(
+      defaultLabel.y + defaultLabel.height / 2 - defaultActions.y - defaultActions.height / 2,
+    ),
+  ).toBeLessThan(2)
   await page.locator('.workspace').evaluate((element) => {
     ;(element as HTMLElement).style.setProperty('--right-sidebar-width', '210px')
   })
-  const orientation = page.getByRole('group', { name: 'Photo orientation' })
   expect(
     await orientation.evaluate((element) => {
       const row = element.getBoundingClientRect()
@@ -64,6 +79,18 @@ test('horizontal and vertical flips mirror the selected frame in preview and exp
         return bounds.left >= row.left && bounds.right <= row.right
       })
     }),
+  ).toBe(true)
+  expect(
+    await label.evaluate((element) => element.scrollWidth - element.clientWidth),
+  ).toBeLessThanOrEqual(1)
+  expect(
+    await actions
+      .locator('button')
+      .evaluateAll((buttons) =>
+        buttons.every(
+          (button) => button.getBoundingClientRect().y === buttons[0].getBoundingClientRect().y,
+        ),
+      ),
   ).toBe(true)
   const sampleColor = (pixel: number[]) => {
     const [red, green, blue] = pixel

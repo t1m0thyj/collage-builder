@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { preparePageImages } from '../../src/lib/app/imageSession'
+import { preparePageImages, replaceProjectDocument } from '../../src/lib/app/imageSession'
+import { createPage, createProject, defaultPlacement } from '../../src/lib/domain/factories'
 import type { PageV1 } from '../../src/lib/domain/types'
-import type { AssetRegistry } from '../../src/lib/render/assetRegistry'
+import { AssetRegistry } from '../../src/lib/render/assetRegistry'
+import { ProjectStore } from '../../src/lib/state/projectStore'
 
 function page(id: string, assetId: string): PageV1 {
   return {
@@ -19,6 +21,163 @@ function page(id: string, assetId: string): PageV1 {
 }
 
 describe('page image session', () => {
+  it('prepares up to three project photos concurrently before replacing the document', async () => {
+    const project = new ProjectStore(createProject('Before open'))
+    const document = createProject('After open')
+    document.pages = Array.from({ length: 5 }, (_, index) => createPage(`Page ${index + 1}`))
+    const blobs = new Map<string, Blob>()
+    const gates = new Map<string, () => void>()
+    for (let index = 0; index < 5; index += 1) {
+      const id = `asset-${index}`
+      document.assets[id] = {
+        id,
+        originalName: `${id}.png`,
+        mediaType: 'image/png',
+        byteLength: 1,
+        width: 1,
+        height: 1,
+        sha256: `hash-${index}`,
+        storage: { kind: 'embedded', archivePath: `assets/${id}` },
+      }
+      blobs.set(id, new Blob(['x']))
+      const firstSlot = Object.keys(document.pages[index].slots)[0]
+      document.pages[index].slots[firstSlot] = { assetId: id, placement: defaultPlacement() }
+    }
+    let active = 0
+    let peak = 0
+    const started: string[] = []
+    const progress: Array<[number, number]> = []
+    const visiblePages: string[][] = []
+    const register = vi
+      .spyOn(AssetRegistry.prototype, 'register')
+      .mockImplementation(async (id) => {
+        active += 1
+        peak = Math.max(peak, active)
+        started.push(id)
+        await new Promise<void>((resolve) => gates.set(id, resolve))
+        active -= 1
+        return true
+      })
+    const currentRegistry = new AssetRegistry()
+    let installedRegistry = currentRegistry
+    try {
+      const opening = replaceProjectDocument(
+        project,
+        currentRegistry,
+        document,
+        blobs,
+        (registry) => (installedRegistry = registry),
+        () => true,
+        (completed, total, readyPages) => {
+          progress.push([completed, total])
+          visiblePages.push(readyPages.map((page) => page.name))
+        },
+      )
+      expect(started).toEqual(['asset-0', 'asset-1', 'asset-2'])
+      expect(project.snapshot().title).toBe('Before open')
+      gates.get('asset-0')?.()
+      await vi.waitFor(() => expect(started).toHaveLength(4))
+      gates.get('asset-1')?.()
+      await vi.waitFor(() => expect(started).toHaveLength(5))
+      gates.get('asset-2')?.()
+      gates.get('asset-3')?.()
+      gates.get('asset-4')?.()
+      await expect(opening).resolves.toBe(true)
+      expect(peak).toBe(3)
+      expect(progress).toEqual([
+        [0, 5],
+        [1, 5],
+        [2, 5],
+        [3, 5],
+        [4, 5],
+        [5, 5],
+      ])
+      expect(visiblePages).toEqual([
+        [],
+        ['Page 1'],
+        ['Page 1', 'Page 2'],
+        ['Page 1', 'Page 2', 'Page 3'],
+        ['Page 1', 'Page 2', 'Page 3', 'Page 4'],
+        ['Page 1', 'Page 2', 'Page 3', 'Page 4', 'Page 5'],
+      ])
+      expect(project.snapshot().title).toBe('After open')
+      expect(installedRegistry).not.toBe(currentRegistry)
+    } finally {
+      register.mockRestore()
+    }
+  })
+
+  it('keeps the current project when one concurrent photo preparation fails', async () => {
+    const project = new ProjectStore(createProject('Current project'))
+    const document = createProject('Broken project')
+    document.pages = [createPage('Ready page'), createPage('Broken page')]
+    const blobs = new Map<string, Blob>()
+    for (let index = 0; index < 4; index += 1) {
+      const id = `asset-${index}`
+      document.assets[id] = {
+        id,
+        originalName: `${id}.png`,
+        mediaType: 'image/png',
+        byteLength: 1,
+        width: 1,
+        height: 1,
+        sha256: `hash-${index}`,
+        storage: { kind: 'embedded', archivePath: `assets/${id}` },
+      }
+      blobs.set(id, new Blob(['x']))
+      if (index < 2) {
+        const firstSlot = Object.keys(document.pages[index].slots)[0]
+        document.pages[index].slots[firstSlot] = { assetId: id, placement: defaultPlacement() }
+      }
+    }
+    let finishFirst: (() => void) | undefined
+    const first = new Promise<void>((resolve) => (finishFirst = resolve))
+    let failSecond: (() => void) | undefined
+    const second = new Promise<void>((resolve) => (failSecond = resolve))
+    let finishOther: (() => void) | undefined
+    const other = new Promise<void>((resolve) => (finishOther = resolve))
+    const register = vi
+      .spyOn(AssetRegistry.prototype, 'register')
+      .mockImplementation(async (id) => {
+        if (id === 'asset-0') await first
+        else if (id === 'asset-1') {
+          await second
+          throw new Error('Cannot decode photo')
+        } else await other
+        return true
+      })
+    const clear = vi.spyOn(AssetRegistry.prototype, 'clear')
+    const currentRegistry = new AssetRegistry()
+    let installedRegistry = currentRegistry
+    const visiblePages: string[][] = []
+    try {
+      const opening = replaceProjectDocument(
+        project,
+        currentRegistry,
+        document,
+        blobs,
+        (registry) => {
+          installedRegistry = registry
+        },
+        () => true,
+        (_completed, _total, readyPages) => visiblePages.push(readyPages.map((page) => page.name)),
+      )
+      finishFirst?.()
+      await vi.waitFor(() => expect(visiblePages).toContainEqual(['Ready page']))
+      expect(project.snapshot().title).toBe('Current project')
+      failSecond?.()
+      finishOther?.()
+      await expect(opening).rejects.toThrow('Cannot decode photo')
+      expect(register).toHaveBeenCalledTimes(4)
+      expect(clear).toHaveBeenCalledTimes(1)
+      expect(project.snapshot().title).toBe('Current project')
+      expect(installedRegistry).toBe(currentRegistry)
+    } finally {
+      register.mockRestore()
+      clear.mockRestore()
+    }
+  })
+
   it('shows decoded thumbnails before the full page images finish loading', async () => {
     let finishFullLoad: (() => void) | undefined
     const fullLoad = new Promise<void>((resolve) => (finishFullLoad = resolve))

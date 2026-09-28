@@ -1,4 +1,4 @@
-import type { CollageDocumentV1 } from '../domain/types'
+import type { CollageDocumentV1, PageV1 } from '../domain/types'
 import type { RecoveryManagementSnapshot } from '../persistence/autosave'
 import type { AssetRegistry } from '../render/assetRegistry'
 import { createRecoveryPreview } from '../render/recoveryPreview'
@@ -18,6 +18,7 @@ export interface StartupRecovery {
   title: string
   updatedAt: string
   assetCount: number
+  pageCount: number
   preview?: Blob
 }
 
@@ -64,7 +65,12 @@ export async function restoreLatestRecovery(currentProjectId: string): Promise<
 interface RecoveryControllerHost {
   document: () => CollageDocumentV1
   registry: () => AssetRegistry
-  installDocument: (document: CollageDocumentV1, assets: Map<string, Blob>) => Promise<boolean>
+  installDocument: (
+    document: CollageDocumentV1,
+    assets: Map<string, Blob>,
+    isCurrent?: () => boolean,
+    onProgress?: (completed: number, total: number, readyPages: PageV1[]) => void,
+  ) => Promise<boolean>
   onRestored: (document: CollageDocumentV1) => void
   onState: (state: RecoveryState) => void
   announce: (message: string) => void
@@ -264,6 +270,7 @@ export class RecoveryController {
           title: recovery.document.title,
           updatedAt: recovery.document.updatedAt,
           assetCount: Object.keys(recovery.document.assets).length,
+          pageCount: recovery.document.pages.length,
           preview: await createRecoveryPreview(recovery.document, recovery.assets).catch(
             () => undefined,
           ),
@@ -278,11 +285,13 @@ export class RecoveryController {
     return undefined
   }
 
-  async restoreStartup(): Promise<void> {
+  async restoreStartup(
+    onProgress?: (completed: number, total: number, readyPages: PageV1[]) => void,
+  ): Promise<void> {
     const recovery = this.startupRecovery
     if (!recovery) throw new Error('That local recovery is no longer available.')
+    await this.installRecovery(recovery, onProgress)
     this.startupRecovery = undefined
-    await this.installRecovery(recovery)
     this.startAutosave()
   }
 
@@ -345,11 +354,14 @@ export class RecoveryController {
     return this.flush()
   }
 
-  private async installRecovery(recovery: {
-    document: CollageDocumentV1
-    assets: Map<string, Blob>
-  }): Promise<void> {
-    await this.host.installDocument(recovery.document, recovery.assets)
+  private async installRecovery(
+    recovery: {
+      document: CollageDocumentV1
+      assets: Map<string, Blob>
+    },
+    onProgress?: (completed: number, total: number, readyPages: PageV1[]) => void,
+  ): Promise<void> {
+    await this.host.installDocument(recovery.document, recovery.assets, undefined, onProgress)
     this.host.onRestored(recovery.document)
     this.host.announce('Local recovery restored.')
   }

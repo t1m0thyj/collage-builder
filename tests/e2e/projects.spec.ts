@@ -225,6 +225,7 @@ test('a failed project open keeps the current document and decoded assets intact
   })
 
   await expect(page.locator('.toast')).toContainText(/decode|image|source/i)
+  await expect(page.locator('.opening-editor')).toHaveCount(0)
   await expect(title).toHaveValue('Keep current project')
   await expect.poll(() => sampleStageColor(page, left)).toBe('red')
 })

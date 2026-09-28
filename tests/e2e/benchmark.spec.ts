@@ -2,6 +2,131 @@ import { expect, test } from '@playwright/test'
 import { cpus, platform, release, totalmem } from 'node:os'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { createPage, createProject } from '../../src/lib/domain/factories'
+
+test.describe('recovery opening benchmark', () => {
+  test.skip(
+    ({ browserName }) => browserName !== 'chromium',
+    'The large IndexedDB Blob fixture is Chromium-specific',
+  )
+  test('12-image recovery open @benchmark', async ({ page }) => {
+    test.setTimeout(180_000)
+    const fixture = readFileSync(resolve('tests/fixtures/real-photo-still-life.png'))
+    const document = createProject('Recovery benchmark')
+    document.pages = Array.from({ length: 4 }, (_, index) => createPage(`Page ${index + 1}`))
+    document.updatedAt = new Date(Date.now() + 1000).toISOString()
+    await page.route('**/__db-setup', (route) =>
+      route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Setup</title>' }),
+    )
+    await page.route('**/benchmark-recovery-photo', (route) =>
+      route.fulfill({ contentType: 'image/png', body: fixture }),
+    )
+    await page.goto('/__db-setup')
+    await page.evaluate(async (savedDocument) => {
+      const source = await createImageBitmap(
+        await (await fetch('/benchmark-recovery-photo')).blob(),
+      )
+      const canvas = globalThis.document.createElement('canvas')
+      canvas.width = 4000
+      canvas.height = 3000
+      const context = canvas.getContext('2d')!
+      const blobs = new Map<string, Blob>()
+      for (let index = 0; index < 12; index += 1) {
+        context.drawImage(source, 0, 0, canvas.width, canvas.height)
+        context.fillStyle = `rgba(${index * 17}, 30, 180, 0.06)`
+        context.fillRect(0, 0, canvas.width, canvas.height)
+        const blob = await new Promise<Blob>((resolve) =>
+          canvas.toBlob((result) => resolve(result!), 'image/jpeg', 0.88),
+        )
+        const digest = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer())
+        const hash = [...new Uint8Array(digest)]
+          .map((byte) => byte.toString(16).padStart(2, '0'))
+          .join('')
+        const id = crypto.randomUUID()
+        savedDocument.assets[id] = {
+          id,
+          originalName: `benchmark-${index}.jpg`,
+          mediaType: 'image/jpeg',
+          byteLength: blob.size,
+          width: canvas.width,
+          height: canvas.height,
+          sha256: hash,
+          storage: { kind: 'embedded', archivePath: `assets/${id}` },
+        }
+        const page = savedDocument.pages[Math.floor(index / 3)]
+        const slotId = Object.keys(page.slots)[index % 3]
+        page.slots[slotId] = {
+          assetId: id,
+          placement: { zoom: 1, positionX: 0.5, positionY: 0.5 },
+        }
+        blobs.set(id, blob)
+      }
+      source.close()
+      await new Promise<void>((resolve, reject) => {
+        const request = indexedDB.open('collage-builder', 2)
+        request.onupgradeneeded = () => {
+          request.result.createObjectStore('projects')
+          request.result.createObjectStore('assetBlobs')
+        }
+        request.onerror = () => reject(request.error)
+        request.onsuccess = () => {
+          const db = request.result
+          const tx = db.transaction(['projects', 'assetBlobs'], 'readwrite')
+          tx.objectStore('projects').put(savedDocument, savedDocument.projectId)
+          for (const asset of Object.values(savedDocument.assets))
+            tx.objectStore('assetBlobs').put(
+              blobs.get(asset.id)!,
+              `${savedDocument.projectId}:${asset.id}:${asset.sha256}`,
+            )
+          tx.oncomplete = () => {
+            db.close()
+            resolve()
+          }
+          tx.onerror = () => reject(tx.error)
+        }
+      })
+    }, document)
+
+    const startupAt = performance.now()
+    await page.goto('/')
+    const dialog = page.getByRole('dialog', { name: 'Pick up where you left off?' })
+    await expect(dialog).toBeVisible({ timeout: 120_000 })
+    const readyAt = performance.now()
+    await page.evaluate(() => {
+      const state = window as Window & { openingPageSnapshots?: string[][] }
+      state.openingPageSnapshots = []
+      new MutationObserver(() => {
+        const names = [...document.querySelectorAll('.opening-page-tab')].map(
+          (tab) => tab.textContent?.trim() ?? '',
+        )
+        if (names.length) state.openingPageSnapshots?.push(names)
+      }).observe(document.body, { childList: true, subtree: true })
+    })
+    await dialog.getByRole('button', { name: 'Continue this collage' }).click()
+    const progress = page.locator('.topbar .operation-status')
+    await expect(progress).toBeVisible()
+    await expect(page.locator('.opening-pagebar')).toBeVisible()
+    await expect(progress).toContainText(/Opening pages \d\/4/)
+    await expect(dialog).toBeHidden()
+    await expect(page.getByRole('textbox', { name: 'Project title' })).toHaveValue(
+      'Recovery benchmark',
+      { timeout: 120_000 },
+    )
+    const openedAt = performance.now()
+    await expect(progress).toBeHidden()
+    expect(
+      await page.evaluate(() =>
+        (window as Window & { openingPageSnapshots?: string[][] }).openingPageSnapshots?.some(
+          (names) => names.length > 0 && names.length < 4,
+        ),
+      ),
+    ).toBe(true)
+    await expect(page.locator('.page-tab-viewport .page-tab')).toHaveCount(4)
+    console.log(
+      `Recovery benchmark: startup ${(readyAt - startupAt).toFixed(0)} ms, open ${(openedAt - readyAt).toFixed(0)} ms`,
+    )
+  })
+})
 
 function crc32(buffer: Buffer) {
   let crc = 0xffffffff

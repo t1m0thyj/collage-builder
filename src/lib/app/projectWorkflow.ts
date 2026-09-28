@@ -27,6 +27,7 @@ interface ProjectWorkflowHost {
     document: CollageDocumentV1,
     assets: Map<string, Blob>,
     isCurrent?: () => boolean,
+    onProgress?: (completed: number, total: number, readyPages: PageV1[]) => void,
   ) => Promise<boolean>
   preparePageImages: (page: PageV1, registry: AssetRegistry) => Promise<void>
   setPendingNavigation: (pending: PendingNavigation) => void
@@ -41,6 +42,7 @@ interface ProjectWorkflowHost {
   setHasSavedProject: (saved: boolean) => void
   incrementImageRevision: () => void
   setOperationProgress: (message: string | null) => void
+  setOpeningPages: (pages: PageV1[] | null, total: number) => void
   announce: (message: string) => void
 }
 
@@ -48,12 +50,18 @@ export class ProjectWorkflowController {
   private saveSequence = 0
   private openSequence = 0
   private linkedFolderSequence = 0
+  private opening = false
 
   constructor(private readonly host: ProjectWorkflowHost) {}
 
   newProject = () => {
     this.openSequence += 1
     this.linkedFolderSequence += 1
+    if (this.opening) {
+      this.opening = false
+      this.host.setOpeningPages(null, 0)
+      this.host.setOperationProgress(null)
+    }
     const next = createProject('Untitled collage')
     this.host.registry().clear()
     this.host.setMissingAssetIds(new Set())
@@ -176,11 +184,24 @@ export class ProjectWorkflowController {
     const version = this.host.project.versionedSnapshot()
     const isCurrent = () =>
       operation === this.openSequence && this.host.project.isCurrentVersion(version)
+    this.opening = true
     try {
       this.host.setOperationProgress('Opening project…')
+      this.host.setOpeningPages([], 0)
       const { format, opened } = await openProjectFile(file)
       if (!isCurrent()) return
-      const installed = await this.host.installDocument(opened.document, opened.assets, isCurrent)
+      this.host.setOperationProgress(`Opening pages 0/${opened.document.pages.length}…`)
+      this.host.setOpeningPages([], opened.document.pages.length)
+      const installed = await this.host.installDocument(
+        opened.document,
+        opened.assets,
+        isCurrent,
+        (completed, total, readyPages) => {
+          if (!isCurrent()) return
+          this.host.setOperationProgress(`Opening pages ${completed}/${total}…`)
+          this.host.setOpeningPages(readyPages, total)
+        },
+      )
       if (!installed) return
       if (
         operation !== this.openSequence ||
@@ -204,7 +225,11 @@ export class ProjectWorkflowController {
     } catch (error) {
       this.host.announce(error instanceof Error ? error.message : 'Unable to open project')
     } finally {
-      if (operation === this.openSequence) this.host.setOperationProgress(null)
+      if (operation === this.openSequence) {
+        this.opening = false
+        this.host.setOperationProgress(null)
+        this.host.setOpeningPages(null, 0)
+      }
     }
   }
 }

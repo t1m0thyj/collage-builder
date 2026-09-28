@@ -21,7 +21,7 @@
 </script>
 
 <Dialog.Root
-  open={Boolean(startupRecovery)}
+  open={Boolean(startupRecovery) && !restoringRecovery}
   onOpenChange={(open) => !open && !restoringRecovery && onstartblank()}
 >
   {#if startupRecovery}

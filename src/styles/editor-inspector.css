@@ -166,15 +166,24 @@
   accent-color: #315c9c;
 }
 .crop-orientation {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 24px 30px repeat(3, 24px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 2px;
+  row-gap: 4px;
+}
+.crop-orientation > span {
+  flex: 1 0 auto;
+  white-space: nowrap;
+}
+.crop-orientation-actions {
+  display: flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 2px;
 }
-.crop-orientation > span {
-  font-size: 11px;
-}
 .crop-orientation output {
+  width: 30px;
   font-variant-numeric: tabular-nums;
   text-align: center;
 }

@@ -77,56 +77,54 @@ export class AssetRegistry {
   ): Promise<{ renderableBlob: Blob; preview: Blob; thumbnail: Blob }> {
     const renderableBlob = displayBlob ?? blob
     try {
-      return {
-        renderableBlob,
-        preview:
-          dimensions && Math.max(dimensions.width, dimensions.height) <= this.previewEdge
-            ? renderableBlob
-            : await this.createThumbnail(renderableBlob, dimensions, this.previewEdge),
-        thumbnail: await this.createThumbnail(renderableBlob, dimensions, this.thumbnailEdge),
-      }
+      return await this.createPreviews(renderableBlob, dimensions)
     } catch (error) {
       if (displayBlob || !isHeicBlob(blob)) throw error
       const fallbackBlob = await convertHeicForDisplay(blob, 'Stored HEIC/HEIF image')
-      return {
-        renderableBlob: fallbackBlob,
-        preview:
-          dimensions && Math.max(dimensions.width, dimensions.height) <= this.previewEdge
-            ? fallbackBlob
-            : await this.createThumbnail(fallbackBlob, dimensions, this.previewEdge),
-        thumbnail: await this.createThumbnail(fallbackBlob, dimensions, this.thumbnailEdge),
-      }
+      return this.createPreviews(fallbackBlob, dimensions)
     }
   }
 
-  private async createThumbnail(
-    blob: Blob,
+  private async createPreviews(
+    renderableBlob: Blob,
     dimensions?: { width: number; height: number },
-    edge = this.thumbnailEdge,
-  ): Promise<Blob> {
-    const bitmap = await createImageBitmap(blob, this.thumbnailOptions(dimensions, edge))
+  ): Promise<{ renderableBlob: Blob; preview: Blob; thumbnail: Blob }> {
+    const needsPreview =
+      !dimensions || Math.max(dimensions.width, dimensions.height) > this.previewEdge
+    const bitmap = await createImageBitmap(
+      renderableBlob,
+      this.thumbnailOptions(dimensions, needsPreview ? this.previewEdge : this.thumbnailEdge),
+    )
     try {
-      const canvas = document.createElement('canvas')
-      const scale = Math.min(1, edge / Math.max(bitmap.width, bitmap.height))
-      canvas.width = Math.max(1, Math.round(bitmap.width * scale))
-      canvas.height = Math.max(1, Math.round(bitmap.height * scale))
-      const context = canvas.getContext('2d')
-      if (!context) throw new Error('Thumbnail rendering is unavailable')
-      context.imageSmoothingEnabled = true
-      context.imageSmoothingQuality = 'high'
-      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
-      const thumbnail = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob(resolve, 'image/webp', 0.82),
-      )
-      if (thumbnail) return thumbnail
-      const fallback = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob(resolve, 'image/png'),
-      )
-      if (!fallback) throw new Error('Thumbnail rendering failed')
-      return fallback
+      const [preview, thumbnail] = await Promise.all([
+        needsPreview ? this.encodeThumbnail(bitmap, this.previewEdge) : renderableBlob,
+        this.encodeThumbnail(bitmap, this.thumbnailEdge),
+      ])
+      return { renderableBlob, preview, thumbnail }
     } finally {
       bitmap.close()
     }
+  }
+
+  private async encodeThumbnail(bitmap: ImageBitmap, edge: number): Promise<Blob> {
+    const canvas = document.createElement('canvas')
+    const scale = Math.min(1, edge / Math.max(bitmap.width, bitmap.height))
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale))
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale))
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error('Thumbnail rendering is unavailable')
+    context.imageSmoothingEnabled = true
+    context.imageSmoothingQuality = 'high'
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+    const thumbnail = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, 'image/webp', 0.82),
+    )
+    if (thumbnail) return thumbnail
+    const fallback = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, 'image/png'),
+    )
+    if (!fallback) throw new Error('Thumbnail rendering failed')
+    return fallback
   }
 
   private thumbnailOptions(

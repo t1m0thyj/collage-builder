@@ -119,36 +119,38 @@
               </div>
             </div>
             <div class="crop-orientation" role="group" aria-label="Photo orientation">
-              <span>Orient</span>
-              <button
-                class="button"
-                aria-label="Rotate photo left 90 degrees"
-                title="Rotate left 90°"
-                onclick={() => onrotatephoto(-1)}><RotateCcw size={15}></RotateCcw></button
-              >
-              <output>{selectedContent.placement.rotation ?? 0}°</output>
-              <button
-                class="button"
-                aria-label="Rotate photo right 90 degrees"
-                title="Rotate right 90°"
-                onclick={() => onrotatephoto(1)}><RotateCw size={15}></RotateCw></button
-              >
-              <button
-                class="button"
-                aria-label="Flip photo horizontally"
-                title="Flip horizontally"
-                aria-pressed={selectedContent.placement.flipHorizontal ?? false}
-                onclick={() => onflipphoto('horizontal')}
-                ><FlipHorizontal size={15}></FlipHorizontal></button
-              >
-              <button
-                class="button"
-                aria-label="Flip photo vertically"
-                title="Flip vertically"
-                aria-pressed={selectedContent.placement.flipVertical ?? false}
-                onclick={() => onflipphoto('vertical')}
-                ><FlipVertical size={15}></FlipVertical></button
-              >
+              <span>Orientation</span>
+              <div class="crop-orientation-actions">
+                <button
+                  class="button"
+                  aria-label="Rotate photo left 90 degrees"
+                  title="Rotate left 90°"
+                  onclick={() => onrotatephoto(-1)}><RotateCcw size={15}></RotateCcw></button
+                >
+                <output>{selectedContent.placement.rotation ?? 0}°</output>
+                <button
+                  class="button"
+                  aria-label="Rotate photo right 90 degrees"
+                  title="Rotate right 90°"
+                  onclick={() => onrotatephoto(1)}><RotateCw size={15}></RotateCw></button
+                >
+                <button
+                  class="button"
+                  aria-label="Flip photo horizontally"
+                  title="Flip horizontally"
+                  aria-pressed={selectedContent.placement.flipHorizontal ?? false}
+                  onclick={() => onflipphoto('horizontal')}
+                  ><FlipHorizontal size={15}></FlipHorizontal></button
+                >
+                <button
+                  class="button"
+                  aria-label="Flip photo vertically"
+                  title="Flip vertically"
+                  aria-pressed={selectedContent.placement.flipVertical ?? false}
+                  onclick={() => onflipphoto('vertical')}
+                  ><FlipVertical size={15}></FlipVertical></button
+                >
+              </div>
             </div>
             <div class="crop-coordinates">
               <label

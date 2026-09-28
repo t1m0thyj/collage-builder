@@ -195,7 +195,7 @@ test('page tabs remain visible while they fit and gain scroll arrows when space 
   const addPage = page.getByRole('button', { name: 'Add page' })
   await expect(tabs).toHaveText(['Page 1', 'Page 2', 'Page 3', 'Page 4', 'Page 5', 'Page 6'])
   await expect(page.getByRole('button', { name: 'Scroll tabs left' })).toHaveCount(0)
-  expect((await tabViewport.boundingBox())!.x).toBe((await pagebar.boundingBox())!.x)
+  expect((await tabViewport.boundingBox())!.x - (await pagebar.boundingBox())!.x).toBe(4)
   await expect
     .poll(async () => {
       const tabBounds = await tabs.evaluateAll((elements) =>
@@ -326,4 +326,31 @@ test('overflowing page tabs scroll with arrows and keep the active page in view'
   await expect(page.getByRole('tooltip', { name: 'Page 2' })).toBeVisible()
   await page.locator('#collage-canvas').hover()
   await expect(page.getByRole('tooltip')).toHaveCount(0)
+})
+
+test('mouse wheel scrolls overflowing page tabs in both directions', async ({ page }) => {
+  await page.goto('/')
+  for (let pageNumber = 2; pageNumber <= 10; pageNumber += 1)
+    await page.getByRole('button', { name: 'Add page' }).click()
+
+  const tabStrip = page.locator('.page-tab-viewport')
+  const leftArrow = page.getByRole('button', { name: 'Scroll tabs left' })
+  const rightArrow = page.getByRole('button', { name: 'Scroll tabs right' })
+  await expect(leftArrow).toBeEnabled()
+  await expect(rightArrow).toBeDisabled()
+  await tabStrip.hover()
+  const rightEdge = await tabStrip.evaluate((element) => element.scrollLeft)
+
+  await page.mouse.wheel(0, -500)
+  await expect
+    .poll(() => tabStrip.evaluate((element) => element.scrollLeft))
+    .toBeLessThan(rightEdge)
+  await expect(rightArrow).toBeEnabled()
+  const leftward = await tabStrip.evaluate((element) => element.scrollLeft)
+
+  await page.mouse.wheel(0, 500)
+  await expect
+    .poll(() => tabStrip.evaluate((element) => element.scrollLeft))
+    .toBeGreaterThan(leftward)
+  await expect(leftArrow).toBeEnabled()
 })

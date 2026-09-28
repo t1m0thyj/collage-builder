@@ -2,6 +2,7 @@
   import { createProject } from './lib/domain/factories'
   import type { LayoutPresetDefinition, PageV1, SlotContentV1 } from './lib/domain/types'
   import EditorShell from './lib/components/app/EditorShell.svelte'
+  import OpeningProjectView from './lib/components/app/OpeningProjectView.svelte'
   import ImageManagerDialog from './lib/components/app/ImageManagerDialog.svelte'
   import RecoveryManagerDialog from './lib/components/app/RecoveryManagerDialog.svelte'
   import StartupDialogs from './lib/components/app/StartupDialogs.svelte'
@@ -13,7 +14,7 @@
   import SidebarResizer from './lib/components/app/SidebarResizer.svelte'
   import { ProjectStore } from './lib/state/projectStore'
   import { AssetRegistry } from './lib/render/assetRegistry'
-  import { onMount } from 'svelte'
+  import { onMount, tick } from 'svelte'
   import { RecoveryController, type RecoveryState, type StartupRecovery } from './lib/app/recovery'
   import { ExportWorkflowController } from './lib/app/exportProject'
   import type { ExportFormat } from './lib/render/exportPng'
@@ -139,6 +140,7 @@
     message: 'Local autosave starting…',
   }
   let operationProgress: string | null = null
+  let openingProject: { pages: PageV1[]; total: number } | null = null
   let importStatus: ImportBatchStatus | null = null
   let toast = ''
   let toastTimeout: number | undefined
@@ -256,6 +258,7 @@
     setHasSavedProject: (value) => (hasSavedProject = value),
     incrementImageRevision: () => (imageRevision += 1),
     setOperationProgress: (message) => (operationProgress = message),
+    setOpeningPages: (pages, total) => (openingProject = pages === null ? null : { pages, total }),
     announce,
   })
   const exportWorkflow = new ExportWorkflowController({
@@ -378,6 +381,7 @@
     nextDocument: typeof document,
     blobs: Map<string, Blob>,
     isCurrent: () => boolean = () => true,
+    onProgress: (completed: number, total: number, readyPages: PageV1[]) => void = () => undefined,
   ): Promise<boolean> {
     const installed = await replaceProjectDocument(
       project,
@@ -386,6 +390,7 @@
       blobs,
       (registry) => (assetRegistry = registry),
       isCurrent,
+      onProgress,
     )
     if (installed) imageRevision += 1
     return installed
@@ -502,14 +507,23 @@
 
   async function restoreStartupRecovery() {
     restoringRecovery = true
+    openingProject = { pages: [], total: startupRecovery?.pageCount ?? 1 }
+    operationProgress = `Opening pages 0/${startupRecovery?.pageCount ?? 1}…`
     try {
-      await recovery.restoreStartup()
+      await tick()
+      await new Promise<void>((resolve) => setTimeout(resolve, 16))
+      await recovery.restoreStartup((completed, total, readyPages) => {
+        operationProgress = `Opening pages ${completed}/${total}…`
+        openingProject = { pages: readyPages, total }
+      })
       startupRecovery = null
       completeOnboarding()
     } catch (error) {
       announce(error instanceof Error ? error.message : 'Unable to restore the local project.')
     } finally {
       restoringRecovery = false
+      operationProgress = null
+      openingProject = null
     }
   }
 
@@ -664,50 +678,55 @@
       oncommit={(width) => uiPreferences.persistSidebarWidth('left', width)}
     ></SidebarResizer>
 
-    <EditorShell
-      {document}
-      {activePage}
-      {activePageId}
-      {selectedSlotId}
-      cropSlotId={cropModeSlotId}
-      {viewportZoom}
-      fitToViewport={isViewportFit}
-      darkMode={prefersDark}
-      {imageRevision}
-      {assetRegistry}
-      onactivepagechange={(pageId) => (activePageId = pageId)}
-      onselectedslotchange={(slotId) => (selectedSlotId = slotId)}
-      onfitzoomchange={(zoom) => (fittedViewportZoom = zoom)}
-      onannounce={announce}
-      onselect={(slotId) => editorSession.selectFrame(slotId)}
-      onrequestcrop={(slotId) => editorSession.beginCrop(slotId)}
-      onexitcrop={() => {
-        if (cropModeSlotId) editorSession.finishCrop()
-        selectedSlotId = null
-      }}
-      onrequestimage={pageActions.requestImage}
-      onplacementchange={(slotId, placement) => editorSession.commitPan(slotId, placement)}
-      onassetdrop={pageActions.assignAsset}
-      onfiledrop={(files, slotId) =>
-        void assetWorkflow.import(files, slotId ? { pageId: activePage.id, slotId } : undefined)}
-      onframeswap={(sourceSlotId, targetSlotId) =>
-        project.moveOrSwapSlots(activePage.id, sourceSlotId, targetSlotId)}
-      onwheelzoom={(slotId, factor) => {
-        const content = activePage.slots[slotId]
-        if (content)
-          editorSession.updateZoom(Math.min(8, Math.max(1, content.placement.zoom * factor)))
-      }}
-      onviewportzoom={pageActions.applyViewportWheelZoom}
-      ondividerchange={(changes) => project.adjustDividers(activePage.id, changes)}
-      onequalizesplit={(path) => project.equalizeSplit(activePage.id, path)}
-      onaddpage={pageActions.add}
-      onrenamepage={pageActions.rename}
-      onduplicatepage={() => project.duplicatePage(activePageId)}
-      onmovepage={(direction) => project.movePage(activePageId, direction)}
-      onreorderpage={(pageId, targetIndex) => project.reorderPage(pageId, targetIndex)}
-      onclearpage={() => project.clearPage(activePageId)}
-      ondeletepage={pageActions.delete}
-    ></EditorShell>
+    {#if openingProject}
+      <OpeningProjectView pages={openingProject.pages} total={openingProject.total}
+      ></OpeningProjectView>
+    {:else}
+      <EditorShell
+        {document}
+        {activePage}
+        {activePageId}
+        {selectedSlotId}
+        cropSlotId={cropModeSlotId}
+        {viewportZoom}
+        fitToViewport={isViewportFit}
+        darkMode={prefersDark}
+        {imageRevision}
+        {assetRegistry}
+        onactivepagechange={(pageId) => (activePageId = pageId)}
+        onselectedslotchange={(slotId) => (selectedSlotId = slotId)}
+        onfitzoomchange={(zoom) => (fittedViewportZoom = zoom)}
+        onannounce={announce}
+        onselect={(slotId) => editorSession.selectFrame(slotId)}
+        onrequestcrop={(slotId) => editorSession.beginCrop(slotId)}
+        onexitcrop={() => {
+          if (cropModeSlotId) editorSession.finishCrop()
+          selectedSlotId = null
+        }}
+        onrequestimage={pageActions.requestImage}
+        onplacementchange={(slotId, placement) => editorSession.commitPan(slotId, placement)}
+        onassetdrop={pageActions.assignAsset}
+        onfiledrop={(files, slotId) =>
+          void assetWorkflow.import(files, slotId ? { pageId: activePage.id, slotId } : undefined)}
+        onframeswap={(sourceSlotId, targetSlotId) =>
+          project.moveOrSwapSlots(activePage.id, sourceSlotId, targetSlotId)}
+        onwheelzoom={(slotId, factor) => {
+          const content = activePage.slots[slotId]
+          if (content)
+            editorSession.updateZoom(Math.min(8, Math.max(1, content.placement.zoom * factor)))
+        }}
+        onviewportzoom={pageActions.applyViewportWheelZoom}
+        ondividerchange={(changes) => project.adjustDividers(activePage.id, changes)}
+        onequalizesplit={(path) => project.equalizeSplit(activePage.id, path)}
+        onaddpage={pageActions.add}
+        onrenamepage={pageActions.rename}
+        onduplicatepage={() => project.duplicatePage(activePageId)}
+        onmovepage={(direction) => project.movePage(activePageId, direction)}
+        onreorderpage={(pageId, targetIndex) => project.reorderPage(pageId, targetIndex)}
+        onclearpage={() => project.clearPage(activePageId)}
+        ondeletepage={pageActions.delete}
+      ></EditorShell>
+    {/if}
 
     <SidebarResizer
       side="right"

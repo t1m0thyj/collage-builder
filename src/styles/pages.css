@@ -5,7 +5,7 @@
   align-items: flex-end;
   min-width: 0;
   gap: 0;
-  padding: 0;
+  padding: 0 4px;
   border-top: 1px solid #cfd8e6;
   background: #e9eef6;
 }
@@ -30,6 +30,36 @@
 }
 .page-tab-viewport::-webkit-scrollbar {
   display: none;
+}
+.opening-canvas {
+  display: grid;
+  place-items: center;
+}
+.opening-canvas-message {
+  display: grid;
+  gap: 5px;
+  color: #52627a;
+  text-align: center;
+}
+.opening-canvas-message strong {
+  color: #315c9c;
+}
+.opening-pagebar .page-tab-viewport {
+  flex: 1 1 auto;
+  width: auto;
+}
+.opening-page-tab {
+  display: block;
+  flex: 0 0 auto;
+  cursor: default;
+}
+.opening-page-count {
+  flex: 0 0 auto;
+  align-self: center;
+  padding: 0 10px;
+  color: #52627a;
+  font-size: 12px;
+  white-space: nowrap;
 }
 .page-scroll-button {
   flex: 0 0 31px;

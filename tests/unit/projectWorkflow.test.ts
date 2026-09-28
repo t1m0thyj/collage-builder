@@ -25,9 +25,11 @@ function deferred<T>() {
 function workflowHost(project: ProjectStore, persistence: { save: ReturnType<typeof vi.fn> }) {
   const announcements: string[] = []
   let operationProgress: string | null = null
+  let openingPageCount: number | null = null
   return {
     announcements,
     operationProgress: () => operationProgress,
+    openingPageCount: () => openingPageCount,
     host: {
       project,
       persistence: {
@@ -65,6 +67,7 @@ function workflowHost(project: ProjectStore, persistence: { save: ReturnType<typ
       setHasSavedProject: () => undefined,
       incrementImageRevision: () => undefined,
       setOperationProgress: (message: string | null) => (operationProgress = message),
+      setOpeningPages: (pages: unknown[] | null) => (openingPageCount = pages?.length ?? null),
       announce: (message: string) => announcements.push(message),
     },
   }
@@ -113,6 +116,7 @@ describe('project workflow lifecycle guards', () => {
       setHasSavedProject: () => undefined,
       incrementImageRevision: () => undefined,
       setOperationProgress: (message) => (operationProgress = message),
+      setOpeningPages: () => undefined,
       announce: () => undefined,
     })
 
@@ -193,7 +197,9 @@ describe('project workflow lifecycle guards', () => {
       .mockReturnValueOnce(secondOpen.promise)
 
     const project = new ProjectStore(createProject('Current project'))
-    const { host, announcements, operationProgress } = workflowHost(project, { save: vi.fn() })
+    const { host, announcements, operationProgress, openingPageCount } = workflowHost(project, {
+      save: vi.fn(),
+    })
     const controller = new ProjectWorkflowController(host)
     const firstDocument = createProject('First file')
     const secondDocument = createProject('Second file')
@@ -215,5 +221,27 @@ describe('project workflow lifecycle guards', () => {
     expect(project.snapshot().title).toBe('Second file')
     expect(announcements).toEqual(['Project opened.'])
     expect(operationProgress()).toBeNull()
+    expect(openingPageCount()).toBeNull()
+  })
+
+  it('removes the loading pages when a new project supersedes an open', async () => {
+    const pendingOpen = deferred<Awaited<ReturnType<typeof projectIOMocks.openProjectFile>>>()
+    projectIOMocks.openProjectFile.mockReturnValueOnce(pendingOpen.promise)
+    const project = new ProjectStore(createProject('Original'))
+    const { host, operationProgress, openingPageCount } = workflowHost(project, { save: vi.fn() })
+    const controller = new ProjectWorkflowController(host)
+
+    const opening = controller.open(new File(['pending'], 'pending.collage'))
+    expect(openingPageCount()).toBe(0)
+    controller.newProject()
+    expect(openingPageCount()).toBeNull()
+    expect(operationProgress()).toBeNull()
+
+    pendingOpen.resolve({
+      format: 'embedded',
+      opened: { document: createProject('Stale file'), assets: new Map(), missingAssetIds: [] },
+    })
+    await opening
+    expect(project.snapshot().title).toBe('Untitled collage')
   })
 })

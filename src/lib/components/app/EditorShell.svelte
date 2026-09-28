@@ -13,6 +13,7 @@
   import type { AssetRegistry } from '../../render/assetRegistry'
   import CanvasEditor from '../editor/CanvasEditor.svelte'
   import PageActions from '../PageActions.svelte'
+  import { scrollTabsWithWheel } from './tabWheel'
 
   export let document: CollageDocumentV1
   export let activePage: PageV1
@@ -122,6 +123,8 @@
   }
 
   onMount(() => {
+    const handleWheel = (event: WheelEvent) => scrollTabsWithWheel(event, pageTabsViewport)
+    pagebar.addEventListener('wheel', handleWheel, { passive: false })
     const updatePageTabs = () => {
       const styles = getComputedStyle(pagebar)
       const availableWidth =
@@ -134,6 +137,7 @@
     observer.observe(pageTabsMeasure)
     updatePageTabs()
     return () => {
+      pagebar.removeEventListener('wheel', handleWheel)
       observer.disconnect()
     }
   })

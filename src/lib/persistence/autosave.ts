@@ -110,15 +110,28 @@ export async function loadLatestRecovery(): Promise<CollageDocumentV1 | undefine
 
 export async function loadRecoveryAssets(document: CollageDocumentV1): Promise<Map<string, Blob>> {
   const db = await database()
+  const entries = Object.values(document.assets)
+  const verified = new Array<Blob | undefined>(entries.length)
+  let next = 0
+  await Promise.all(
+    Array.from({ length: Math.min(3, entries.length) }, async () => {
+      while (next < entries.length) {
+        const index = next++
+        const asset = entries[index]
+        const blob = ((await db.get(
+          'assetBlobs',
+          `${document.projectId}:${asset.id}:${asset.sha256}`,
+        )) ?? (await db.get('assetBlobs', `${document.projectId}:${asset.id}`))) as Blob | undefined
+        if (blob && blob.size === asset.byteLength && (await sha256(blob)) === asset.sha256)
+          verified[index] = blob.slice(0, blob.size, asset.mediaType)
+      }
+    }),
+  )
   const assets = new Map<string, Blob>()
-  for (const asset of Object.values(document.assets)) {
-    const blob = ((await db.get(
-      'assetBlobs',
-      `${document.projectId}:${asset.id}:${asset.sha256}`,
-    )) ?? (await db.get('assetBlobs', `${document.projectId}:${asset.id}`))) as Blob | undefined
-    if (blob && blob.size === asset.byteLength && (await sha256(blob)) === asset.sha256)
-      assets.set(asset.id, blob.slice(0, blob.size, asset.mediaType))
-  }
+  entries.forEach((asset, index) => {
+    const blob = verified[index]
+    if (blob) assets.set(asset.id, blob)
+  })
   return assets
 }
 
