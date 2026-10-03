@@ -96,6 +96,7 @@
   tabindex="-1"
   aria-hidden="true"
   bind:this={uploadInput}
+  data-testid="photo-upload-input"
   type="file"
   accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
   multiple
@@ -106,6 +107,7 @@
   tabindex="-1"
   aria-hidden="true"
   bind:this={replaceInput}
+  data-testid="photo-replacement-input"
   type="file"
   accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
   onchange={replaceFile}
@@ -115,6 +117,7 @@
   tabindex="-1"
   aria-hidden="true"
   bind:this={relinkInput}
+  data-testid="photo-relink-input"
   type="file"
   accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
   onchange={relinkFile}
@@ -124,6 +127,7 @@
   tabindex="-1"
   aria-hidden="true"
   bind:this={relinkManyInput}
+  data-testid="photo-relink-many-input"
   type="file"
   accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
   multiple
@@ -134,6 +138,7 @@
   tabindex="-1"
   aria-hidden="true"
   bind:this={projectInput}
+  data-testid="project-file-input"
   type="file"
   accept=".collage,.collage.json,application/vnd.collage-builder+zip,application/json"
   onchange={openProject}

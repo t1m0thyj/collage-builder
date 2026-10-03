@@ -212,16 +212,11 @@ export async function importImage(
     await previousSummary.click()
     await expect(previousSummary).toBeHidden()
   }
-  await page
-    .locator(
-      'input[type="file"][accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"]',
-    )
-    .first()
-    .setInputFiles({
-      name,
-      mimeType,
-      buffer,
-    })
+  await page.getByTestId('photo-upload-input').setInputFiles({
+    name,
+    mimeType,
+    buffer,
+  })
   const summary = page.locator('.import-summary')
   if (expectedSummary.startsWith('1 added')) {
     await expect(page.locator('.toast')).toHaveText('1 photo added.')

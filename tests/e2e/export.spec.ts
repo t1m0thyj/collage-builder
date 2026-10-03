@@ -208,7 +208,7 @@ test('export pixels preserve image colors and the configured page gap', async ({
 
 test('exports rounded corners, transparent areas, and shadows accurately', async ({ page }) => {
   await page.goto('/')
-  await page.locator('input[type="file"][accept*=".collage.json"]').setInputFiles({
+  await page.getByTestId('project-file-input').setInputFiles({
     name: 'visual-parity.collage',
     mimeType: collageMimeType,
     buffer: Buffer.from(visualParityArchive()),
@@ -253,12 +253,7 @@ test('real photo import, crop, thumbnail, and export stay visually consistent', 
 }) => {
   await page.goto('/')
   await chooseTwoColumnLayout(page)
-  await page
-    .locator(
-      'input[type="file"][accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"]',
-    )
-    .first()
-    .setInputFiles(realPhotoPath)
+  await page.getByTestId('photo-upload-input').setInputFiles(realPhotoPath)
   await page.getByRole('tab', { name: 'Images' }).click()
   await expect(page.getByText('real-photo-still-life.png', { exact: true })).toBeVisible()
 

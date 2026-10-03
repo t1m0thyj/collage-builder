@@ -550,16 +550,11 @@ test('layout dividers have keyboard slider controls', async ({ page }) => {
 
 test('dragging crop edges changes zoom', async ({ page }) => {
   await page.goto('/')
-  await page
-    .locator(
-      'input[type="file"][accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"]',
-    )
-    .first()
-    .setInputFiles({
-      name: 'crop.png',
-      mimeType: 'image/png',
-      buffer: onePixelPng,
-    })
+  await page.getByTestId('photo-upload-input').setInputFiles({
+    name: 'crop.png',
+    mimeType: 'image/png',
+    buffer: onePixelPng,
+  })
   await page.getByRole('tab', { name: 'Images' }).click()
   const frame = page.getByRole('button', { name: 'Frame 1, empty' })
   await frame.focus()

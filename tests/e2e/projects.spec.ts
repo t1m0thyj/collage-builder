@@ -7,6 +7,7 @@ import {
   dropLocalFiles,
   canvasDocumentPoint,
   downloadBytes,
+  rasterDimensions,
   comparableProjectDocument,
   sampleDownloadedPng,
   exportCurrentPng,
@@ -95,7 +96,7 @@ test('frame rotation and flip survive saving and reopening the project', async (
   const reopened = await reopenedContext.newPage()
   try {
     await reopened.goto('/')
-    await reopened.locator('input[type="file"][accept*=".collage.json"]').setInputFiles({
+    await reopened.getByTestId('project-file-input').setInputFiles({
       name: 'rotated.collage',
       mimeType: collageMimeType,
       buffer: archive,
@@ -116,12 +117,13 @@ test('frame rotation and flip survive saving and reopening the project', async (
   }
 })
 
-for (const [name, mimeType] of [
-  ['photo.jpg', 'image/jpeg'],
-  ['photo.png', 'image/png'],
-  ['photo.webp', 'image/webp'],
+for (const [name, mimeType, recoveryFailure] of [
+  ['photo.jpg', 'image/jpeg', false],
+  ['photo.png', 'image/png', false],
+  ['photo.webp', 'image/webp', false],
+  ['photo.jpg', 'image/jpeg', true],
 ] as const) {
-  test(`exports a reopened ${mimeType} project when full-size bitmap decode fails`, async ({
+  test(`exports a reopened ${mimeType} project when full-size bitmap decode fails${recoveryFailure ? ' and recovery storage fails' : ''}`, async ({
     page,
     browser,
     browserName,
@@ -150,19 +152,30 @@ for (const [name, mimeType] of [
     const archive = await downloadBytes(await save)
 
     const reopenedContext = await browser.newContext()
-    await reopenedContext.addInitScript(() => {
+    await reopenedContext.addInitScript((recoveryFailure) => {
       localStorage.setItem('collage-builder:onboarding-complete:v1', 'true')
       Object.defineProperty(window, 'OffscreenCanvas', { value: undefined, configurable: true })
-    })
+      if (recoveryFailure) {
+        const put = IDBObjectStore.prototype.put
+        IDBObjectStore.prototype.put = function (value: unknown, key?: IDBValidKey) {
+          if (this.name === 'projects')
+            throw new DOMException(
+              'Error preparing Blob/File data to be stored in object store',
+              'UnknownError',
+            )
+          return put.call(this, value, key)
+        }
+      }
+    }, recoveryFailure)
     const reopened = await reopenedContext.newPage()
     try {
       await reopened.goto('/')
-      await reopened.locator('input[type="file"][accept*=".collage.json"]').setInputFiles({
+      await reopened.getByTestId('project-file-input').setInputFiles({
         name: 'saved-photo.collage',
         mimeType: collageMimeType,
         buffer: archive,
       })
-      await expect(reopened.locator('.toast')).toContainText('Project opened')
+      await expect(reopened.getByRole('button', { name: `Frame 1, ${name}` })).toBeAttached()
       await reopened.evaluate(() => {
         const decode = createImageBitmap
         let fullSizeDecodes = 0
@@ -177,13 +190,21 @@ for (const [name, mimeType] of [
       await reopened.getByRole('menuitem', { name: 'All pages (ZIP)' }).click()
       const dialog = reopened.getByRole('dialog', { name: 'Export pages' })
       await dialog.getByRole('spinbutton', { name: 'Long side (px)' }).fill('400')
+      await expect(dialog).toContainText('Current page output: 400 × 300 px')
       const downloadPromise = reopened.waitForEvent('download')
       await dialog.getByRole('button', { name: 'Export', exact: true }).click()
       const entries = Object.values(unzipSync(await downloadBytes(await downloadPromise)))
       expect(entries).toHaveLength(2)
-      for (const image of entries)
+      for (const image of entries) {
         expect(image.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-      await expect(reopened.locator('.toast')).toContainText('Exported 2 pages')
+        expect(await rasterDimensions(reopened, image)).toEqual({ width: 400, height: 300 })
+      }
+      if (recoveryFailure)
+        await expect(
+          reopened.getByRole('button', { name: /Autosave failed.*Manage local copies/i }),
+        ).toBeVisible()
+      // Background recovery notifications can replace the shared toast after export.
+      await expect(dialog).toBeHidden()
     } finally {
       await reopenedContext.close()
     }
@@ -246,7 +267,7 @@ test('a failed project open keeps the current document and decoded assets intact
     'document.json': strToU8(JSON.stringify(invalidDocument)),
     [`assets/${assetId}`]: invalidBytes,
   })
-  await page.locator('input[type="file"][accept*=".collage.json"]').setInputFiles({
+  await page.getByTestId('project-file-input').setInputFiles({
     name: 'broken.collage',
     mimeType: collageMimeType,
     buffer: Buffer.from(archive),
@@ -336,7 +357,7 @@ test('a complete multi-page project survives embedded save, fresh-context reopen
   const reopened = await reopenedContext.newPage()
   try {
     await reopened.goto('/')
-    await reopened.locator('input[type="file"][accept*=".collage.json"]').setInputFiles({
+    await reopened.getByTestId('project-file-input').setInputFiles({
       name: 'saved-family-album.collage',
       mimeType: collageMimeType,
       buffer: savedArchive,
@@ -445,7 +466,7 @@ test('explains the photo folder choice before saving a linked project', async ({
 test('opens a linked project from the .collage.json extension', async ({ page }) => {
   await page.goto('/')
   const linkedDocument = createProject('Linked JSON project')
-  await page.locator('input[type="file"][accept*=".collage.json"]').setInputFiles({
+  await page.getByTestId('project-file-input').setInputFiles({
     name: 'linked-project.collage.json',
     mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify(linkedDocument)),
@@ -485,7 +506,7 @@ test('shows progress while saving and opening project files', async ({ page }) =
 
   await page.setViewportSize({ width: 960, height: 720 })
   const diskProject = createProject('Opening with progress')
-  await page.locator('input[type="file"][accept*=".collage.json"]').setInputFiles({
+  await page.getByTestId('project-file-input').setInputFiles({
     name: 'opening.collage.json',
     mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify(diskProject)),

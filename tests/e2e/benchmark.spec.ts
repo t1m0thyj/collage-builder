@@ -177,12 +177,7 @@ test('100 images and 25 pages @benchmark', async ({ page, browser, browserName }
     return path
   })
   const startedAt = performance.now()
-  await page
-    .locator(
-      'input[type="file"][accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"]',
-    )
-    .first()
-    .setInputFiles(images)
+  await page.getByTestId('photo-upload-input').setInputFiles(images)
   await page.getByRole('tab', { name: 'Images' }).click()
   await expect(page.getByText('benchmark-100.png', { exact: true })).toBeVisible({
     timeout: 120_000,

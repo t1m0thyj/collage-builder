@@ -69,7 +69,7 @@ test('opens a disk project when local recovery was upgraded to version 2', async
   await expect(recoveryDialog).toContainText('Existing local draft')
   await recoveryDialog.getByRole('button', { name: 'Start a new collage' }).click()
   const diskProject = createProject('Project from disk')
-  await page.locator('input[type="file"][accept*=".collage.json"]').setInputFiles({
+  await page.getByTestId('project-file-input').setInputFiles({
     name: 'disk-project.collage.json',
     mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify(diskProject)),

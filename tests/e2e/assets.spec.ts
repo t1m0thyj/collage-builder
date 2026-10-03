@@ -57,7 +57,7 @@ test('undoing original replacement restores the previous photo bytes', async ({ 
   await importImage(page, 'original.png', redPng)
   await page.getByRole('button', { name: 'Actions for original.png' }).click()
   await page.getByRole('menuitem', { name: 'Replace original' }).click()
-  await page.locator('input[type="file"]').nth(1).setInputFiles({
+  await page.getByTestId('photo-replacement-input').setInputFiles({
     name: 'replacement.png',
     mimeType: 'image/png',
     buffer: bluePng,
@@ -99,10 +99,7 @@ test('import progress replaces the sidebar actions until the photo finishes load
   })
   await page.goto('/')
   await page
-    .locator(
-      'input[type="file"][accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"]',
-    )
-    .first()
+    .getByTestId('photo-upload-input')
     .setInputFiles({ name: 'slow.png', mimeType: 'image/png', buffer: redPng })
 
   const actions = page.locator('.image-panel-actions')
@@ -166,16 +163,11 @@ test('import keeps a matching search and clears filters that hide new photos', a
 
 test('imports and removes an image from the project collection', async ({ page }) => {
   await page.goto('/')
-  await page
-    .locator(
-      'input[type="file"][accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"]',
-    )
-    .first()
-    .setInputFiles({
-      name: 'remove-me.png',
-      mimeType: 'image/png',
-      buffer: onePixelPng,
-    })
+  await page.getByTestId('photo-upload-input').setInputFiles({
+    name: 'remove-me.png',
+    mimeType: 'image/png',
+    buffer: onePixelPng,
+  })
   await page.getByRole('tab', { name: 'Images' }).click()
   await page.getByRole('button', { name: 'Manage photos' }).click()
   await expect(
@@ -206,15 +198,10 @@ test('imports JPEG, PNG, and WebP images', async ({ page }) => {
 
 test('an import opens Images and keeps one batch summary with file errors', async ({ page }) => {
   await page.goto('/')
-  await page
-    .locator(
-      'input[type="file"][accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"]',
-    )
-    .first()
-    .setInputFiles([
-      { name: 'good.png', mimeType: 'image/png', buffer: redPng },
-      { name: 'bad.txt', mimeType: 'text/plain', buffer: Buffer.from('not an image') },
-    ])
+  await page.getByTestId('photo-upload-input').setInputFiles([
+    { name: 'good.png', mimeType: 'image/png', buffer: redPng },
+    { name: 'bad.txt', mimeType: 'text/plain', buffer: Buffer.from('not an image') },
+  ])
 
   await expect(page.getByRole('tab', { name: 'Images' })).toHaveAttribute('aria-selected', 'true')
   await expect(page.getByText('good.png', { exact: true })).toBeVisible()
@@ -370,7 +357,7 @@ test('Replace this frame preserves other uses of the original image', async ({ p
 
 test('missing photos can be matched from several files and undone', async ({ page }) => {
   await page.goto('/')
-  await page.locator('input[type="file"][accept*=".collage.json"]').setInputFiles({
+  await page.getByTestId('project-file-input').setInputFiles({
     name: 'missing-photo.collage',
     mimeType: collageMimeType,
     buffer: Buffer.from(missingPhotoArchive()),
@@ -382,13 +369,10 @@ test('missing photos can be matched from several files and undone', async ({ pag
   const manager = page.getByRole('dialog', { name: 'Photo library' })
   const locateMissing = manager.getByRole('button', { name: 'Locate missing photos' })
   await expect(locateMissing).toBeVisible()
-  await page
-    .locator('input[type="file"][multiple][accept*="image/jpeg"]')
-    .nth(1)
-    .setInputFiles([
-      { name: 'other.png', mimeType: 'image/png', buffer: onePixelPng },
-      { name: 'red.png', mimeType: 'image/png', buffer: bluePng },
-    ])
+  await page.getByTestId('photo-relink-many-input').setInputFiles([
+    { name: 'other.png', mimeType: 'image/png', buffer: onePixelPng },
+    { name: 'red.png', mimeType: 'image/png', buffer: bluePng },
+  ])
   const confirmation = page.getByRole('dialog', { name: 'Use a different image?' })
   await expect(confirmation).toBeVisible()
   await confirmation.getByRole('button', { name: 'Use image anyway' }).click()
@@ -405,7 +389,7 @@ test('relinking a different image asks in-app before replacing the missing origi
   page,
 }) => {
   await page.goto('/')
-  await page.locator('input[type="file"][accept*=".collage.json"]').setInputFiles({
+  await page.getByTestId('project-file-input').setInputFiles({
     name: 'missing-photo.collage',
     mimeType: collageMimeType,
     buffer: Buffer.from(missingPhotoArchive()),
@@ -413,8 +397,7 @@ test('relinking a different image asks in-app before replacing the missing origi
   await page.getByRole('tab', { name: 'Images' }).click()
   await page.locator('.asset-row').first().click()
   await page
-    .locator('input[type="file"][accept*="image/jpeg"]:not([multiple])')
-    .nth(1)
+    .getByTestId('photo-relink-input')
     .setInputFiles({ name: 'blue.png', mimeType: 'image/png', buffer: bluePng })
 
   const confirmation = page.getByRole('dialog', { name: 'Use a different image?' })
