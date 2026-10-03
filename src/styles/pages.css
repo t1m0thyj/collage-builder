@@ -24,6 +24,8 @@
   width: max-content;
   min-width: 0;
   height: 40px;
+  /* Leave room for fractional tab widths at the rounded scroll boundary. */
+  padding-right: 1px;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
@@ -70,7 +72,7 @@
   height: 36px;
   min-width: 84px;
   max-width: 240px;
-  padding: 0 12px;
+  padding: 0 8px;
   border: 1px solid transparent;
   border-bottom: 0;
   border-radius: 6px 6px 0 0;
@@ -94,8 +96,8 @@
 .page-tab-label {
   position: absolute;
   top: 50%;
-  right: 12px;
-  left: 12px;
+  right: 8px;
+  left: 8px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -294,10 +296,10 @@
   opacity: 1;
 }
 .page-tab-with-actions.active-tab-action .page-tab {
-  padding-right: 32px;
+  padding-right: 28px;
 }
 .page-tab-with-actions.active-tab-action .page-tab-label {
-  right: 32px;
+  right: 28px;
 }
 .page-tab-with-actions.active-tab-action .page-tab-rename {
   padding-right: 12px;
@@ -344,6 +346,8 @@
   letter-spacing: 0;
 }
 .page-tab-with-actions.active-tab-action .page-actions-button {
+  width: 24px;
+  min-width: 24px;
   border: 0;
   border-radius: 0 6px 0 0;
   background: transparent;

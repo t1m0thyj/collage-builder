@@ -1,4 +1,5 @@
 import { test, expect } from './test-fixtures'
+import { useWideSystemFont } from './test-helpers'
 
 test('opening tab actions does not remove the active page', async ({ page }) => {
   await page.goto('/')
@@ -62,6 +63,7 @@ test('double-click rename saves when focus leaves the tab', async ({ page }) => 
 
 test('a longer page name expands its tab enough to show the name', async ({ page }) => {
   await page.goto('/')
+  await useWideSystemFont(page)
   const tab = page.getByRole('button', { name: 'Page 1' })
   const originalWidth = (await tab.boundingBox())!.width
   expect(originalWidth).toBeLessThanOrEqual(85)
@@ -127,6 +129,7 @@ test('switching pages keeps short tab widths stable and actions inside the activ
   page,
 }) => {
   await page.goto('/')
+  await useWideSystemFont(page)
   await page.getByRole('button', { name: 'Add page' }).click()
   await page.getByRole('button', { name: 'Add page' }).click()
 
@@ -236,6 +239,7 @@ test('page tabs remain visible while they fit and gain scroll arrows when space 
 
 test('focused tabs stay fully visible at both ends of an overflowing strip', async ({ page }) => {
   await page.goto('/')
+  await useWideSystemFont(page)
   for (let pageNumber = 2; pageNumber <= 10; pageNumber += 1)
     await page.getByRole('button', { name: 'Add page' }).click()
 

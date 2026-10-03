@@ -14,12 +14,14 @@ import {
   sampleDownloadedPng,
   exportCurrentPng,
   setNumber,
+  useWideSystemFont,
 } from './test-helpers'
 
 test('horizontal and vertical flips mirror the selected frame in preview and export', async ({
   page,
 }) => {
   await page.goto('/')
+  await useWideSystemFont(page)
   const imageBase64 = await page.evaluate(() => {
     const canvas = document.createElement('canvas')
     canvas.width = 400

@@ -183,7 +183,7 @@
   gap: 2px;
 }
 .crop-orientation output {
-  width: 30px;
+  width: 32px;
   font-variant-numeric: tabular-nums;
   text-align: center;
 }
@@ -191,7 +191,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
+  width: 22px;
   height: 26px;
   padding: 0;
 }

@@ -179,21 +179,31 @@ test('export pixels preserve image colors and the configured page gap', async ({
   await importImage(page, 'blue.png', bluePng)
   await assignSidebarImage(page, 'red.png', 1)
   await assignSidebarImage(page, 'blue.png', 2)
-  await page.getByRole('switch', { name: 'Frame shadow enabled' }).click()
+  await setNumber(page, 'Inner spacing value', '30')
+  const shadow = page.getByRole('switch', { name: 'Frame shadow enabled' })
+  await shadow.click()
+  await expect(shadow).not.toBeChecked()
 
   await page.getByRole('button', { name: 'Export…' }).click()
   const dialog = page.getByRole('dialog', { name: 'Export pages' })
   await dialog.getByRole('spinbutton', { name: 'Long side (px)' }).fill('400')
+  await expect(dialog).toContainText('Output: 400 × 300 px')
   const downloadPromise = page.waitForEvent('download')
   await dialog.getByRole('button', { name: 'Export', exact: true }).click()
-  const [leftPixel, gapPixel, rightPixel] = await sampleDownloadedPng(page, await downloadPromise, [
+  const download = await downloadPromise
+  expect(await pngDimensions(download)).toEqual({ width: 400, height: 300 })
+  const [leftPixel, ...remainingPixels] = await sampleDownloadedPng(page, download, [
     { x: 100, y: 150 },
+    { x: 199, y: 150 },
     { x: 200, y: 150 },
     { x: 300, y: 150 },
   ])
   expect(leftPixel.slice(0, 3)).toEqual([238, 45, 54])
-  expect(gapPixel.slice(0, 3)).toEqual([128, 128, 128])
-  expect(rightPixel.slice(0, 3)).toEqual([30, 110, 230])
+  expect(remainingPixels.map((pixel) => pixel.slice(0, 3))).toEqual([
+    [128, 128, 128],
+    [128, 128, 128],
+    [30, 110, 230],
+  ])
 })
 
 test('exports rounded corners, transparent areas, and shadows accurately', async ({ page }) => {

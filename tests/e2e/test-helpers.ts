@@ -9,6 +9,13 @@ import { collageMimeType } from '../../src/lib/persistence/archive'
 export type BrowserPage = import('@playwright/test').Page
 type Locator = import('@playwright/test').Locator
 
+export async function useWideSystemFont(page: BrowserPage) {
+  // Exercise Linux CI's wider fallback metrics on other operating systems too.
+  await page.addStyleTag({
+    content: ':root { font-family: "DejaVu Sans", Verdana, sans-serif; }',
+  })
+}
+
 export async function dropLocalFiles(
   target: Locator,
   files: Array<{ name: string; buffer: Buffer; mimeType?: string }>,
@@ -302,6 +309,12 @@ export async function exportCurrentPng(page: BrowserPage, longSide: number) {
   await page.getByRole('button', { name: 'Export…' }).click()
   const dialog = page.getByRole('dialog', { name: 'Export pages' })
   await dialog.getByRole('spinbutton', { name: 'Long side (px)' }).fill(String(longSide))
+  // Wait for the bound settings to reach the output preview before downloading.
+  await expect(dialog).toContainText(
+    new RegExp(
+      `(?:Output|Current page output):\\s*(?:${longSide}\\s*×\\s*\\d+|\\d+\\s*×\\s*${longSide})\\s*px`,
+    ),
+  )
   const downloadPromise = page.waitForEvent('download')
   await dialog.getByRole('button', { name: 'Export', exact: true }).click()
   return downloadPromise
