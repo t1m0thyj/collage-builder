@@ -51,8 +51,8 @@ test('selected frames keep a visible outline and show their filename in the insp
     )
     expect(pixels.filter(([r, g, b]) => r < 90 && g < 140 && b > 120)).not.toHaveLength(0)
     expect(
-      pixels.filter(([r, g, b]) => r > 240 && g > 240 && b > 240).length,
-    ).toBeGreaterThanOrEqual(2)
+      pixels.filter(([r, g, b]) => r > 185 && g > 185 && b > 185).length,
+    ).toBeGreaterThanOrEqual(1)
     const inset = await canvasDocumentPoint(page, { x: frame.x, y: frame.y })
     // Selection leaves the photo unobscured where the filename badge used to appear.
     await expect
@@ -62,6 +62,133 @@ test('selected frames keep a visible outline and show their filename in the insp
   await page.screenshot({ path: test.info().outputPath('canvas-selection.png') })
   await page.getByRole('button', { name: 'Add page' }).click()
   await expect(filename).toHaveCount(0)
+})
+
+test('single click selects and double click crops with usable handles at small zooms', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 1000 })
+  await page.goto('/')
+  await chooseTwoColumnLayout(page)
+  const host = page.getByRole('region', { name: 'Collage canvas' })
+  const [frame] = JSON.parse((await host.getAttribute('data-frame-hitboxes'))!) as Array<{
+    x: number
+    y: number
+    width: number
+    height: number
+  }>
+  const pngBase64 = await page.evaluate(({ width, height }) => {
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.round(width / 4)
+    canvas.height = Math.round(height / 4)
+    const context = canvas.getContext('2d')!
+    const gradient = context.createLinearGradient(0, 0, canvas.width, canvas.height)
+    gradient.addColorStop(0, '#16475b')
+    gradient.addColorStop(0.5, '#bc7849')
+    gradient.addColorStop(1, '#d7e8bf')
+    context.fillStyle = gradient
+    context.fillRect(0, 0, canvas.width, canvas.height)
+    return canvas.toDataURL('image/png').split(',')[1]
+  }, frame)
+  await importImage(page, 'crop-controls.png', Buffer.from(pngBase64, 'base64'))
+  await assignSidebarImage(page, 'crop-controls.png', 1)
+  const selected = page.getByRole('button', { name: 'Frame 1, crop-controls.png' })
+  const stage = page.locator('.konvajs-content').first()
+  const zoomValue = page.getByRole('spinbutton', { name: 'Crop zoom value' })
+
+  for (const zoom of ['10%', '25%']) {
+    await page.getByRole('button', { name: /Canvas zoom:/ }).click()
+    await page.getByRole('menuitem', { name: zoom, exact: true }).click()
+    const hostBox = (await host.boundingBox())!
+    await page.mouse.click(hostBox.x + 8, hostBox.y + 8)
+    await expect(selected).toHaveAttribute('aria-pressed', 'false')
+    const center = await canvasDocumentPoint(page, {
+      x: frame.x + frame.width / 2,
+      y: frame.y + frame.height / 2,
+    })
+    await page.mouse.click(center.x, center.y)
+    await expect(selected).toHaveAttribute('aria-pressed', 'true')
+    await expect(host).not.toHaveAttribute('data-crop-placement')
+    // Separate the single-click gesture from the following double click.
+    await page.waitForTimeout(450)
+    await page.mouse.dblclick(center.x, center.y)
+    await expect(host).toHaveAttribute('data-crop-placement', /.+/)
+    const placement = JSON.parse((await host.getAttribute('data-crop-placement'))!) as {
+      x: number
+      y: number
+      width: number
+      height: number
+    }
+    const corner = await canvasDocumentPoint(page, {
+      x: placement.x + placement.width,
+      y: placement.y + placement.height,
+    })
+    // Sample the crop overlay itself: white handles stay visible against every photo.
+    await expect
+      .poll(async () =>
+        host
+          .locator('canvas')
+          .last()
+          .evaluate((canvas, point) => {
+            const bounds = canvas.getBoundingClientRect()
+            const ratio = canvas.width / bounds.width
+            const pixels = canvas
+              .getContext('2d', { willReadFrequently: true })!
+              .getImageData(
+                Math.round((point.x - bounds.x) * ratio) - 8,
+                Math.round((point.y - bounds.y) * ratio),
+                17,
+                1,
+              ).data
+            return Array.from({ length: 17 }, (_, index) =>
+              Array.from(pixels.slice(index * 4, index * 4 + 4)),
+            ).filter(([r, g, b, a]) => r > 240 && g > 240 && b > 240 && a > 240).length
+          }, corner),
+      )
+      .toBeGreaterThanOrEqual(6)
+    await page.mouse.move(corner.x - 9, corner.y)
+    await expect(stage).toHaveCSS('cursor', 'nwse-resize')
+    await page.mouse.move(corner.x - 24, corner.y)
+    await expect(stage).toHaveCSS('cursor', 'ns-resize')
+    await page.screenshot({
+      path: test.info().outputPath('crop-controls-' + zoom.replace('%', '') + '.png'),
+    })
+    await page.mouse.move(corner.x, corner.y)
+    await page.mouse.down()
+    await page.mouse.move(corner.x + 16, corner.y + 16, { steps: 6 })
+    await page.mouse.up()
+    await expect(zoomValue).not.toHaveValue('1.00')
+    await page.keyboard.press('Escape')
+    await expect(host).not.toHaveAttribute('data-crop-placement')
+    await expect(zoomValue).toHaveValue('1.00')
+    await expect(selected).toHaveAttribute('aria-pressed', 'true')
+  }
+})
+
+test.describe('touch crop interaction', () => {
+  test.use({ hasTouch: true })
+
+  test('double tapping a photo enters crop and a single tap after cancel only selects', async ({
+    page,
+  }) => {
+    await page.goto('/')
+    await chooseTwoColumnLayout(page)
+    await importImage(page, 'touch-crop.png', redPng)
+    await assignSidebarImage(page, 'touch-crop.png', 1)
+    const host = page.getByRole('region', { name: 'Collage canvas' })
+    const [center] = await twoColumnFrameCenters(page)
+    const selected = page.getByRole('button', { name: 'Frame 1, touch-crop.png' })
+    await page.touchscreen.tap(center.x, center.y)
+    await expect(selected).toHaveAttribute('aria-pressed', 'true')
+    await expect(host).not.toHaveAttribute('data-crop-placement')
+    await page.touchscreen.tap(center.x, center.y)
+    await expect(host).toHaveAttribute('data-crop-placement', /.+/)
+    await page.keyboard.press('Escape')
+    await expect(host).not.toHaveAttribute('data-crop-placement')
+    await page.touchscreen.tap(center.x, center.y)
+    await expect(selected).toHaveAttribute('aria-pressed', 'true')
+    await expect(host).not.toHaveAttribute('data-crop-placement')
+  })
 })
 
 test('horizontal and vertical flips mirror the selected frame in preview and export', async ({
@@ -711,14 +838,8 @@ test('dragging a crop corner previews zoom and commits on release', async ({ pag
     x: placement.x + placement.width,
     y: placement.y + placement.height,
   })
-  const nearCorner = await canvasDocumentPoint(page, {
-    x: placement.x + placement.width - 30,
-    y: placement.y + placement.height,
-  })
-  const side = await canvasDocumentPoint(page, {
-    x: placement.x + placement.width - 50,
-    y: placement.y + placement.height,
-  })
+  const nearCorner = { x: corner.x - 9, y: corner.y }
+  const side = { x: corner.x - 24, y: corner.y }
   const stageContainer = page.locator('.konvajs-content').first()
   await page.mouse.move(nearCorner.x, nearCorner.y)
   await expect(stageContainer).toHaveCSS('cursor', 'nwse-resize')

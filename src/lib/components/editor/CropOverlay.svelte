@@ -75,7 +75,60 @@
   ) => void
   export let previewCornerZoom: (event: StagePointerEvent) => void
   export let finishCornerZoom: (event: StagePointerEvent) => void
+  type Bounds = { x: number; y: number; width: number; height: number }
+
+  function edgeHitboxes(bounds: Bounds, hitSize: number) {
+    return [
+      {
+        x: bounds.x,
+        y: bounds.y - hitSize / 2,
+        width: bounds.width,
+        height: hitSize,
+        cursor: 'ns-resize',
+        directionX: 0,
+        directionY: -1,
+      },
+      {
+        x: bounds.x,
+        y: bounds.y + bounds.height - hitSize / 2,
+        width: bounds.width,
+        height: hitSize,
+        cursor: 'ns-resize',
+        directionX: 0,
+        directionY: 1,
+      },
+      {
+        x: bounds.x - hitSize / 2,
+        y: bounds.y,
+        width: hitSize,
+        height: bounds.height,
+        cursor: 'ew-resize',
+        directionX: -1,
+        directionY: 0,
+      },
+      {
+        x: bounds.x + bounds.width - hitSize / 2,
+        y: bounds.y,
+        width: hitSize,
+        height: bounds.height,
+        cursor: 'ew-resize',
+        directionX: 1,
+        directionY: 0,
+      },
+    ]
+  }
+
   $: imageGeometry = rotatedImageGeometry(placement, content.placement)
+  $: imageBounds = {
+    x: frame.x + placement.x,
+    y: frame.y + placement.y,
+    width: placement.width,
+    height: placement.height,
+  }
+  // Keep handles and their hit areas usable at every canvas zoom.
+  $: handleRadius = 5 / fitScale
+  $: imageEdges = edgeHitboxes(imageBounds, 16 / fitScale)
+  $: frameEdges = edgeHitboxes(frame, 16 / fitScale)
 </script>
 
 <Layer>
@@ -93,16 +146,22 @@
       scaleY={imageGeometry.scaleY}
       draggable
       dragBoundFunc={(position) => cropDragBound(position, frame, placement)}
+      onpointerenter={(event) => setCursor(event, 'grab')}
+      onpointerleave={(event) => setCursor(event, 'default')}
       onpointerdown={(event) => beginPan(event, frame, placement, content, frame.slotId)}
+      ondragstart={(event) => setCursor(event, 'grabbing')}
       ondragmove={previewPan}
-      ondragend={finishPan}
+      ondragend={(event) => {
+        finishPan(event)
+        setCursor(event, 'grab')
+      }}
     />
     <Rect
-      x={frame.x + placement.x}
-      y={frame.y + placement.y}
-      width={placement.width}
-      height={placement.height}
-      fill="rgba(45,43,38,0.8)"
+      x={imageBounds.x}
+      y={imageBounds.y}
+      width={imageBounds.width}
+      height={imageBounds.height}
+      fill="rgba(31,35,41,0.5)"
       listening={false}
     />
     <Group clipFunc={roundedClip(frame.x, frame.y, frame.width, frame.height, frame.polygon)}
@@ -119,49 +178,50 @@
         scaleY={imageGeometry.scaleY}
         draggable
         dragBoundFunc={(position) => cropDragBound(position, frame, placement)}
+        onpointerenter={(event) => setCursor(event, 'grab')}
+        onpointerleave={(event) => setCursor(event, 'default')}
         onpointerdown={(event) => beginPan(event, frame, placement, content, frame.slotId)}
+        ondragstart={(event) => setCursor(event, 'grabbing')}
         ondragmove={previewPan}
-        ondragend={finishPan}
+        ondragend={(event) => {
+          finishPan(event)
+          setCursor(event, 'grab')
+        }}
       /></Group
     >
-    {#if frame.polygon}<Line
-        points={polygonPoints(frame)}
-        closed
-        stroke="#00FF00"
-        strokeWidth={1}
-        dash={[]}
-        shadowColor="#5C3700"
-        shadowOpacity={0.55}
-        shadowBlur={3}
+    {#each [{ color: '#343A40', width: 4 }, { color: '#00FF00', width: 2 }] as outline (outline.color)}
+      <Rect
+        x={imageBounds.x}
+        y={imageBounds.y}
+        width={imageBounds.width}
+        height={imageBounds.height}
+        stroke={outline.color}
+        strokeWidth={outline.width}
+        strokeScaleEnabled={false}
         listening={false}
-      />{:else}<Rect
-        x={frame.x}
-        y={frame.y}
-        width={frame.width}
-        height={frame.height}
-        {cornerRadius}
-        stroke="#00FF00"
-        strokeWidth={1}
-        dash={[]}
-        shadowColor="#5C3700"
-        shadowOpacity={0.55}
-        shadowBlur={3}
-        listening={false}
-      />{/if}
-    <Rect
-      x={frame.x + placement.x}
-      y={frame.y + placement.y}
-      width={placement.width}
-      height={placement.height}
-      stroke="#00FF00"
-      strokeWidth={4}
-      dash={[]}
-      shadowColor="#5C3700"
-      shadowOpacity={0.55}
-      shadowBlur={3}
-      listening={false}
-    />
-    {#each [{ x: frame.x + placement.x, y: frame.y + placement.y - 24, width: placement.width, height: 48, cursor: 'ns-resize', directionX: 0, directionY: -1 }, { x: frame.x + placement.x, y: frame.y + placement.y + placement.height - 24, width: placement.width, height: 48, cursor: 'ns-resize', directionX: 0, directionY: 1 }, { x: frame.x + placement.x - 24, y: frame.y + placement.y, width: 48, height: placement.height, cursor: 'ew-resize', directionX: -1, directionY: 0 }, { x: frame.x + placement.x + placement.width - 24, y: frame.y + placement.y, width: 48, height: placement.height, cursor: 'ew-resize', directionX: 1, directionY: 0 }] as side (side.cursor + side.x + side.y)}<Rect
+      />
+    {/each}
+    {#each [{ color: '#343A40', width: 3 }, { color: '#00FF00', width: 1 }] as outline (outline.color)}
+      {#if frame.polygon}<Line
+          points={polygonPoints(frame)}
+          closed
+          stroke={outline.color}
+          strokeWidth={outline.width}
+          strokeScaleEnabled={false}
+          listening={false}
+        />{:else}<Rect
+          x={frame.x}
+          y={frame.y}
+          width={frame.width}
+          height={frame.height}
+          {cornerRadius}
+          stroke={outline.color}
+          strokeWidth={outline.width}
+          strokeScaleEnabled={false}
+          listening={false}
+        />{/if}
+    {/each}
+    {#each [...imageEdges, ...frameEdges] as side, index (index)}<Rect
         x={side.x}
         y={side.y}
         width={side.width}
@@ -172,28 +232,42 @@
         onpointerdown={(event) =>
           beginSideZoom(event, placement, content, frame.slotId, side.directionX, side.directionY)}
       />{/each}
-    {#each [{ x: frame.x, y: frame.y - 24, width: frame.width, height: 48, cursor: 'ns-resize', directionX: 0, directionY: -1 }, { x: frame.x, y: frame.y + frame.height - 24, width: frame.width, height: 48, cursor: 'ns-resize', directionX: 0, directionY: 1 }, { x: frame.x - 24, y: frame.y, width: 48, height: frame.height, cursor: 'ew-resize', directionX: -1, directionY: 0 }, { x: frame.x + frame.width - 24, y: frame.y, width: 48, height: frame.height, cursor: 'ew-resize', directionX: 1, directionY: 0 }] as side (`frame-${side.cursor}-${side.x}-${side.y}`)}<Rect
-        x={side.x}
-        y={side.y}
-        width={side.width}
-        height={side.height}
-        fill="rgba(0, 0, 0, 0.01)"
-        onpointerenter={(event) => setCursor(event, side.cursor)}
-        onpointerleave={(event) => setCursor(event, 'default')}
-        onpointerdown={(event) =>
-          beginSideZoom(event, placement, content, frame.slotId, side.directionX, side.directionY)}
-      />{/each}
-    {#each [[0, 0], [1, 0], [0, 1], [1, 1]] as corner (corner.join('-'))}<Circle
-        x={frame.x + placement.x + corner[0] * placement.width}
-        y={frame.y + placement.y + corner[1] * placement.height}
-        radius={8}
-        fill="#00FF00"
+    {#each imageEdges as side, index (index)}
+      {#each [{ color: '#343A40', width: 3 }, { color: '#00FF00', width: 1.5 }] as outline (outline.color)}
+        <Rect
+          x={side.x + side.width / 2 - (side.directionX ? 3 : 6) / fitScale}
+          y={side.y + side.height / 2 - (side.directionX ? 6 : 3) / fitScale}
+          width={(side.directionX ? 6 : 12) / fitScale}
+          height={(side.directionX ? 12 : 6) / fitScale}
+          cornerRadius={2 / fitScale}
+          fill="#FFFFFF"
+          stroke={outline.color}
+          strokeWidth={outline.width}
+          strokeScaleEnabled={false}
+          listening={false}
+        />
+      {/each}
+    {/each}
+    {#each [[0, 0], [1, 0], [0, 1], [1, 1]] as corner (corner.join('-'))}
+      <Circle
+        x={imageBounds.x + corner[0] * imageBounds.width}
+        y={imageBounds.y + corner[1] * imageBounds.height}
+        radius={handleRadius}
+        fill="#FFFFFF"
+        stroke="#343A40"
+        strokeWidth={3}
+        strokeScaleEnabled={false}
+        listening={false}
+      />
+      <Circle
+        x={imageBounds.x + corner[0] * imageBounds.width}
+        y={imageBounds.y + corner[1] * imageBounds.height}
+        radius={handleRadius}
+        fill="#FFFFFF"
         stroke="#00FF00"
-        strokeWidth={1}
-        hitStrokeWidth={56}
-        shadowColor="#126B12"
-        shadowOpacity={0.28}
-        shadowBlur={2}
+        strokeWidth={1.5}
+        strokeScaleEnabled={false}
+        hitStrokeWidth={14}
         draggable
         onpointerdown={(event) =>
           beginCornerZoom(event, frame, placement, content, frame.slotId, corner[0], corner[1])}
@@ -204,6 +278,7 @@
           cornerDragBound(position, frame, placement, content, corner[0], corner[1])}
         ondragmove={previewCornerZoom}
         ondragend={finishCornerZoom}
-      />{/each}
+      />
+    {/each}
   </Group>
 </Layer>

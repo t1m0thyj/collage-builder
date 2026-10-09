@@ -92,8 +92,8 @@
         <Collapsible.Content
           ><div class="crop-controls">
             {#if cropModeSlotId === selectedSlotId}<p class="crop-hint">
-                Crop mode is active. Drag the image, use the corner dots or Alt+wheel to zoom, or
-                adjust values precisely. Enter accepts; Escape cancels.
+                Crop mode is active. Drag the image, use the handles or Alt+wheel to zoom, or adjust
+                values precisely. Enter accepts; Escape cancels.
               </p>{:else}<button class="button" onclick={() => onbegincrop(selectedSlotId!)}
                 >Crop image</button
               >
@@ -204,7 +204,9 @@
     <div class="property-note">
       <p>
         {selectedContent
-          ? 'Drag the photo to reposition it. Double-click it to crop.'
+          ? cropModeSlotId === selectedSlotId
+            ? 'Drag to reposition the photo. Drag a handle to zoom. Done accepts the crop.'
+            : 'Click a photo to select it. Drag it to another frame to swap. Double-click to crop.'
           : 'Select a frame to adjust its photo or page settings.'}
       </p>
     </div>

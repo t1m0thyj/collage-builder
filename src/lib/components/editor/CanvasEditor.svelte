@@ -63,7 +63,6 @@
   let dragSourceSlotId: SlotId | null = null
   let dragTargetSlotId: SlotId | null = null
   let frameDragCancelled = false
-  let lastFrameClick: { slotId: SlotId; at: number } | null = null
   let sideCropDrag: {
     slotId: SlotId
     startX: number
@@ -594,13 +593,6 @@
       dragTargetSlotId = null
     }
   }
-  function selectOrCropFrame(slotId: SlotId) {
-    const now = Date.now()
-    const doubleClick = lastFrameClick?.slotId === slotId && now - lastFrameClick.at < 375
-    lastFrameClick = doubleClick ? null : { slotId, at: now }
-    onselect(slotId)
-    if (doubleClick) onrequestcrop(slotId)
-  }
   function previewFrameDrag(
     event: {
       target: { getStage(): { getPointerPosition(): { x: number; y: number } | null } | null }
@@ -778,7 +770,7 @@
       {polygonPoints}
       {roundedClip}
       {cropDragBound}
-      {selectOrCropFrame}
+      {onrequestcrop}
       {beginPan}
       {previewPan}
       {finishPan}

@@ -63,7 +63,7 @@
     frame: Frame,
     placement: ReturnType<typeof resolveCoverPlacement>,
   ) => { x: number; y: number }
-  export let selectOrCropFrame: (slotId: SlotId) => void
+  export let onrequestcrop: (slotId: SlotId) => void
   export let beginPan: (
     event: StagePointerEvent,
     frame: { x: number; y: number },
@@ -203,7 +203,9 @@
                 scaleY={imageGeometry.scaleY}
                 draggable={cropSlotId === frame.slotId}
                 dragBoundFunc={(position) => cropDragBound(position, frame, placement)}
-                onpointerclick={() => selectOrCropFrame(frame.slotId)}
+                onpointerclick={() => onselect(frame.slotId)}
+                ondblclick={() => onrequestcrop(frame.slotId)}
+                ondbltap={() => onrequestcrop(frame.slotId)}
                 onpointerdown={(event) => {
                   if (cropSlotId === frame.slotId)
                     beginPan(event, frame, placement, content!, frame.slotId)
@@ -225,7 +227,9 @@
                 fill="rgba(49,92,156,0.01)"
                 draggable
                 dragBoundFunc={() => ({ x: frame.x, y: frame.y })}
-                onpointerclick={() => selectOrCropFrame(frame.slotId)}
+                onpointerclick={() => onselect(frame.slotId)}
+                ondblclick={() => onrequestcrop(frame.slotId)}
+                ondbltap={() => onrequestcrop(frame.slotId)}
                 ondragstart={() => beginFrameDrag(frame.slotId)}
                 ondragmove={(event) => previewFrameDrag(event, frame.slotId)}
                 ondragend={(event) => endFrameDrag(event, frame.slotId)}
@@ -252,52 +256,26 @@
           {/if}
         </Group>
         {#if selectedSlotId === frame.slotId && cropSlotId !== frame.slotId}
-          {#if frame.polygon}<Line
-              points={polygonPoints(frame)}
-              closed
-              stroke="#FFFFFF"
-              strokeWidth={6}
-              strokeScaleEnabled={false}
-              listening={false}
-            />{:else}<Rect
-              x={frame.x}
-              y={frame.y}
-              width={frame.width}
-              height={frame.height}
-              cornerRadius={model.cornerRadius}
-              stroke="#FFFFFF"
-              strokeWidth={6}
-              strokeScaleEnabled={false}
-              listening={false}
-            />{/if}
-        {/if}
-        {#if selectedSlotId === frame.slotId || cropSlotId === frame.slotId}
-          {#if frame.polygon}<Line
-              points={polygonPoints(frame)}
-              closed
-              stroke={cropSlotId === frame.slotId ? '#00FF00' : '#315C9C'}
-              strokeWidth={cropSlotId === frame.slotId ? 4 : 2}
-              strokeScaleEnabled={cropSlotId === frame.slotId}
-              dash={[]}
-              shadowColor={cropSlotId === frame.slotId ? '#5C3700' : undefined}
-              shadowOpacity={cropSlotId === frame.slotId ? 0.55 : 0}
-              shadowBlur={cropSlotId === frame.slotId ? 3 : 0}
-              listening={false}
-            />{:else}<Rect
-              x={frame.x}
-              y={frame.y}
-              width={frame.width}
-              height={frame.height}
-              cornerRadius={model.cornerRadius}
-              stroke={cropSlotId === frame.slotId ? '#00FF00' : '#315C9C'}
-              strokeWidth={cropSlotId === frame.slotId ? 4 : 2}
-              strokeScaleEnabled={cropSlotId === frame.slotId}
-              dash={[]}
-              shadowColor={cropSlotId === frame.slotId ? '#5C3700' : undefined}
-              shadowOpacity={cropSlotId === frame.slotId ? 0.55 : 0}
-              shadowBlur={cropSlotId === frame.slotId ? 3 : 0}
-              listening={false}
-            />{/if}
+          {#each [{ color: '#FFFFFF', width: 4 }, { color: '#315C9C', width: 2 }] as outline (outline.color)}
+            {#if frame.polygon}<Line
+                points={polygonPoints(frame)}
+                closed
+                stroke={outline.color}
+                strokeWidth={outline.width}
+                strokeScaleEnabled={false}
+                listening={false}
+              />{:else}<Rect
+                x={frame.x}
+                y={frame.y}
+                width={frame.width}
+                height={frame.height}
+                cornerRadius={model.cornerRadius}
+                stroke={outline.color}
+                strokeWidth={outline.width}
+                strokeScaleEnabled={false}
+                listening={false}
+              />{/if}
+          {/each}
         {/if}
         {#if dragTargetSlotId === frame.slotId}
           <Rect
