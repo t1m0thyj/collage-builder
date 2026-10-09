@@ -332,6 +332,7 @@ h2 {
   margin: 14px 0;
 }
 .asset-row {
+  position: relative;
   display: grid;
   grid-template-columns: 36px 1fr;
   gap: 8px;
@@ -504,4 +505,23 @@ h2 {
 .asset-filters [role='radio'][data-state='on'] {
   border-color: var(--selection-border);
   background: var(--selection-surface);
+}
+.asset-row.selected-asset,
+.manager-asset-card.selected-asset .asset-row {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+.asset-selection-check {
+  position: absolute;
+  top: 9px;
+  left: 9px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #315c9c;
+  color: #fff;
+  pointer-events: none;
 }

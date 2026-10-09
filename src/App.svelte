@@ -771,6 +771,9 @@
       {activePage}
       {selectedSlotId}
       {selectedContent}
+      selectedImageName={selectedContent
+        ? document.assets[selectedContent.assetId]?.originalName
+        : undefined}
       bind:pageAspectLinked
       {colorPresets}
       {recentColors}

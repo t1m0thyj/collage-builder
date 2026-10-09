@@ -138,7 +138,7 @@
       onpointerclick={onexitcrop}
     />
 
-    {#each model.frames as frame, index (frame.slotId)}
+    {#each model.frames as frame (frame.slotId)}
       {@const persistedContent = page.slots[frame.slotId]}
       {@const content =
         persistedContent && cropDraft?.pageId === page.id && cropDraft.slotId === frame.slotId
@@ -160,98 +160,124 @@
         ? rotatedImageGeometry(placement, content!.placement)
         : undefined}
       <Group>
-        {#if frame.polygon}<Line
-            points={polygonPoints(frame)}
-            closed
-            fill="#E5E2D9"
-            shadowColor={page.style.shadow.color}
-            shadowOpacity={page.style.shadow.enabled ? page.style.shadow.opacity : 0}
-            shadowBlur={page.style.shadow.blur}
-            shadowOffsetX={page.style.shadow.offsetX}
-            shadowOffsetY={page.style.shadow.offsetY}
-            onpointerclick={() => onselect(frame.slotId)}
-          />{:else}<Rect
-            x={frame.x}
-            y={frame.y}
-            width={frame.width}
-            height={frame.height}
-            cornerRadius={model.cornerRadius}
-            fill="#E5E2D9"
-            shadowColor={page.style.shadow.color}
-            shadowOpacity={page.style.shadow.enabled ? page.style.shadow.opacity : 0}
-            shadowBlur={page.style.shadow.blur}
-            shadowOffsetX={page.style.shadow.offsetX}
-            shadowOffsetY={page.style.shadow.offsetY}
-            onpointerclick={() => onselect(frame.slotId)}
-          />{/if}
-        {#if image && placement && imageGeometry}
-          <Group clipFunc={roundedClip(frame.x, frame.y, frame.width, frame.height, frame.polygon)}>
-            <Image
-              {image}
-              x={frame.x + imageGeometry.x}
-              y={frame.y + imageGeometry.y}
-              width={imageGeometry.width}
-              height={imageGeometry.height}
-              offsetX={imageGeometry.offsetX}
-              offsetY={imageGeometry.offsetY}
-              rotation={imageGeometry.rotation}
-              scaleX={imageGeometry.scaleX}
-              scaleY={imageGeometry.scaleY}
-              draggable={cropSlotId === frame.slotId}
-              dragBoundFunc={(position) => cropDragBound(position, frame, placement)}
-              onpointerclick={() => selectOrCropFrame(frame.slotId)}
-              onpointerdown={(event) => {
-                if (cropSlotId === frame.slotId)
-                  beginPan(event, frame, placement, content!, frame.slotId)
-              }}
-              ondragmove={(event) => {
-                if (cropSlotId === frame.slotId) previewPan(event)
-              }}
-              ondragend={(event) => {
-                if (cropSlotId === frame.slotId) finishPan(event)
-              }}
-            />
-          </Group>
-          {#if !cropSlotId}<Rect
+        <!-- Keep asynchronously loaded images beneath the selection overlays. -->
+        <Group>
+          {#if frame.polygon}<Line
+              points={polygonPoints(frame)}
+              closed
+              fill="#E5E2D9"
+              shadowColor={page.style.shadow.color}
+              shadowOpacity={page.style.shadow.enabled ? page.style.shadow.opacity : 0}
+              shadowBlur={page.style.shadow.blur}
+              shadowOffsetX={page.style.shadow.offsetX}
+              shadowOffsetY={page.style.shadow.offsetY}
+              onpointerclick={() => onselect(frame.slotId)}
+            />{:else}<Rect
               x={frame.x}
               y={frame.y}
               width={frame.width}
               height={frame.height}
               cornerRadius={model.cornerRadius}
-              fill="rgba(49,92,156,0.01)"
-              draggable
-              dragBoundFunc={() => ({ x: frame.x, y: frame.y })}
-              onpointerclick={() => selectOrCropFrame(frame.slotId)}
-              ondragstart={() => beginFrameDrag(frame.slotId)}
-              ondragmove={(event) => previewFrameDrag(event, frame.slotId)}
-              ondragend={(event) => endFrameDrag(event, frame.slotId)}
+              fill="#E5E2D9"
+              shadowColor={page.style.shadow.color}
+              shadowOpacity={page.style.shadow.enabled ? page.style.shadow.opacity : 0}
+              shadowBlur={page.style.shadow.blur}
+              shadowOffsetX={page.style.shadow.offsetX}
+              shadowOffsetY={page.style.shadow.offsetY}
+              onpointerclick={() => onselect(frame.slotId)}
             />{/if}
-        {:else}
-          <Circle
-            x={frame.x + frame.width / 2}
-            y={frame.y + frame.height / 2}
-            radius={27}
-            fill="#315C9C"
-            onpointerclick={() => onrequestimage(frame.slotId)}
-          />
-          <Text
-            x={frame.x + frame.width / 2 - 14}
-            y={frame.y + frame.height / 2 - 16}
-            width={28}
-            text="+"
-            align="center"
-            fill="#FFFFFF"
-            fontStyle="bold"
-            fontSize={31}
-            listening={false}
-          />
+          {#if image && placement && imageGeometry}
+            <Group
+              clipFunc={roundedClip(frame.x, frame.y, frame.width, frame.height, frame.polygon)}
+            >
+              <Image
+                {image}
+                x={frame.x + imageGeometry.x}
+                y={frame.y + imageGeometry.y}
+                width={imageGeometry.width}
+                height={imageGeometry.height}
+                offsetX={imageGeometry.offsetX}
+                offsetY={imageGeometry.offsetY}
+                rotation={imageGeometry.rotation}
+                scaleX={imageGeometry.scaleX}
+                scaleY={imageGeometry.scaleY}
+                draggable={cropSlotId === frame.slotId}
+                dragBoundFunc={(position) => cropDragBound(position, frame, placement)}
+                onpointerclick={() => selectOrCropFrame(frame.slotId)}
+                onpointerdown={(event) => {
+                  if (cropSlotId === frame.slotId)
+                    beginPan(event, frame, placement, content!, frame.slotId)
+                }}
+                ondragmove={(event) => {
+                  if (cropSlotId === frame.slotId) previewPan(event)
+                }}
+                ondragend={(event) => {
+                  if (cropSlotId === frame.slotId) finishPan(event)
+                }}
+              />
+            </Group>
+            {#if !cropSlotId}<Rect
+                x={frame.x}
+                y={frame.y}
+                width={frame.width}
+                height={frame.height}
+                cornerRadius={model.cornerRadius}
+                fill="rgba(49,92,156,0.01)"
+                draggable
+                dragBoundFunc={() => ({ x: frame.x, y: frame.y })}
+                onpointerclick={() => selectOrCropFrame(frame.slotId)}
+                ondragstart={() => beginFrameDrag(frame.slotId)}
+                ondragmove={(event) => previewFrameDrag(event, frame.slotId)}
+                ondragend={(event) => endFrameDrag(event, frame.slotId)}
+              />{/if}
+          {:else}
+            <Circle
+              x={frame.x + frame.width / 2}
+              y={frame.y + frame.height / 2}
+              radius={27}
+              fill="#315C9C"
+              onpointerclick={() => onrequestimage(frame.slotId)}
+            />
+            <Text
+              x={frame.x + frame.width / 2 - 14}
+              y={frame.y + frame.height / 2 - 16}
+              width={28}
+              text="+"
+              align="center"
+              fill="#FFFFFF"
+              fontStyle="bold"
+              fontSize={31}
+              listening={false}
+            />
+          {/if}
+        </Group>
+        {#if selectedSlotId === frame.slotId && cropSlotId !== frame.slotId}
+          {#if frame.polygon}<Line
+              points={polygonPoints(frame)}
+              closed
+              stroke="#FFFFFF"
+              strokeWidth={6}
+              strokeScaleEnabled={false}
+              listening={false}
+            />{:else}<Rect
+              x={frame.x}
+              y={frame.y}
+              width={frame.width}
+              height={frame.height}
+              cornerRadius={model.cornerRadius}
+              stroke="#FFFFFF"
+              strokeWidth={6}
+              strokeScaleEnabled={false}
+              listening={false}
+            />{/if}
         {/if}
         {#if selectedSlotId === frame.slotId || cropSlotId === frame.slotId}
           {#if frame.polygon}<Line
               points={polygonPoints(frame)}
               closed
               stroke={cropSlotId === frame.slotId ? '#00FF00' : '#315C9C'}
-              strokeWidth={cropSlotId === frame.slotId ? 4 : 3}
+              strokeWidth={cropSlotId === frame.slotId ? 4 : 2}
+              strokeScaleEnabled={cropSlotId === frame.slotId}
               dash={[]}
               shadowColor={cropSlotId === frame.slotId ? '#5C3700' : undefined}
               shadowOpacity={cropSlotId === frame.slotId ? 0.55 : 0}
@@ -264,27 +290,14 @@
               height={frame.height}
               cornerRadius={model.cornerRadius}
               stroke={cropSlotId === frame.slotId ? '#00FF00' : '#315C9C'}
-              strokeWidth={cropSlotId === frame.slotId ? 4 : 3}
+              strokeWidth={cropSlotId === frame.slotId ? 4 : 2}
+              strokeScaleEnabled={cropSlotId === frame.slotId}
               dash={[]}
               shadowColor={cropSlotId === frame.slotId ? '#5C3700' : undefined}
               shadowOpacity={cropSlotId === frame.slotId ? 0.55 : 0}
               shadowBlur={cropSlotId === frame.slotId ? 3 : 0}
               listening={false}
             />{/if}
-        {/if}
-        {#if selectedSlotId === frame.slotId}
-          <Text
-            x={frame.x + 16}
-            y={frame.y + 16}
-            width={Math.max(1, frame.width - 32)}
-            text={asset?.originalName ?? `Frame ${index + 1}`}
-            fill="#315C9C"
-            fontStyle="bold"
-            fontSize={15}
-            wrap="none"
-            ellipsis
-            listening={false}
-          />
         {/if}
         {#if dragTargetSlotId === frame.slotId}
           <Rect

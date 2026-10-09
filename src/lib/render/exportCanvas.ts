@@ -55,6 +55,33 @@ export function drawExportPage(
   }
 }
 
+/** Render a small editor preview, retaining placeholders for empty or unavailable images. */
+export function drawPagePreview(
+  context: CanvasRenderingContext2D,
+  page: PageV1,
+  assets: Record<string, AssetRecordV1>,
+  getImage: (assetId: string) => CanvasImageSource | undefined,
+  width: number,
+  height: number,
+): void {
+  context.save()
+  // Fit both raster dimensions so rounding cannot cut off the bottom page margin.
+  context.scale(1, (height * page.width) / (width * page.height))
+  prepareExportPage(context, page, width, 'png')
+  for (const frame of resolveLayout(page)) {
+    const content = page.slots[frame.slotId]
+    const asset = content ? assets[content.assetId] : undefined
+    const image = content ? getImage(content.assetId) : undefined
+    if (asset && image) drawExportFrameImage(context, page, frame, asset, image)
+    else {
+      context.fillStyle = '#E5E2D9'
+      framePath(context, frame, page.style.cornerRadius)
+      context.fill()
+    }
+  }
+  context.restore()
+}
+
 export function prepareExportPage(
   context: ExportContext,
   page: PageV1,
@@ -72,9 +99,9 @@ export function prepareExportPage(
       if (!page.slots[frame.slotId]) continue
       context.save()
       context.shadowColor = shadowColor(page.style.shadow.color, page.style.shadow.opacity)
-      context.shadowBlur = page.style.shadow.blur
-      context.shadowOffsetX = page.style.shadow.offsetX
-      context.shadowOffsetY = page.style.shadow.offsetY
+      context.shadowBlur = page.style.shadow.blur * scale
+      context.shadowOffsetX = page.style.shadow.offsetX * scale
+      context.shadowOffsetY = page.style.shadow.offsetY * scale
       context.fillStyle = '#FFFFFF'
       framePath(context, frame, page.style.cornerRadius)
       context.fill()

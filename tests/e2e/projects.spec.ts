@@ -367,8 +367,12 @@ test('a complete multi-page project survives embedded save, fresh-context reopen
     )
     await expect(reopened.getByRole('button', { name: 'Page 2' })).toBeVisible()
     await reopened.getByRole('tab', { name: 'Images' }).click()
-    await expect(reopened.getByText('red.png', { exact: true })).toBeVisible()
-    await expect(reopened.getByText('blue.png', { exact: true })).toBeVisible()
+    await expect(
+      reopened.locator('.sidebar-asset-card').getByText('red.png', { exact: true }),
+    ).toBeVisible()
+    await expect(
+      reopened.locator('.sidebar-asset-card').getByText('blue.png', { exact: true }),
+    ).toBeVisible()
 
     await reopened.getByRole('button', { name: 'Page 1' }).click()
     expect(

@@ -1,5 +1,173 @@
 import { test, expect } from './test-fixtures'
-import { useWideSystemFont } from './test-helpers'
+import {
+  collageMimeType,
+  exportCurrentPng,
+  sampleDownloadedPng,
+  useWideSystemFont,
+  visualParityArchive,
+} from './test-helpers'
+import { createHash } from 'node:crypto'
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
+import type { CollageDocumentV1 } from '../../src/lib/domain/types'
+
+test('tab previews preserve rounded frames, transparency, shadows, and all portrait margins', async ({
+  page,
+}) => {
+  await page.goto('/')
+  const archive = unzipSync(visualParityArchive())
+  const document = JSON.parse(strFromU8(archive['document.json'])) as CollageDocumentV1
+  const portrait = structuredClone(document.pages[1])
+  portrait.id = '22222222-2222-4222-8222-222222222222'
+  portrait.name = 'Tall page'
+  portrait.width = 600
+  portrait.height = 1600
+  portrait.style.padding = 20
+  portrait.style.transparentBackground = false
+  document.pages.push(portrait)
+  archive['document.json'] = strToU8(JSON.stringify(document))
+  await page.getByTestId('project-file-input').setInputFiles({
+    name: 'previews.collage',
+    mimeType: collageMimeType,
+    buffer: Buffer.from(zipSync(archive)),
+  })
+  await expect(page.locator('.toast')).toHaveText('Project opened.')
+
+  const pixel = (x: number, y: number) =>
+    page
+      .locator('.page-tab-preview canvas')
+      .evaluate(
+        (canvas: HTMLCanvasElement, { x, y }) => [
+          ...canvas
+            .getContext('2d')!
+            .getImageData(Math.floor(x * canvas.width), Math.floor(y * canvas.height), 1, 1).data,
+        ],
+        { x, y },
+      )
+  for (const name of ['Rounded', 'Transparent', 'Shadow']) {
+    await page.getByRole('button', { name, exact: true }).hover()
+    await expect(page.getByRole('img', { name: `Preview of ${name}` })).toBeVisible()
+    await expect.poll(() => pixel(0.5, 0.5)).toEqual([238, 45, 54, 255])
+    expect(await pixel(0, 0)).toEqual([0, 0, 0, 0])
+    if (name === 'Shadow') {
+      const shadow = await pixel(0.84, 0.5)
+      expect(shadow.slice(0, 3)).toEqual([0, 0, 0])
+      expect(shadow[3]).toBeGreaterThanOrEqual(120)
+      expect(shadow[3]).toBeLessThanOrEqual(135)
+    }
+  }
+
+  // Switching quickly must leave the last page's image and full margins intact.
+  await page.getByRole('button', { name: 'Rounded', exact: true }).hover()
+  await page.getByRole('button', { name: 'Tall page', exact: true }).hover()
+  const preview = page.getByRole('img', { name: 'Preview of Tall page' })
+  await expect(preview).toBeVisible()
+  await expect.poll(() => pixel(0.5, 0.5)).toEqual([238, 45, 54, 255])
+  for (const [x, y] of [
+    [0, 0.5],
+    [0.99, 0.5],
+    [0.5, 0],
+    [0.5, 0.999],
+  ])
+    expect(await pixel(x, y)).toEqual([0, 255, 0, 255])
+  const bounds = (await preview.locator('canvas').boundingBox())!
+  expect(bounds.height).toBeLessThanOrEqual(220)
+  expect(bounds.width / bounds.height).toBeCloseTo(600 / 1600, 2)
+  const tooltip = (await page.getByRole('tooltip').boundingBox())!
+  expect(tooltip.y).toBeGreaterThanOrEqual(0)
+  await page.screenshot({ path: test.info().outputPath('tab-preview-portrait.png') })
+})
+
+test('tab previews match exported panned, zoomed, rotated, and polygon-clipped images', async ({
+  page,
+}) => {
+  await page.goto('/')
+  const imageBase64 = await page.evaluate(() => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 400
+    canvas.height = 200
+    const context = canvas.getContext('2d')!
+    for (const [x, y, color] of [
+      [0, 0, '#ff0000'],
+      [200, 0, '#00ff00'],
+      [0, 100, '#0000ff'],
+      [200, 100, '#ffff00'],
+    ] as const) {
+      context.fillStyle = color
+      context.fillRect(x, y, 200, 100)
+    }
+    return canvas.toDataURL('image/png').split(',')[1]
+  })
+  const image = Buffer.from(imageBase64, 'base64')
+  const archive = unzipSync(visualParityArchive())
+  const document = JSON.parse(strFromU8(archive['document.json'])) as CollageDocumentV1
+  const asset = Object.values(document.assets)[0]
+  Object.assign(asset, {
+    width: 400,
+    height: 200,
+    byteLength: image.length,
+    sha256: createHash('sha256').update(image).digest('hex'),
+  })
+  archive[`assets/${asset.id}`] = image
+  const currentPage = document.pages[0]
+  currentPage.name = 'Cropped'
+  currentPage.width = 400
+  currentPage.height = 400
+  currentPage.style.padding = 20
+  currentPage.style.cornerRadius = 0
+  currentPage.layout.root = {
+    kind: 'leaf',
+    slotId: Object.keys(currentPage.slots)[0],
+    polygon: [
+      { x: 0.5, y: 0 },
+      { x: 1, y: 1 },
+      { x: 0, y: 1 },
+    ],
+  }
+  Object.values(currentPage.slots)[0]!.placement = {
+    zoom: 1.6,
+    positionX: 0.2,
+    positionY: 0.75,
+    rotation: 90,
+    flipHorizontal: true,
+    flipVertical: true,
+  }
+  document.pages = [currentPage]
+  archive['document.json'] = strToU8(JSON.stringify(document))
+  await page.getByTestId('project-file-input').setInputFiles({
+    name: 'cropped-preview.collage',
+    mimeType: collageMimeType,
+    buffer: Buffer.from(zipSync(archive)),
+  })
+  await expect(page.locator('.toast')).toHaveText('Project opened.')
+  await page.getByRole('button', { name: 'Cropped', exact: true }).hover()
+  const preview = page.locator('.page-tab-preview canvas')
+  await expect(preview).toBeVisible()
+  const points = [
+    { x: 4, y: 4 },
+    { x: 110, y: 35 },
+    { x: 70, y: 175 },
+    { x: 160, y: 175 },
+  ]
+  const previewPixels = () =>
+    preview.evaluate(
+      (canvas: HTMLCanvasElement, points) =>
+        points.map(({ x, y }) => [
+          ...canvas
+            .getContext('2d')!
+            .getImageData(
+              Math.round((x * canvas.width) / canvas.clientWidth),
+              Math.round((y * canvas.height) / canvas.clientHeight),
+              1,
+              1,
+            ).data,
+        ]),
+      points,
+    )
+  await expect.poll(async () => (await previewPixels())[1][3]).toBe(255)
+  const actual = await previewPixels()
+  const expected = await sampleDownloadedPng(page, await exportCurrentPng(page, 220), points)
+  expect(actual).toEqual(expected)
+})
 
 test('opening tab actions does not remove the active page', async ({ page }) => {
   await page.goto('/')

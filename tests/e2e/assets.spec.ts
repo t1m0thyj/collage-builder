@@ -17,6 +17,31 @@ import {
   collageMimeType,
 } from './test-helpers'
 
+test('photo selection uses sidebar highlights and manager checkmarks in both views', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await importImage(page, 'red.png', redPng)
+  await importImage(page, 'blue.png', bluePng)
+  const cards = page.locator('.sidebar-asset-card .asset-row')
+  await cards.filter({ hasText: 'red.png' }).click()
+  await expect(cards.filter({ hasText: 'red.png' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(cards.filter({ hasText: 'blue.png' })).toHaveAttribute('aria-pressed', 'false')
+  await expect(cards.filter({ hasText: 'red.png' })).toHaveClass(/selected-asset/)
+  await expect(page.locator('.sidebar-asset-card .asset-selection-check')).toHaveCount(0)
+  await cards.filter({ hasText: 'blue.png' }).click({ modifiers: ['ControlOrMeta'] })
+  await expect(page.locator('.sidebar-asset-card .asset-row[aria-pressed="true"]')).toHaveCount(2)
+  await page.getByRole('button', { name: 'Manage photos' }).click()
+  const manager = page.getByRole('dialog', { name: 'Photo library' })
+  await expect(manager.locator('.asset-row[aria-pressed="true"]')).toHaveCount(2)
+  await expect(manager.locator('.asset-selection-check')).toHaveCount(2)
+  await manager.getByRole('radio', { name: 'List view' }).click()
+  await manager.locator('.asset-row').filter({ hasText: 'red.png' }).click()
+  await expect(manager.locator('.asset-row[aria-pressed="true"]')).toHaveCount(1)
+  await expect(manager.locator('.asset-selection-check')).toHaveCount(1)
+  await page.screenshot({ path: test.info().outputPath('image-selection-list.png') })
+})
+
 test('dropping multiple files into the sidebar imports the batch with Layouts open', async ({
   page,
 }) => {
@@ -27,8 +52,12 @@ test('dropping multiple files into the sidebar imports the batch with Layouts op
   ])
   await expect(page.locator('.toast')).toHaveText('2 photos added.')
   await expect(page.getByRole('tab', { name: 'Images' })).toHaveAttribute('aria-selected', 'true')
-  await expect(page.getByText('dropped-red.png', { exact: true })).toBeVisible()
-  await expect(page.getByText('dropped-blue.png', { exact: true })).toBeVisible()
+  await expect(
+    page.locator('.sidebar-asset-card').getByText('dropped-red.png', { exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.locator('.sidebar-asset-card').getByText('dropped-blue.png', { exact: true }),
+  ).toBeVisible()
 })
 
 test('undoing photo removal restores its original bytes', async ({ page }) => {
@@ -41,7 +70,9 @@ test('undoing photo removal restores its original bytes', async ({ page }) => {
 
   await page.getByRole('button', { name: 'Undo', exact: true }).click()
 
-  await expect(page.getByText('original.png', { exact: true })).toBeVisible()
+  await expect(
+    page.locator('.sidebar-asset-card').getByText('original.png', { exact: true }),
+  ).toBeVisible()
   await expect(page.locator('.asset-row')).not.toContainText('Missing')
   await expect(page.locator('.asset-row img')).toHaveCount(1)
   await assignSidebarImage(page, 'original.png', 1)
@@ -62,11 +93,15 @@ test('undoing original replacement restores the previous photo bytes', async ({ 
     mimeType: 'image/png',
     buffer: bluePng,
   })
-  await expect(page.getByText('replacement.png', { exact: true })).toBeVisible()
+  await expect(
+    page.locator('.sidebar-asset-card').getByText('replacement.png', { exact: true }),
+  ).toBeVisible()
 
   await page.getByRole('button', { name: 'Undo', exact: true }).click()
 
-  await expect(page.getByText('original.png', { exact: true })).toBeVisible()
+  await expect(
+    page.locator('.sidebar-asset-card').getByText('original.png', { exact: true }),
+  ).toBeVisible()
   await expect(page.locator('.asset-row')).not.toContainText('Missing')
   await assignSidebarImage(page, 'original.png', 1)
   const [pixel] = await sampleDownloadedPng(page, await exportCurrentPng(page, 400), [
@@ -114,7 +149,9 @@ test('import progress replaces the sidebar actions until the photo finishes load
   await expect(actions.locator('.import-progress')).toHaveCount(0)
   await expect(actions.getByRole('button', { name: 'Add photos' })).toBeVisible()
   await expect(actions.getByRole('button', { name: 'Manage photos' })).toBeVisible()
-  await expect(page.getByText('slow.png', { exact: true })).toBeVisible()
+  await expect(
+    page.locator('.sidebar-asset-card').getByText('slow.png', { exact: true }),
+  ).toBeVisible()
 })
 
 test('import keeps Unused and the sort order, but clears Used when new photos would be hidden', async ({
@@ -129,15 +166,25 @@ test('import keeps Unused and the sort order, but clears Used when new photos wo
   await page.getByRole('menuitem', { name: 'Filename' }).click()
 
   await importImage(page, 'blue.png', bluePng)
-  await expect(page.getByText('blue.png', { exact: true })).toBeVisible()
-  await expect(page.getByText('red.png', { exact: true })).toHaveCount(0)
+  await expect(
+    page.locator('.sidebar-asset-card').getByText('blue.png', { exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.locator('.sidebar-asset-card').getByText('red.png', { exact: true }),
+  ).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Sort images: Filename' })).toBeVisible()
 
   await filters.getByRole('radio', { name: 'Used', exact: true }).click()
   await importImage(page, 'green.png', solidPng(80, 180, 60))
-  await expect(page.getByText('green.png', { exact: true })).toBeVisible()
-  await expect(page.getByText('blue.png', { exact: true })).toBeVisible()
-  await expect(page.getByText('red.png', { exact: true })).toBeVisible()
+  await expect(
+    page.locator('.sidebar-asset-card').getByText('green.png', { exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.locator('.sidebar-asset-card').getByText('blue.png', { exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.locator('.sidebar-asset-card').getByText('red.png', { exact: true }),
+  ).toBeVisible()
 })
 
 test('import keeps a matching search and clears filters that hide new photos', async ({ page }) => {
@@ -151,14 +198,18 @@ test('import keeps a matching search and clears filters that hide new photos', a
   await search.fill('red')
   await importImage(page, 'green.png', solidPng(80, 180, 60))
   await expect(search).toHaveValue('')
-  await expect(page.getByText('green.png', { exact: true })).toBeVisible()
+  await expect(
+    page.locator('.sidebar-asset-card').getByText('green.png', { exact: true }),
+  ).toBeVisible()
 
   await page
     .locator('.asset-filters')
     .getByRole('radio', { name: /Missing/ })
     .click()
   await importImage(page, 'yellow.png', solidPng(230, 190, 40))
-  await expect(page.getByText('yellow.png', { exact: true })).toBeVisible()
+  await expect(
+    page.locator('.sidebar-asset-card').getByText('yellow.png', { exact: true }),
+  ).toBeVisible()
 })
 
 test('imports and removes an image from the project collection', async ({ page }) => {
@@ -178,7 +229,9 @@ test('imports and removes an image from the project collection', async ({ page }
     .getByRole('button', { name: 'Actions for remove-me.png' })
     .click()
   await page.getByRole('menuitem', { name: 'Remove from project' }).click()
-  await expect(page.getByText('remove-me.png', { exact: true })).toHaveCount(0)
+  await expect(
+    page.locator('.sidebar-asset-card').getByText('remove-me.png', { exact: true }),
+  ).toHaveCount(0)
 })
 
 test('imports JPEG, PNG, and WebP images', async ({ page }) => {
@@ -191,9 +244,15 @@ test('imports JPEG, PNG, and WebP images', async ({ page }) => {
     await importImage(page, name, await encodedRaster(page, mimeType), mimeType)
 
   await page.getByRole('tab', { name: 'Images' }).click()
-  await expect(page.getByText('photo.jpg', { exact: true })).toBeVisible()
-  await expect(page.getByText('graphic.png', { exact: true })).toBeVisible()
-  await expect(page.getByText('modern.webp', { exact: true })).toBeVisible()
+  await expect(
+    page.locator('.sidebar-asset-card').getByText('photo.jpg', { exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.locator('.sidebar-asset-card').getByText('graphic.png', { exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.locator('.sidebar-asset-card').getByText('modern.webp', { exact: true }),
+  ).toBeVisible()
 })
 
 test('an import opens Images and keeps one batch summary with file errors', async ({ page }) => {
@@ -204,7 +263,9 @@ test('an import opens Images and keeps one batch summary with file errors', asyn
   ])
 
   await expect(page.getByRole('tab', { name: 'Images' })).toHaveAttribute('aria-selected', 'true')
-  await expect(page.getByText('good.png', { exact: true })).toBeVisible()
+  await expect(
+    page.locator('.sidebar-asset-card').getByText('good.png', { exact: true }),
+  ).toBeVisible()
   await expect(page.getByText('1 added · 1 skipped', { exact: true })).toBeVisible()
   await expect(page.locator('.image-panel > .import-summary')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Add photos' })).toBeVisible()
@@ -313,7 +374,7 @@ test('library selection and frame focus do not replace placed images', async ({ 
   await page.getByRole('button', { name: 'Frame 1, red.png' }).focus()
   await page.keyboard.press('Enter')
   await page.getByRole('tab', { name: 'Images' }).click()
-  await page.getByText('red.png', { exact: true }).click()
+  await page.locator('.sidebar-asset-card').getByText('red.png', { exact: true }).click()
   const blueFrame = page.getByRole('button', { name: 'Frame 2, blue.png' })
   await blueFrame.focus()
   await expect(blueFrame).toHaveAttribute('aria-pressed', 'false')
@@ -344,7 +405,7 @@ test('Replace this frame preserves other uses of the original image', async ({ p
     'false',
   )
   await page.getByRole('button', { name: 'Replace this frame' }).click()
-  await page.getByText('replacement.png', { exact: true }).click()
+  await page.locator('.sidebar-asset-card').getByText('replacement.png', { exact: true }).click()
 
   await expect(page.getByRole('button', { name: 'Frame 1, replacement.png' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Frame 2, shared.png' })).toBeVisible()

@@ -148,6 +148,7 @@
             draggable={!missingAssetIds.has(asset.id)}
             class:selected-asset={selectedAssetIds.includes(asset.id)}
             class="asset-row"
+            aria-pressed={selectedAssetIds.includes(asset.id)}
             title={`${asset.originalName} · ${asset.width} × ${asset.height} · ${
               missingAssetIds.has(asset.id)
                 ? `Missing — relink required · ${formatBytes(asset.byteLength)} · ${assetUsage(asset.id)} use${assetUsage(asset.id) === 1 ? '' : 's'}`

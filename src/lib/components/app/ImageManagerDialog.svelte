@@ -1,5 +1,6 @@
 <script lang="ts">
   import {
+    Check,
     FolderOpen,
     Grid2X2,
     ImageIcon,
@@ -154,9 +155,13 @@
               <button
                 draggable={!missingAssetIds.has(asset.id)}
                 class="asset-row"
+                aria-pressed={selectedAssetIds.includes(asset.id)}
                 ondragstart={(event) => onstartdrag(event, asset.id)}
                 onclick={(event) => onselectasset(asset.id, event.ctrlKey || event.metaKey)}
-                >{#if assetRegistry.getThumbnailUrl(asset.id, imageRevision)}<img
+                >{#if selectedAssetIds.includes(asset.id)}<span
+                    class="asset-selection-check"
+                    aria-hidden="true"><Check size={12} strokeWidth={3} /></span
+                  >{/if}{#if assetRegistry.getThumbnailUrl(asset.id, imageRevision)}<img
                     class="asset-thumb"
                     src={assetRegistry.getThumbnailUrl(asset.id, imageRevision)}
                     alt=""

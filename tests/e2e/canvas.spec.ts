@@ -17,6 +17,53 @@ import {
   useWideSystemFont,
 } from './test-helpers'
 
+test('selected frames keep a visible outline and show their filename in the inspector', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await chooseTwoColumnLayout(page)
+  const name = 'selected-photo-with-a-long-filename-that-wraps-in-the-properties-sidebar.png'
+  await importImage(page, name, redPng)
+  await assignSidebarImage(page, name, 1)
+  const filename = page
+    .getByRole('complementary', { name: 'Properties' })
+    .locator('.selected-image-name')
+  await expect(filename).toHaveText(name)
+  expect(
+    await filename.evaluate((element) => element.scrollWidth - element.clientWidth),
+  ).toBeLessThanOrEqual(1)
+  const host = page.getByRole('region', { name: 'Collage canvas' })
+  const [frame] = JSON.parse((await host.getAttribute('data-frame-hitboxes'))!) as Array<{
+    x: number
+    y: number
+    width: number
+    height: number
+  }>
+
+  for (const zoom of ['10%', '25%']) {
+    await page.getByRole('button', { name: /Canvas zoom:/ }).click()
+    await page.getByRole('menuitem', { name: zoom, exact: true }).click()
+    const edge = await canvasDocumentPoint(page, { x: frame.x, y: frame.y + frame.height / 2 })
+    const pixels = await Promise.all(
+      Array.from({ length: 11 }, (_, index) =>
+        sampleStagePixel(page, { x: edge.x + index - 5, y: edge.y }),
+      ),
+    )
+    expect(pixels.filter(([r, g, b]) => r < 90 && g < 140 && b > 120)).not.toHaveLength(0)
+    expect(
+      pixels.filter(([r, g, b]) => r > 240 && g > 240 && b > 240).length,
+    ).toBeGreaterThanOrEqual(2)
+    const inset = await canvasDocumentPoint(page, { x: frame.x, y: frame.y })
+    // Selection leaves the photo unobscured where the filename badge used to appear.
+    await expect
+      .poll(() => sampleStageColor(page, { x: inset.x + 12, y: inset.y + 12 }))
+      .toBe('red')
+  }
+  await page.screenshot({ path: test.info().outputPath('canvas-selection.png') })
+  await page.getByRole('button', { name: 'Add page' }).click()
+  await expect(filename).toHaveCount(0)
+})
+
 test('horizontal and vertical flips mirror the selected frame in preview and export', async ({
   page,
 }) => {
@@ -272,8 +319,12 @@ test('dropping several local photos onto a frame imports the batch without assig
   )
   await expect(page.locator('.toast')).toHaveText('2 photos added.')
   await expect(page.getByRole('button', { name: 'Frame 1, empty' })).toBeAttached()
-  await expect(page.getByText('one.png', { exact: true })).toBeVisible()
-  await expect(page.getByText('two.png', { exact: true })).toBeVisible()
+  await expect(
+    page.locator('.sidebar-asset-card').getByText('one.png', { exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.locator('.sidebar-asset-card').getByText('two.png', { exact: true }),
+  ).toBeVisible()
 })
 
 test('normal-mode frame dragging swaps images without enabling crop', async ({ page }) => {
@@ -559,7 +610,7 @@ test('dragging crop edges changes zoom', async ({ page }) => {
   const frame = page.getByRole('button', { name: 'Frame 1, empty' })
   await frame.focus()
   await page.keyboard.press('Enter')
-  await page.getByText('crop.png', { exact: true }).click()
+  await page.locator('.sidebar-asset-card').getByText('crop.png', { exact: true }).click()
 
   await page.getByRole('button', { name: 'Crop image', exact: true }).click()
 
@@ -604,7 +655,7 @@ test('dragging a crop image previews smoothly and commits on release', async ({ 
   await page.getByRole('tab', { name: 'Images' }).click()
   await page.getByRole('button', { name: 'Frame 1, empty' }).focus()
   await page.keyboard.press('Enter')
-  await page.getByText('pan.png', { exact: true }).click()
+  await page.locator('.sidebar-asset-card').getByText('pan.png', { exact: true }).click()
   await page.getByRole('button', { name: 'Crop image', exact: true }).click()
 
   const host = page.getByRole('region', { name: 'Collage canvas' })
@@ -646,7 +697,7 @@ test('dragging a crop corner previews zoom and commits on release', async ({ pag
   await page.getByRole('tab', { name: 'Images' }).click()
   await page.getByRole('button', { name: 'Frame 1, empty' }).focus()
   await page.keyboard.press('Enter')
-  await page.getByText('wide.png', { exact: true }).click()
+  await page.locator('.sidebar-asset-card').getByText('wide.png', { exact: true }).click()
   await page.getByRole('button', { name: 'Crop image', exact: true }).click()
 
   const host = page.getByRole('region', { name: 'Collage canvas' })
@@ -704,7 +755,7 @@ test('crop handles have keyboard-equivalent controls', async ({ page }) => {
   const frame = page.getByRole('button', { name: 'Frame 1, empty' })
   await frame.focus()
   await page.keyboard.press('Enter')
-  await page.getByText('keyboard-crop.png', { exact: true }).click()
+  await page.locator('.sidebar-asset-card').getByText('keyboard-crop.png', { exact: true }).click()
   await page.getByRole('button', { name: 'Crop image', exact: true }).click()
 
   const zoomIn = page.getByRole('button', { name: 'Zoom crop image in' })
@@ -724,7 +775,7 @@ test('frame selection announces its current state', async ({ page }) => {
   const frame = page.getByRole('button', { name: 'Frame 1, empty' })
   await frame.focus()
   await page.keyboard.press('Enter')
-  await page.getByText('announced.png', { exact: true }).click()
+  await page.locator('.sidebar-asset-card').getByText('announced.png', { exact: true }).click()
   await page.getByRole('button', { name: 'Frame 1, announced.png' }).focus()
   await page.keyboard.press('Enter')
   await expect(page.locator('.toast')).toHaveText('Frame 1 selected, announced.png.')

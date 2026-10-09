@@ -20,6 +20,7 @@
   export let activePage: PageV1
   export let selectedSlotId: string | null
   export let selectedContent: SlotContentV1 | null
+  export let selectedImageName: string | undefined
   export let pageAspectLinked: boolean
   export let colorPresets: string[]
   export let recentColors: string[]
@@ -59,6 +60,9 @@
         ? ` · Frame ${Object.keys(activePage.slots).indexOf(selectedSlotId) + 1}`
         : ''}
     </p>
+    {#if selectedSlotId && selectedImageName}
+      <p class="selected-image-name">{selectedImageName}</p>
+    {/if}
   </div>
   <div class="property-groups">
     {#if selectedSlotId && !selectedContent}

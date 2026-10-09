@@ -67,7 +67,7 @@ test('exports current-page PNGs at normal and default 4K resolutions', async ({
   expect(hostBox).not.toBeNull()
   await page.getByRole('tab', { name: 'Images' }).click()
   await page.mouse.click(hostBox!.x + hostBox!.width * 0.5, hostBox!.y + hostBox!.height * 0.5)
-  await page.getByText('export.png', { exact: true }).click()
+  await page.locator('.sidebar-asset-card').getByText('export.png', { exact: true }).click()
 
   await page.getByRole('button', { name: 'Export…' }).click()
   const dialog = page.getByRole('dialog', { name: 'Export pages' })
@@ -154,7 +154,7 @@ test('exports JPEG with configurable quality', async ({ page }) => {
   expect(hostBox).not.toBeNull()
   await page.getByRole('tab', { name: 'Images' }).click()
   await page.mouse.click(hostBox!.x + hostBox!.width * 0.5, hostBox!.y + hostBox!.height * 0.5)
-  await page.getByText('export.png', { exact: true }).click()
+  await page.locator('.sidebar-asset-card').getByText('export.png', { exact: true }).click()
 
   await page.getByRole('button', { name: 'Export…' }).click()
   const dialog = page.getByRole('dialog', { name: 'Export pages' })
@@ -246,6 +246,13 @@ test('exports rounded corners, transparent areas, and shadows accurately', async
   expect(shadowPixel[3]).toBeGreaterThanOrEqual(120)
   expect(shadowPixel[3]).toBeLessThanOrEqual(135)
   expect(transparentPixel).toEqual([0, 0, 0, 0])
+
+  const [scaledShadow] = await sampleDownloadedPng(page, await exportCurrentPng(page, 220), [
+    { x: 185, y: 110 },
+  ])
+  expect(scaledShadow.slice(0, 3)).toEqual([0, 0, 0])
+  expect(scaledShadow[3]).toBeGreaterThanOrEqual(120)
+  expect(scaledShadow[3]).toBeLessThanOrEqual(135)
 })
 
 test('real photo import, crop, thumbnail, and export stay visually consistent', async ({
@@ -255,7 +262,9 @@ test('real photo import, crop, thumbnail, and export stay visually consistent', 
   await chooseTwoColumnLayout(page)
   await page.getByTestId('photo-upload-input').setInputFiles(realPhotoPath)
   await page.getByRole('tab', { name: 'Images' }).click()
-  await expect(page.getByText('real-photo-still-life.png', { exact: true })).toBeVisible()
+  await expect(
+    page.locator('.sidebar-asset-card').getByText('real-photo-still-life.png', { exact: true }),
+  ).toBeVisible()
 
   const thumbnail = page.locator('.asset-row img').first()
   await expect(thumbnail).toBeVisible()

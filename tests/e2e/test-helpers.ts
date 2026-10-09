@@ -221,7 +221,9 @@ export async function importImage(
   if (expectedSummary.startsWith('1 added')) {
     await expect(page.locator('.toast')).toHaveText('1 photo added.')
     await expect(summary).toHaveCount(0)
-    await expect(page.getByText(name, { exact: true })).toBeAttached()
+    await expect(
+      page.locator('.sidebar-asset-card').getByText(name, { exact: true }),
+    ).toBeAttached()
   } else {
     await expect(summary).toHaveClass(/import-has-errors/)
     await expect(summary).toContainText(expectedSummary)
@@ -359,7 +361,7 @@ export async function assignSidebarImage(page: BrowserPage, name: string, frameN
   const frame = page.getByRole('button', { name: new RegExp(`^Frame ${frameNumber},`) })
   await frame.focus()
   await frame.press('Enter')
-  await page.getByText(name, { exact: true }).click()
+  await page.locator('.sidebar-asset-card').getByText(name, { exact: true }).click()
   await expect(page.getByRole('button', { name: `Frame ${frameNumber}, ${name}` })).toBeAttached()
 }
 export async function sampleStagePixel(page: BrowserPage, point: { x: number; y: number }) {
