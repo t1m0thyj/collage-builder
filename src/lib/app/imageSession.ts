@@ -4,6 +4,105 @@ import { AssetRegistry } from '../render/assetRegistry'
 import type { ProjectStore } from '../state/projectStore'
 import { loadPreviewCache, savePreviewCache } from '../persistence/previewCache'
 
+const preparationConcurrency = 3
+
+interface PreparationTask {
+  assetId: string
+  priority: number
+  run: () => Promise<boolean>
+  promise: Promise<boolean>
+  resolve: (prepared: boolean) => void
+  reject: (error: unknown) => void
+}
+
+/**
+ * Keeps preview encoding bounded per project registry. Page changes can promote
+ * their photos ahead of background work without starting another encoder pool.
+ */
+class PreparationQueue {
+  private active = 0
+  private readonly pending: PreparationTask[] = []
+  private readonly tasks = new Map<string, PreparationTask>()
+
+  enqueue(assetId: string, priority: number, run: () => Promise<boolean>): Promise<boolean> {
+    const existing = this.tasks.get(assetId)
+    if (existing) {
+      if (priority > existing.priority) existing.priority = priority
+      return existing.promise
+    }
+    let resolve!: (prepared: boolean) => void
+    let reject!: (error: unknown) => void
+    const task: PreparationTask = {
+      assetId,
+      priority,
+      run,
+      promise: new Promise<boolean>((nextResolve, nextReject) => {
+        resolve = nextResolve
+        reject = nextReject
+      }),
+      resolve,
+      reject,
+    }
+    this.tasks.set(assetId, task)
+    this.pending.push(task)
+    this.pump()
+    return task.promise
+  }
+
+  private pump(): void {
+    while (this.active < preparationConcurrency && this.pending.length) {
+      this.pending.sort((left, right) => right.priority - left.priority)
+      const task = this.pending.shift()!
+      this.active += 1
+      void task
+        .run()
+        .then(
+          (prepared) => task.resolve(prepared),
+          (error) => task.reject(error),
+        )
+        .finally(() => {
+          this.active -= 1
+          this.tasks.delete(task.assetId)
+          this.pump()
+        })
+    }
+  }
+}
+
+const preparationQueues = new WeakMap<AssetRegistry, PreparationQueue>()
+
+function preparationQueue(registry: AssetRegistry): PreparationQueue {
+  let queue = preparationQueues.get(registry)
+  if (!queue) {
+    queue = new PreparationQueue()
+    preparationQueues.set(registry, queue)
+  }
+  return queue
+}
+
+async function prepareAsset(
+  registry: AssetRegistry,
+  assetId: string,
+  blob: Blob,
+  asset: NonNullable<CollageDocumentV1['assets'][string]>,
+  isCurrent: () => boolean,
+): Promise<boolean> {
+  if (!isCurrent() || registry.getThumbnailUrl(assetId)) return false
+  const cached =
+    typeof indexedDB === 'undefined'
+      ? undefined
+      : await loadPreviewCache(asset).catch(() => undefined)
+  if (!isCurrent()) return false
+  const registered = cached
+    ? await registry.registerPrepared(assetId, blob, asset.sha256, cached, isCurrent)
+    : await registry.register(assetId, blob, asset.sha256, asset, undefined, undefined, isCurrent)
+  if (!registered) return false
+  if (cached) return true
+  const prepared = registry.getPreparedImages(assetId)
+  if (prepared) void savePreviewCache(asset, prepared).catch(() => undefined)
+  return true
+}
+
 export function pageAssetIds(page: PageV1): string[] {
   return Object.values(page.slots).flatMap((content) => (content ? [content.assetId] : []))
 }
@@ -18,22 +117,17 @@ export async function preparePageImages(
 ): Promise<boolean> {
   const assetIds = pageAssetIds(page).filter((assetId) => registry.getBlob(assetId))
   if (assets) {
+    const generation = registry.generation
     await Promise.all(
       assetIds.map(async (assetId) => {
-        if (registry.getThumbnailUrl(assetId) || !isCurrent()) return
         const asset = assets[assetId]
         const blob = registry.getBlob(assetId)
         if (!asset || !blob) return
-        const cached =
-          typeof indexedDB === 'undefined'
-            ? undefined
-            : await loadPreviewCache(asset).catch(() => undefined)
-        const registered = cached
-          ? await registry.registerPrepared(assetId, blob, asset.sha256, cached, isCurrent)
-          : await registry.register(assetId, blob, asset.sha256, asset, undefined, isCurrent)
-        if (!registered || cached) return
-        const prepared = registry.getPreparedImages(assetId)
-        if (prepared) void savePreviewCache(asset, prepared).catch(() => undefined)
+        await preparationQueue(registry).enqueue(assetId, 1, () =>
+          prepareAsset(registry, assetId, blob, asset, () =>
+            registry.isGenerationCurrent(generation),
+          ),
+        )
       }),
     )
   }
@@ -97,34 +191,18 @@ async function stagedRegistry(
   const prepareEntry = async ([assetId, blob]: (typeof entries)[number], background = false) => {
     const asset = document.assets[assetId]
     try {
-      // Keep non-browser callers and tests on the existing synchronous start
-      // path; a browser can await IndexedDB before deciding whether to encode.
-      const cached =
-        typeof indexedDB === 'undefined'
-          ? undefined
-          : await loadPreviewCache(asset).catch(() => undefined)
-      const registered = cached
-        ? await staged.registerPrepared(
-            assetId,
-            blob,
-            asset.sha256,
-            cached,
-            () => !background || isRegistryCurrent(staged),
-          )
-        : await staged.register(
-            assetId,
-            blob,
-            asset.sha256,
-            asset,
-            undefined,
-            () => !background || isRegistryCurrent(staged),
-          )
-      if (!registered) return
-      // The derived cache is optional. The verified original remains the source of truth.
-      if (!cached) {
-        const prepared = staged.getPreparedImages(assetId)
-        if (prepared) void savePreviewCache(asset, prepared).catch(() => undefined)
-      }
+      const generation = staged.generation
+      const prepared = await preparationQueue(staged).enqueue(assetId, background ? 0 : 1, () =>
+        prepareAsset(
+          staged,
+          assetId,
+          blob,
+          asset,
+          () =>
+            staged.isGenerationCurrent(generation) && (!background || isRegistryCurrent(staged)),
+        ),
+      )
+      if (!prepared) return
       const previousPages = completedPages
       for (const index of pagesByAsset.get(assetId) ?? []) {
         const pending = pagePending[index]

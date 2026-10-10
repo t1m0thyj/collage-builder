@@ -1,7 +1,6 @@
 import type { CollageDocumentV1, PageV1 } from '../domain/types'
 import type { RecoveryManagementSnapshot } from '../persistence/autosave'
 import type { AssetRegistry } from '../render/assetRegistry'
-import { createRecoveryPreview } from '../render/recoveryPreview'
 import { createId } from '../utils/ids'
 
 export type RecoveryStateStatus = 'idle' | 'pending' | 'saving' | 'saved' | 'failed' | 'conflict'
@@ -223,8 +222,7 @@ export class RecoveryController {
   private persistenceRequested = false
   private currentDocument?: CollageDocumentV1
   private startupRecovery?: {
-    document: CollageDocumentV1
-    assets: Map<string, Blob>
+    projectId: string
   }
   private writeChain: Promise<void> = Promise.resolve()
   private readonly coordinator: ProjectTabCoordinator
@@ -261,9 +259,10 @@ export class RecoveryController {
 
   async initialize(currentProjectId: string): Promise<StartupRecovery | undefined> {
     try {
-      const recovery = await restoreLatestRecovery(currentProjectId)
-      if (recovery) {
-        this.startupRecovery = recovery
+      const { loadLatestRecoverySummary } = await import('../persistence/autosave')
+      const recovery = await loadLatestRecoverySummary()
+      if (recovery && recovery.document.projectId !== currentProjectId) {
+        this.startupRecovery = { projectId: recovery.document.projectId }
         this.host.onState({ status: 'idle', message: 'Recovery available' })
         return {
           projectId: recovery.document.projectId,
@@ -271,9 +270,7 @@ export class RecoveryController {
           updatedAt: recovery.document.updatedAt,
           assetCount: Object.keys(recovery.document.assets).length,
           pageCount: recovery.document.pages.length,
-          preview: await createRecoveryPreview(recovery.document, recovery.assets).catch(
-            () => undefined,
-          ),
+          preview: recovery.preview,
         }
       }
     } catch (error) {
@@ -290,7 +287,10 @@ export class RecoveryController {
   ): Promise<void> {
     const recovery = this.startupRecovery
     if (!recovery) throw new Error('That local recovery is no longer available.')
-    await this.installRecovery(recovery, onProgress)
+    const restorable = await loadRestorableRecovery(recovery.projectId)
+    if (!restorable)
+      throw new Error('That local recovery is incomplete or corrupt and cannot be restored.')
+    await this.installRecovery(restorable, onProgress)
     this.startupRecovery = undefined
     this.startAutosave()
   }

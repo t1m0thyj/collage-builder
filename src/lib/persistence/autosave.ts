@@ -3,9 +3,10 @@ import type { CollageDocumentV1 } from '../domain/types'
 import { migrateDocument } from '../domain/migrations'
 import type { AssetRegistry } from '../render/assetRegistry'
 import { createRecoveryPreview } from '../render/recoveryPreview'
-import { savePreviewCache } from './previewCache'
+import { savePreviewCaches } from './previewCache'
 
 const recoveryLimit = 5
+const recoveryPreviewStore = 'recoveryPreviews'
 
 export interface RecoverySummary {
   projectId: string
@@ -36,10 +37,12 @@ async function sha256(blob: Blob): Promise<string> {
 
 // Open the browser's current recovery database version, including older local upgrades.
 const database = () =>
-  openDB('collage-builder', undefined, {
+  openDB('collage-builder', 2, {
     upgrade(db) {
       if (!db.objectStoreNames.contains('projects')) db.createObjectStore('projects')
       if (!db.objectStoreNames.contains('assetBlobs')) db.createObjectStore('assetBlobs')
+      if (!db.objectStoreNames.contains(recoveryPreviewStore))
+        db.createObjectStore(recoveryPreviewStore)
     },
   })
 
@@ -48,11 +51,22 @@ export async function saveRecovery(
   registry: AssetRegistry,
 ): Promise<void> {
   const savedDocument = migrateDocument(document)
+  const previewAssets = new Map<string, Blob>()
+  for (const asset of Object.values(document.assets)) {
+    const prepared = registry.getPreparedImages(asset.id)
+    const source = prepared?.preview ?? registry.getBlob(asset.id)
+    if (source) previewAssets.set(asset.id, source)
+  }
+  const recoveryPreview = await createRecoveryPreview(savedDocument, previewAssets).catch(
+    () => undefined,
+  )
   const db = await database()
-  const tx = db.transaction(['projects', 'assetBlobs'], 'readwrite')
+  const tx = db.transaction(['projects', 'assetBlobs', recoveryPreviewStore], 'readwrite')
   const projects = tx.objectStore('projects')
   const assetBlobs = tx.objectStore('assetBlobs')
+  const previews = tx.objectStore(recoveryPreviewStore)
   await projects.put(savedDocument, savedDocument.projectId)
+  if (recoveryPreview) await previews.put(recoveryPreview, savedDocument.projectId)
   for (const asset of Object.values(document.assets)) {
     const blob = registry.getBlob(asset.id)
     if (blob) {
@@ -81,19 +95,22 @@ export async function saveRecovery(
     ),
   )
   for (const project of savedProjects)
-    if (!retainedProjectIds.has(project.projectId)) await projects.delete(project.projectId)
+    if (!retainedProjectIds.has(project.projectId)) {
+      await projects.delete(project.projectId)
+      await previews.delete(project.projectId)
+    }
   for (const key of await assetBlobs.getAllKeys())
     if (typeof key === 'string' && !retainedBlobKeys.has(key)) await assetBlobs.delete(key)
   await tx.done
 
   // Original recovery data has committed at this point. Derived previews are a
   // best-effort acceleration layer, so quota pressure must not fail autosave.
-  await Promise.all(
-    Object.values(document.assets).map(async (asset) => {
+  await savePreviewCaches(
+    Object.values(document.assets).flatMap((asset) => {
       const prepared = registry.getPreparedImages(asset.id)
-      if (prepared) await savePreviewCache(asset, prepared).catch(() => undefined)
+      return prepared ? [{ asset, images: prepared }] : []
     }),
-  )
+  ).catch(() => undefined)
 }
 
 export async function loadRecovery(projectId: string): Promise<CollageDocumentV1 | undefined> {
@@ -116,6 +133,24 @@ export async function loadLatestRecovery(): Promise<CollageDocumentV1 | undefine
     }
   }
   return projects.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0]
+}
+
+export async function loadLatestRecoverySummary(): Promise<
+  { document: CollageDocumentV1; preview?: Blob } | undefined
+> {
+  const db = await database()
+  const projects: CollageDocumentV1[] = []
+  for (const stored of await db.getAll('projects')) {
+    try {
+      projects.push(migrateDocument(stored))
+    } catch {
+      // A corrupt recovery cannot be offered at startup.
+    }
+  }
+  const document = projects.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0]
+  if (!document) return undefined
+  const preview = (await db.get(recoveryPreviewStore, document.projectId)) as Blob | undefined
+  return { document, preview: preview instanceof Blob ? preview : undefined }
 }
 
 export async function loadRecoveryAssets(document: CollageDocumentV1): Promise<Map<string, Blob>> {
@@ -247,8 +282,9 @@ export async function getRecoveryManagementSnapshot(): Promise<RecoveryManagemen
 
 export async function deleteRecovery(projectId: string): Promise<void> {
   const db = await database()
-  const tx = db.transaction(['projects', 'assetBlobs'], 'readwrite')
+  const tx = db.transaction(['projects', 'assetBlobs', recoveryPreviewStore], 'readwrite')
   await tx.objectStore('projects').delete(projectId)
+  await tx.objectStore(recoveryPreviewStore).delete(projectId)
   const assetBlobs = tx.objectStore('assetBlobs')
   const prefix = projectBlobPrefix(projectId)
   for (const key of await assetBlobs.getAllKeys())
@@ -258,7 +294,11 @@ export async function deleteRecovery(projectId: string): Promise<void> {
 
 export async function clearRecoveries(): Promise<void> {
   const db = await database()
-  const tx = db.transaction(['projects', 'assetBlobs'], 'readwrite')
-  await Promise.all([tx.objectStore('projects').clear(), tx.objectStore('assetBlobs').clear()])
+  const tx = db.transaction(['projects', 'assetBlobs', recoveryPreviewStore], 'readwrite')
+  await Promise.all([
+    tx.objectStore('projects').clear(),
+    tx.objectStore('assetBlobs').clear(),
+    tx.objectStore(recoveryPreviewStore).clear(),
+  ])
   await tx.done
 }

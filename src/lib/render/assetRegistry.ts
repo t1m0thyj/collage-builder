@@ -30,7 +30,9 @@ export class AssetRegistry {
   private readonly previewBlobs = new Map<AssetId, Blob>()
   private readonly thumbnailBlobs = new Map<AssetId, Blob>()
   private readonly displayBlobs = new Map<AssetId, Blob>()
-  private readonly registrations = new Map<AssetId, Promise<boolean>>()
+  private readonly registrations = new Map<AssetId, { blob: Blob; promise: Promise<boolean> }>()
+  private readonly registrationVersions = new Map<AssetId, number>()
+  private lifecycleVersion = 0
   private readonly retained = new Map<string, Blob>()
   private retainedBytes = 0
   private readonly retainedLimit = maxProjectBytes
@@ -50,10 +52,19 @@ export class AssetRegistry {
     sha256?: string,
     dimensions?: { width: number; height: number },
     displayBlob?: Blob,
+    decodedSource?: ImageBitmap,
     isCurrent: () => boolean = () => true,
   ): Promise<boolean> {
-    return this.startRegistration(assetId, () =>
-      this.registerUncached(assetId, blob, sha256, dimensions, displayBlob, isCurrent),
+    return this.startRegistration(assetId, blob, (isActive) =>
+      this.registerUncached(
+        assetId,
+        blob,
+        sha256,
+        dimensions,
+        displayBlob,
+        decodedSource,
+        () => isActive() && isCurrent(),
+      ),
     )
   }
 
@@ -63,12 +74,14 @@ export class AssetRegistry {
     sha256?: string,
     dimensions?: { width: number; height: number },
     displayBlob?: Blob,
+    decodedSource?: ImageBitmap,
     isCurrent: () => boolean = () => true,
   ): Promise<boolean> {
     const { renderableBlob, preview, thumbnail } = await this.createRenderableThumbnail(
       blob,
       dimensions,
       displayBlob,
+      decodedSource,
     )
     if (!isCurrent()) return false
     return this.commitPrepared(
@@ -83,7 +96,8 @@ export class AssetRegistry {
 
   /** Keeps verified original bytes available while a derived preview is prepared later. */
   bindOriginal(assetId: AssetId, blob: Blob, sha256?: string): void {
-    this.release(assetId)
+    this.invalidateRegistration(assetId)
+    this.discard(assetId)
     this.blobs.set(assetId, blob)
     if (sha256) this.activeHashes.set(assetId, sha256)
   }
@@ -96,25 +110,50 @@ export class AssetRegistry {
     prepared: PreparedAssetImages,
     isCurrent: () => boolean = () => true,
   ): Promise<boolean> {
-    return this.startRegistration(assetId, async () =>
-      this.commitPrepared(assetId, blob, sha256, prepared.displayBlob ?? blob, prepared, isCurrent),
+    return this.startRegistration(assetId, blob, async (isActive) =>
+      this.commitPrepared(
+        assetId,
+        blob,
+        sha256,
+        prepared.displayBlob ?? blob,
+        prepared,
+        () => isActive() && isCurrent(),
+      ),
     )
   }
 
-  private startRegistration(assetId: AssetId, operation: () => Promise<boolean>): Promise<boolean> {
+  private startRegistration(
+    assetId: AssetId,
+    blob: Blob,
+    operation: (isActive: () => boolean) => Promise<boolean>,
+  ): Promise<boolean> {
     const pending = this.registrations.get(assetId)
-    if (pending) return pending
-    const registration = operation()
-    this.registrations.set(assetId, registration)
+    if (pending?.blob === blob) return pending.promise
+    const version = this.invalidateRegistration(assetId)
+    const lifecycleVersion = this.lifecycleVersion
+    const isActive = () =>
+      this.lifecycleVersion === lifecycleVersion &&
+      this.registrationVersions.get(assetId) === version
+    const registration = operation(isActive)
+    this.registrations.set(assetId, { blob, promise: registration })
     void registration.then(
       () => {
-        if (this.registrations.get(assetId) === registration) this.registrations.delete(assetId)
+        if (this.registrations.get(assetId)?.promise === registration)
+          this.registrations.delete(assetId)
       },
       () => {
-        if (this.registrations.get(assetId) === registration) this.registrations.delete(assetId)
+        if (this.registrations.get(assetId)?.promise === registration)
+          this.registrations.delete(assetId)
       },
     )
     return registration
+  }
+
+  private invalidateRegistration(assetId: AssetId): number {
+    const version = (this.registrationVersions.get(assetId) ?? 0) + 1
+    this.registrationVersions.set(assetId, version)
+    this.registrations.delete(assetId)
+    return version
   }
 
   private commitPrepared(
@@ -130,7 +169,7 @@ export class AssetRegistry {
     const thumbnailUrl = URL.createObjectURL(prepared.thumbnail)
     try {
       if (!isCurrent()) return false
-      this.release(assetId)
+      this.discard(assetId)
       this.blobs.set(assetId, blob)
       this.renderableBlobs.set(assetId, renderableBlob)
       this.previewBlobs.set(assetId, prepared.preview)
@@ -156,10 +195,11 @@ export class AssetRegistry {
     blob: Blob,
     dimensions?: { width: number; height: number },
     displayBlob?: Blob,
+    decodedSource?: ImageBitmap,
   ): Promise<{ renderableBlob: Blob; preview: Blob; thumbnail: Blob }> {
     const renderableBlob = displayBlob ?? blob
     try {
-      return await this.createPreviews(renderableBlob, dimensions)
+      return await this.createPreviews(renderableBlob, dimensions, decodedSource)
     } catch (error) {
       if (displayBlob || !isHeicBlob(blob)) throw error
       const fallbackBlob = await convertHeicForDisplay(blob, 'Stored HEIC/HEIF image')
@@ -170,13 +210,16 @@ export class AssetRegistry {
   private async createPreviews(
     renderableBlob: Blob,
     dimensions?: { width: number; height: number },
+    decodedSource?: ImageBitmap,
   ): Promise<{ renderableBlob: Blob; preview: Blob; thumbnail: Blob }> {
     const needsPreview =
       !dimensions || Math.max(dimensions.width, dimensions.height) > this.previewEdge
-    const bitmap = await createImageBitmap(
-      renderableBlob,
-      this.thumbnailOptions(dimensions, needsPreview ? this.previewEdge : this.thumbnailEdge),
-    )
+    const bitmap =
+      decodedSource ??
+      (await createImageBitmap(
+        renderableBlob,
+        this.thumbnailOptions(dimensions, needsPreview ? this.previewEdge : this.thumbnailEdge),
+      ))
     try {
       const [preview, thumbnail] = await Promise.all([
         needsPreview ? this.encodeThumbnail(bitmap, this.previewEdge) : renderableBlob,
@@ -382,6 +425,12 @@ export class AssetRegistry {
   hasActive(assetId: AssetId, sha256: string): boolean {
     return this.activeHashes.get(assetId) === sha256
   }
+  get generation(): number {
+    return this.lifecycleVersion
+  }
+  isGenerationCurrent(generation: number): boolean {
+    return this.lifecycleVersion === generation
+  }
   hasRetained(assetId: AssetId, sha256: string): boolean {
     return this.retained.has(`${assetId}:${sha256}`)
   }
@@ -396,6 +445,9 @@ export class AssetRegistry {
 
   get isOverRetainedLimit(): boolean {
     return this.retainedBytes > this.retainedLimit
+  }
+  get hasRetainedAssets(): boolean {
+    return this.retained.size > 0
   }
 
   /** Release retained versions no longer reachable through document history. */
@@ -423,10 +475,15 @@ export class AssetRegistry {
     if (!blob) return false
     const activeHash = this.activeHashes.get(assetId)
     if (activeHash) this.retain(assetId, activeHash)
-    return this.register(assetId, blob, sha256, dimensions, undefined, isCurrent)
+    return this.register(assetId, blob, sha256, dimensions, undefined, undefined, isCurrent)
   }
 
   release(assetId: AssetId): void {
+    this.invalidateRegistration(assetId)
+    this.discard(assetId)
+  }
+
+  private discard(assetId: AssetId): void {
     const objectUrl = this.objectUrls.get(assetId)
     if (objectUrl) URL.revokeObjectURL(objectUrl)
     const thumbnailUrl = this.thumbnailUrls.get(assetId)
@@ -446,9 +503,16 @@ export class AssetRegistry {
   }
 
   clear(): void {
-    ;[...this.objectUrls.keys()].forEach((assetId) => this.release(assetId))
+    this.lifecycleVersion += 1
+    const assetIds = new Set([
+      ...this.blobs.keys(),
+      ...this.objectUrls.keys(),
+      ...this.thumbnailUrls.keys(),
+    ])
+    assetIds.forEach((assetId) => this.discard(assetId))
     this.retained.clear()
     this.registrations.clear()
+    this.registrationVersions.clear()
     this.retainedBytes = 0
   }
 }

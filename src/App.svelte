@@ -23,6 +23,7 @@
     AssetWorkflowController,
     filterAssets,
     formatBytes,
+    assetUsageCounts as countAssetUsage,
     type AssetFilter,
     type AssetSort,
     type ImportBatchStatus,
@@ -153,6 +154,9 @@
   let toast = ''
   let toastTimeout: number | undefined
   let projectTitle = document.title
+  let photoUsageCounts = new Map<string, number>()
+
+  const photoUsage = (assetId: string) => photoUsageCounts.get(assetId) ?? 0
 
   function setForegroundOperation(operation: ProjectOperation | null) {
     const newOperation = operation?.id !== foregroundOperation?.id
@@ -456,9 +460,11 @@
     document = value
     // Retained blobs and Undo snapshots have one shared budget. Evict the
     // corresponding oldest history state before dropping any required bytes.
-    assetRegistry.reconcileRetainedHistory([value, ...project.historySnapshots()])
-    while (assetRegistry.isOverRetainedLimit && project.discardOldestUndo())
+    if (assetRegistry.hasRetainedAssets) {
       assetRegistry.reconcileRetainedHistory([value, ...project.historySnapshots()])
+      while (assetRegistry.isOverRetainedLimit && project.discardOldestUndo())
+        assetRegistry.reconcileRetainedHistory([value, ...project.historySnapshots()])
+    }
     const unresolvedAssetIds: string[] = []
     for (const asset of Object.values(value.assets)) {
       if (assetRegistry.hasRetained(asset.id, asset.sha256)) {
@@ -524,10 +530,9 @@
   $: selectedContent = selectedSlotId ? activePage.slots[selectedSlotId] : null
   $: if (selectedContent) cropZoom = selectedContent.placement.zoom
   $: assets = Object.values(document.assets)
+  $: photoUsageCounts = countAssetUsage(document)
   $: assetLibraryBytes = assets.reduce((total, asset) => total + asset.byteLength, 0)
-  $: unusedAssetIds = assets
-    .filter((asset) => assetWorkflow.usage(asset.id) === 0)
-    .map((asset) => asset.id)
+  $: unusedAssetIds = assets.filter((asset) => photoUsage(asset.id) === 0).map((asset) => asset.id)
   $: filteredAssets = filterAssets(
     document,
     assets,
@@ -535,6 +540,7 @@
     assetFilter,
     assetSort,
     missingAssetIds,
+    photoUsageCounts,
   )
 
   function announce(message: string) {
@@ -772,7 +778,7 @@
       onremove={assetWorkflow.requestRemoval}
       onchooseimages={() => projectFiles.chooseImages()}
       onmanageimages={() => (isImageManagerOpen = true)}
-      assetUsage={assetWorkflow.usage}
+      assetUsage={photoUsage}
       {formatBytes}
       {importStatus}
       ondismissimport={() => (importStatus = null)}
@@ -900,7 +906,7 @@
     onrelink={assetWorkflow.chooseRelinkFor}
     onrelinkmissing={() => projectFiles.chooseRelinkMany()}
     onremove={assetWorkflow.requestRemoval}
-    assetUsage={assetWorkflow.usage}
+    assetUsage={photoUsage}
     {formatBytes}
   ></ImageManagerDialog>
 
@@ -921,7 +927,7 @@
     bind:exportQuality
     {isExporting}
     {exportProgress}
-    assetUsage={assetWorkflow.usage}
+    assetUsage={photoUsage}
     {formatBytes}
     exportUpscaleCount={exportWorkflow.upscaleCount}
     onremoveassets={assetWorkflow.remove}

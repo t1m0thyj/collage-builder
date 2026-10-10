@@ -96,7 +96,9 @@ export class ProjectStore {
 
   private commit(mutator: (draft: CollageDocumentV1) => void): void {
     this.finishPageStyleInteraction()
-    const before = this.snapshot()
+    // Published documents are never mutated. Keeping the current immutable
+    // state for Undo avoids cloning a complete project solely for history.
+    const before = get(this.state)
     const draft = clone(before)
     mutator(draft)
     draft.updatedAt = new Date().toISOString()
@@ -145,12 +147,13 @@ export class ProjectStore {
       this.pageStyleInteraction = {
         pageId,
         control,
-        before: this.snapshot(),
+        before: get(this.state),
         wasDirty: get(this.dirty),
       }
 
-    const draft = this.snapshot()
-    Object.assign(this.findPage(draft, pageId).style, patch)
+    const draft = this.updatePage(get(this.state), pageId, (page) => {
+      Object.assign(page.style, patch)
+    })
     assertDocumentInvariants(draft)
     this.publish(draft, true)
   }
@@ -166,7 +169,7 @@ export class ProjectStore {
     if (!interaction) return
     this.pageStyleInteraction = undefined
 
-    const after = this.snapshot()
+    const after = clone(get(this.state))
     if (JSON.stringify(after) === JSON.stringify(interaction.before)) {
       this.dirty.set(interaction.wasDirty)
       return
@@ -230,10 +233,10 @@ export class ProjectStore {
   }
 
   previewSlotContent(pageId: string, slotId: SlotId, content: SlotContentV1): void {
-    const draft = this.snapshot()
-    const page = this.findPage(draft, pageId)
-    if (!(slotId in page.slots)) throw new Error(`Unknown slot: ${slotId}`)
-    page.slots[slotId] = clone(content)
+    const draft = this.updatePage(get(this.state), pageId, (page) => {
+      if (!(slotId in page.slots)) throw new Error(`Unknown slot: ${slotId}`)
+      page.slots[slotId] = clone(content)
+    })
     assertDocumentInvariants(draft)
     this.publish(draft)
   }
@@ -476,5 +479,19 @@ export class ProjectStore {
     const page = document.pages.find((candidate) => candidate.id === pageId)
     if (!page) throw new Error(`Unknown page: ${pageId}`)
     return page
+  }
+
+  private updatePage(
+    document: CollageDocumentV1,
+    pageId: string,
+    update: (page: PageV1) => void,
+  ): CollageDocumentV1 {
+    const index = document.pages.findIndex((page) => page.id === pageId)
+    if (index < 0) throw new Error(`Unknown page: ${pageId}`)
+    const page = clone(document.pages[index])
+    update(page)
+    const pages = document.pages.slice()
+    pages[index] = page
+    return { ...document, pages }
   }
 }

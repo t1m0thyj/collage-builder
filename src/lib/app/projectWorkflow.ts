@@ -187,7 +187,15 @@ export class ProjectWorkflowController {
       for (const [assetId, match] of matches) {
         if (!isCurrent()) return
         const asset = target.assets[assetId]
-        await registry.register(assetId, match.file, asset?.sha256, asset, undefined, isCurrent)
+        await registry.register(
+          assetId,
+          match.file,
+          asset?.sha256,
+          asset,
+          undefined,
+          undefined,
+          isCurrent,
+        )
       }
       if (!isCurrent()) return
       this.host.setMissingAssetIds(

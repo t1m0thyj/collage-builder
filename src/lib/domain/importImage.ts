@@ -18,21 +18,22 @@ async function sha256(blob: Blob): Promise<string> {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
-async function decodedImage(blob: Blob): Promise<HTMLImageElement> {
-  const url = URL.createObjectURL(blob)
-  try {
-    const image = new Image()
-    image.src = url
-    await image.decode()
-    return image
-  } finally {
-    URL.revokeObjectURL(url)
-  }
+async function decodedImage(blob: Blob): Promise<ImageBitmap> {
+  return createImageBitmap(blob)
+}
+
+export interface ValidatedImportedImage {
+  asset: AssetRecordV1
+  file: File
+  displayBlob?: Blob
+  /** Transferred to the registry, which closes it after preview generation. */
+  decodedSource: ImageBitmap
 }
 
 export async function validateImportedImage(
   file: File,
-): Promise<{ asset: AssetRecordV1; file: File; displayBlob?: Blob }> {
+  knownHashes?: ReadonlySet<string>,
+): Promise<ValidatedImportedImage> {
   const detectedHeicType = heicMediaType(file)
   if (!supportedMediaTypes.has(file.type) && !detectedHeicType)
     throw new Error(`${file.name}: use a PNG, JPEG, WebP, HEIC, or HEIF image`)
@@ -42,8 +43,11 @@ export async function validateImportedImage(
   const normalizedFile = detectedHeicType
     ? new File([file], file.name, { type: detectedHeicType, lastModified: file.lastModified })
     : file
+  const hash = await sha256(normalizedFile)
+  if (knownHashes?.has(hash))
+    throw new Error(`${file.name}: this exact image is already in the project`)
   let displayBlob: Blob | undefined
-  let image: HTMLImageElement
+  let image: ImageBitmap
   if (detectedHeicType) {
     try {
       image = await decodedImage(normalizedFile)
@@ -60,22 +64,28 @@ export async function validateImportedImage(
       throw new Error(`${file.name}: image data could not be decoded`)
     })
   }
-  assertImageDimensions(image.naturalWidth, image.naturalHeight, file.name)
-  const id = createId()
-  const mediaType = detectedHeicType ?? file.type
-  const extension = extensionByMediaType[mediaType]
-  return {
-    file: normalizedFile,
-    displayBlob,
-    asset: {
-      id,
-      originalName: file.name || `image.${extension}`,
-      mediaType: mediaType as AssetRecordV1['mediaType'],
-      byteLength: file.size,
-      width: image.naturalWidth,
-      height: image.naturalHeight,
-      sha256: await sha256(normalizedFile),
-      storage: { kind: 'embedded', archivePath: `assets/${id}.${extension}` },
-    },
+  try {
+    assertImageDimensions(image.width, image.height, file.name)
+    const id = createId()
+    const mediaType = detectedHeicType ?? file.type
+    const extension = extensionByMediaType[mediaType]
+    return {
+      file: normalizedFile,
+      displayBlob,
+      asset: {
+        id,
+        originalName: file.name || `image.${extension}`,
+        mediaType: mediaType as AssetRecordV1['mediaType'],
+        byteLength: file.size,
+        width: image.width,
+        height: image.height,
+        sha256: hash,
+        storage: { kind: 'embedded', archivePath: `assets/${id}.${extension}` },
+      },
+      decodedSource: image,
+    }
+  } catch (error) {
+    image.close()
+    throw error
   }
 }

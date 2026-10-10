@@ -10,11 +10,53 @@ vi.mock('../../src/lib/domain/importImage', () => ({
 }))
 
 import {
+  assetUsageCounts,
+  filterAssets,
   importProjectAssets,
   relinkMissingProjectAssets,
   relinkProjectAsset,
   replaceProjectAsset,
 } from '../../src/lib/app/assetManagement'
+
+describe('asset usage counts', () => {
+  it('counts page placements once and reuses the result when filtering and sorting', () => {
+    const document = createProject('Usage')
+    const [firstSlot, secondSlot] = Object.keys(document.pages[0].slots)
+    document.assets.first = {
+      id: 'first',
+      originalName: 'first.png',
+      mediaType: 'image/png',
+      byteLength: 1,
+      width: 1,
+      height: 1,
+      sha256: 'first',
+      storage: { kind: 'embedded', archivePath: 'assets/first.png' },
+    }
+    document.assets.second = { ...document.assets.first, id: 'second', originalName: 'second.png' }
+    document.pages[0].slots[firstSlot] = {
+      assetId: 'first',
+      placement: { zoom: 1, positionX: 0.5, positionY: 0.5 },
+    }
+    document.pages[0].slots[secondSlot] = {
+      assetId: 'first',
+      placement: { zoom: 1, positionX: 0.5, positionY: 0.5 },
+    }
+    const counts = assetUsageCounts(document)
+
+    expect(counts).toEqual(new Map([['first', 2]]))
+    expect(
+      filterAssets(
+        document,
+        Object.values(document.assets),
+        '',
+        'all',
+        'usage',
+        new Set(),
+        counts,
+      ).map((asset) => asset.id),
+    ).toEqual(['first', 'second'])
+  })
+})
 
 describe('asset operation lifecycle guards', () => {
   it('does not commit an import after its original project is replaced', async () => {

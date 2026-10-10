@@ -2,6 +2,15 @@ import { describe, expect, it, vi } from 'vitest'
 import { AssetRegistry, decodedImageBudgetForDevice } from '../../src/lib/render/assetRegistry'
 
 describe('decoded image cache', () => {
+  it('releases originals that have not finished preview preparation', () => {
+    const registry = new AssetRegistry()
+    registry.bindOriginal('pending', new Blob(['photo']), 'pending-hash')
+
+    registry.clear()
+
+    expect(registry.getBlob('pending')).toBeUndefined()
+  })
+
   it('defaults to 64 MiB and increases the budget at 4 GiB and 8 GiB', () => {
     expect(decodedImageBudgetForDevice(1)).toBe(64 * 1024 * 1024)
     expect(decodedImageBudgetForDevice(2)).toBe(64 * 1024 * 1024)

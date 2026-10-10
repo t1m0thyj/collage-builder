@@ -43,6 +43,7 @@ export async function matchLinkedAssets(
 ): Promise<Map<string, LinkedAssetMatch>> {
   const candidates = [...files].map((file) => ({ file, relativePath: relativePathFor(file) }))
   const matches = new Map<string, LinkedAssetMatch>()
+  const digests = new Map<File, Promise<string>>()
   for (const asset of Object.values(assets)) {
     const wanted = asset.storage.kind === 'linked' ? asset.storage.relativePath : undefined
     const possible = candidates.filter(
@@ -53,9 +54,14 @@ export async function matchLinkedAssets(
           candidate.file.name === wanted.split('/').at(-1)),
     )
     for (const candidate of possible) {
-      const sha256 = await digest(candidate.file)
-      if (sha256 === asset.sha256) {
-        matches.set(asset.id, { ...candidate, sha256 })
+      let sha256 = digests.get(candidate.file)
+      if (!sha256) {
+        sha256 = digest(candidate.file)
+        digests.set(candidate.file, sha256)
+      }
+      const resolvedHash = await sha256
+      if (resolvedHash === asset.sha256) {
+        matches.set(asset.id, { ...candidate, sha256: resolvedHash })
         break
       }
     }
