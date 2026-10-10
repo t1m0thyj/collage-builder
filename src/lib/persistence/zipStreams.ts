@@ -1,8 +1,17 @@
-import { AsyncInflate, Unzip, UnzipPassThrough, Zip, ZipPassThrough } from 'fflate'
+import {
+  AsyncInflate,
+  Unzip,
+  UnzipPassThrough,
+  Zip,
+  ZipPassThrough,
+  type ZipInputFile,
+} from 'fflate'
 
 export interface ZipBlobEntry {
   name: string
   blob: Blob
+  /** Only original photo bytes contribute to save progress. */
+  trackProgress?: boolean
 }
 export interface ZipProgress {
   completed: number
@@ -21,6 +30,42 @@ export interface BoundedUnzipOptions {
 // Keep every decoder push small enough that an adversarial entry cannot make
 // fflate materialize a large output chunk before our ondata limit check runs.
 const maxDeflateExpansionPerInputByte = 1_100
+const maxZipInputChunkBytes = 256 * 1024
+
+interface ZipChecksum {
+  crc32: number
+  byteLength: number
+}
+
+// Blob contents are immutable. Identity-based metadata is deliberately conservative:
+// a replacement Blob computes a fresh checksum even when it has identical bytes.
+const checksums = new WeakMap<Blob, ZipChecksum>()
+
+export interface ZipSink {
+  write(chunk: Uint8Array): Promise<void>
+}
+
+export interface WriteZipOptions {
+  onProgress?: (progress: ZipProgress) => void
+  /** Reports original-photo bytes that needed a fresh CRC-32 pass. */
+  onChecksum?: (bytes: number) => void
+  signal?: AbortSignal
+}
+
+class StoredZipBlob implements ZipInputFile {
+  compression = 0
+  ondata?: (error: Error | null, data: Uint8Array, final: boolean) => void
+
+  constructor(
+    readonly filename: string,
+    readonly size: number,
+    readonly crc: number,
+  ) {}
+
+  push(chunk: Uint8Array, final: boolean): void {
+    this.ondata?.(null, chunk, final)
+  }
+}
 
 /** Unlike fflate's AsyncUnzipInflate, this always uses a worker. */
 class WorkerUnzipInflate {
@@ -43,77 +88,122 @@ class WorkerUnzipInflate {
   }
 }
 
+type ZipSource = ZipPassThrough | StoredZipBlob
+
 async function pushBlob(
-  file: ZipPassThrough,
+  file: ZipSource,
   blob: Blob,
+  flush: () => Promise<void>,
   report?: (bytes: number) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const reader = blob.stream().getReader()
-  let current = await reader.read()
-  if (current.done) {
+  if (!blob.size) {
     file.push(new Uint8Array(), true)
+    await flush()
     return
   }
-  while (!current.done) {
+  for (let offset = 0; offset < blob.size; offset += maxZipInputChunkBytes) {
     if (signal?.aborted) throw new DOMException('Project save cancelled', 'AbortError')
-    const next = await reader.read()
-    file.push(current.value, next.done)
-    report?.(current.value.byteLength)
-    current = next
+    const end = Math.min(blob.size, offset + maxZipInputChunkBytes)
+    // Blob slices bound a pending source read independently of producer chunk
+    // sizes, so a slow destination cannot make us read the rest of a photo.
+    const chunk = new Uint8Array(await blob.slice(offset, end).arrayBuffer())
+    if (signal?.aborted) throw new DOMException('Project save cancelled', 'AbortError')
+    file.push(chunk, end === blob.size)
+    await flush()
+    report?.(chunk.byteLength)
   }
 }
 
-/** Builds a store-only ZIP incrementally so already-compressed photos are not copied repeatedly. */
-export async function zipBlobs(
+/**
+ * Writes a store-only ZIP while holding only output generated from one bounded
+ * input chunk. ZIP callbacks are synchronous, so each captured batch is
+ * drained before another source chunk is read.
+ */
+export async function writeZip(
   entries: Iterable<ZipBlobEntry> | AsyncIterable<ZipBlobEntry>,
-  type: string,
-  options: { onProgress?: (progress: ZipProgress) => void; signal?: AbortSignal } = {},
-): Promise<Blob> {
-  const chunks: BlobPart[] = []
-  let resolveComplete: (() => void) | undefined
-  let rejectComplete: ((error: Error) => void) | undefined
-  const complete = new Promise<void>((resolve, reject) => {
-    resolveComplete = resolve
-    rejectComplete = reject
-  })
+  sink: ZipSink,
+  options: WriteZipOptions = {},
+): Promise<void> {
+  const list = isAsyncIterable(entries) ? undefined : [...entries]
+  const source = list ?? entries
+  const total = list?.reduce(
+    (sum, entry) => sum + (entry.trackProgress === false ? 0 : entry.blob.size),
+    0,
+  )
+  const output: Uint8Array[] = []
+  let callbackError: Error | null = null
   const archive = new Zip((error, chunk, final) => {
     if (error) {
-      rejectComplete?.(error)
+      callbackError = error
       return
     }
-    const copy = new Uint8Array(chunk.byteLength)
-    copy.set(chunk)
-    chunks.push(copy)
-    if (final) resolveComplete?.()
+    if (chunk.byteLength) output.push(chunk)
+    void final
   })
+  const flush = async () => {
+    if (callbackError) throw callbackError
+    while (output.length) {
+      if (options.signal?.aborted) throw new DOMException('Project save cancelled', 'AbortError')
+      const chunk = output.shift()!
+      await sink.write(chunk)
+    }
+    if (callbackError) throw callbackError
+  }
   try {
-    const total = isAsyncIterable(entries)
-      ? undefined
-      : [...entries].reduce((sum, entry) => sum + entry.blob.size, 0)
     let completed = 0
     options.onProgress?.({ completed, total })
-    for await (const entry of entries) {
+    for await (const entry of source) {
       if (options.signal?.aborted) throw new DOMException('Project save cancelled', 'AbortError')
-      const file = new ZipPassThrough(entry.name)
+      const known = checksums.get(entry.blob)
+      const file: ZipSource =
+        known && known.byteLength === entry.blob.size
+          ? new StoredZipBlob(entry.name, known.byteLength, known.crc32)
+          : new ZipPassThrough(entry.name)
       archive.add(file)
       await pushBlob(
         file,
         entry.blob,
+        flush,
         (bytes) => {
+          if (entry.trackProgress === false) return
           completed += bytes
           options.onProgress?.({ completed, total })
         },
         options.signal,
       )
+      if (!known && file instanceof ZipPassThrough) {
+        checksums.set(entry.blob, { crc32: file.crc, byteLength: file.size })
+        if (entry.trackProgress !== false) options.onChecksum?.(file.size)
+      }
     }
     archive.end()
-    await complete
-    return new Blob(chunks, { type })
+    await flush()
+    options.onProgress?.({ completed, total })
   } catch (error) {
     archive.terminate()
     throw error
   }
+}
+
+/** Builds a Blob for downloads and callers that genuinely need the complete archive. */
+export async function zipBlobs(
+  entries: Iterable<ZipBlobEntry> | AsyncIterable<ZipBlobEntry>,
+  type: string,
+  options: WriteZipOptions = {},
+): Promise<Blob> {
+  const chunks: BlobPart[] = []
+  await writeZip(
+    entries,
+    {
+      async write(chunk) {
+        // fflate owns its output buffers; collector callers retain their own copy.
+        chunks.push(chunk.slice())
+      },
+    },
+    options,
+  )
+  return new Blob(chunks, { type })
 }
 
 function isAsyncIterable(

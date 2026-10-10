@@ -2,9 +2,10 @@ import type { CollageDocumentV1 } from '../domain/types'
 import type { AssetRegistry } from '../render/assetRegistry'
 import {
   chooseSaveTarget,
-  createEmbeddedProject,
   createLinkedProjectFile,
   matchProjectAssets,
+  prepareEmbeddedProject,
+  writeEmbeddedProject,
   writeProjectBlob,
   type LinkedAssetMatch,
   type ProjectSaveFormat,
@@ -21,10 +22,15 @@ interface SaveRequest {
   isCurrent?: () => boolean
   onStarted?: () => void
   onProgress?: (
-    phase: 'Packaging photos' | 'Writing file' | 'Finalizing',
+    phase: 'Packaging photos' | 'Saving project' | 'Writing file' | 'Finalizing',
     completed?: number,
     total?: number,
   ) => void
+}
+
+export interface ProjectSaveResult {
+  format: ProjectSaveFormat
+  destination: 'native' | 'download'
 }
 
 export class ProjectPersistenceController {
@@ -83,15 +89,16 @@ export class ProjectPersistenceController {
     isCurrent = () => true,
     onStarted = () => undefined,
     onProgress = () => undefined,
-  }: SaveRequest): Promise<ProjectSaveFormat | null> {
+  }: SaveRequest): Promise<ProjectSaveResult | null> {
     let lastProgressAt = 0
     const reportProgress = (
-      phase: 'Packaging photos' | 'Writing file' | 'Finalizing',
+      phase: 'Packaging photos' | 'Saving project' | 'Writing file' | 'Finalizing',
       completed?: number,
       total?: number,
+      force = false,
     ) => {
       const now = performance.now()
-      if (phase !== 'Finalizing' && completed !== 0 && now - lastProgressAt < 100) return
+      if (!force && phase !== 'Finalizing' && completed !== 0 && now - lastProgressAt < 100) return
       lastProgressAt = now
       onProgress(phase, completed, total)
     }
@@ -102,17 +109,28 @@ export class ProjectPersistenceController {
     if (!target || !isCurrent()) return null
 
     const baseName = projectTitle || 'collage'
+    let destination: 'native' | 'download'
     if (target.format === 'embedded') {
       onStarted()
-      const archive = await createEmbeddedProject(document, registry, {
-        onProgress: (completed, total) => reportProgress('Packaging photos', completed, total),
-      })
+      const archive = await prepareEmbeddedProject(document, registry)
       if (!isCurrent()) return null
-      reportProgress('Writing file', 0, archive.size)
-      await writeProjectBlob(target, archive, `${baseName}.collage`, {
-        onProgress: (completed, total) => reportProgress('Writing file', completed, total),
-        onFinalizing: () => reportProgress('Finalizing'),
-      })
+      if (target.handle) {
+        reportProgress('Saving project', 0, archive.payloadBytes)
+        destination = await writeEmbeddedProject(target, archive, `${baseName}.collage`, {
+          isCurrent,
+          onProgress: (completed, total) =>
+            reportProgress('Saving project', completed, total, completed === total),
+          onFinalizing: () => reportProgress('Finalizing'),
+        })
+      } else {
+        reportProgress('Packaging photos', 0, archive.payloadBytes)
+        destination = await writeEmbeddedProject(target, archive, `${baseName}.collage`, {
+          isCurrent,
+          onProgress: (completed, total) =>
+            reportProgress('Packaging photos', completed, total, completed === total),
+          onFinalizing: () => reportProgress('Finalizing'),
+        })
+      }
     } else {
       const matches = await this.linkedMatchesForSave(
         document,
@@ -124,7 +142,7 @@ export class ProjectPersistenceController {
       const linkedProject = await createLinkedProjectFile(document, matches)
       if (!isCurrent()) return null
       reportProgress('Writing file', 0, linkedProject.size)
-      await writeProjectBlob(target, linkedProject, `${baseName}.collage.json`, {
+      destination = await writeProjectBlob(target, linkedProject, `${baseName}.collage.json`, {
         onProgress: (completed, total) => reportProgress('Writing file', completed, total),
         onFinalizing: () => reportProgress('Finalizing'),
       })
@@ -134,6 +152,6 @@ export class ProjectPersistenceController {
     this.currentTarget = target.handle ? target : null
     this.currentFormat = target.format
     this.hasSavedProject = true
-    return target.format
+    return { format: target.format, destination }
   }
 }

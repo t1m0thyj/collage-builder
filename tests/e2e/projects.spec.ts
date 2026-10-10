@@ -561,14 +561,18 @@ test('shows saving progress only after the native file picker returns', async ({
     const picker = window as Window & {
       resolveProjectPicker: (handle: FileSystemFileHandle) => void
       finishProjectWrite?: () => void
+      nativeWriteCount?: number
     }
     picker.resolveProjectPicker({
       name: 'Untitled collage.collage',
       createWritable: async () => ({
-        write: () =>
-          new Promise<void>((resolve) => {
+        write: () => {
+          picker.nativeWriteCount = (picker.nativeWriteCount ?? 0) + 1
+          if (picker.nativeWriteCount > 1) return Promise.resolve()
+          return new Promise<void>((resolve) => {
             picker.finishProjectWrite = resolve
-          }),
+          })
+        },
         close: async () => undefined,
       }),
     } as FileSystemFileHandle)

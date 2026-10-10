@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { createProject } from '../../src/lib/domain/factories'
-import { createArchive, openArchive } from '../../src/lib/persistence/archive'
+import { createArchive, openArchive, prepareArchive } from '../../src/lib/persistence/archive'
 import { createLinkedProject, openLinkedProject } from '../../src/lib/persistence/linkedAssets'
+import { writeEmbeddedProject } from '../../src/lib/app/projectIO'
 import { zipSync, strToU8 } from 'fflate'
 import { createHash, randomUUID } from 'node:crypto'
 
@@ -71,6 +72,78 @@ describe('collage archive', () => {
     expect(new Uint8Array(await restored!.arrayBuffer())).toEqual(
       new Uint8Array(await original.arrayBuffer()),
     )
+  })
+
+  it('streams a prepared archive to a native handle before committing it', async () => {
+    const document = createProject('Native stream')
+    const assetId = '11111111-1111-4111-8111-111111111111'
+    const original = new Blob([new Uint8Array(300_000).fill(23)], { type: 'image/jpeg' })
+    document.assets[assetId] = {
+      id: assetId,
+      originalName: 'photo.jpg',
+      mediaType: 'image/jpeg',
+      byteLength: original.size,
+      width: 1,
+      height: 1,
+      sha256: await sha256(original),
+      storage: { kind: 'embedded', archivePath: `assets/${assetId}` },
+    }
+    const prepared = prepareArchive(document, {
+      get: () => original,
+      hasActive: () => true,
+    })
+    const chunks: Uint8Array[] = []
+    let closed = false
+    let receivedBeforeClose = 0
+    const handle = {
+      name: 'native.collage',
+      async createWritable(options?: FileSystemCreateWritableOptions) {
+        expect(options?.keepExistingData).toBe(false)
+        return {
+          async write(chunk: Uint8Array) {
+            expect(closed).toBe(false)
+            chunks.push(chunk.slice())
+          },
+          async close() {
+            receivedBeforeClose = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0)
+            closed = true
+          },
+          async abort() {},
+        }
+      },
+    } as unknown as FileSystemFileHandle
+
+    await expect(
+      writeEmbeddedProject({ format: 'embedded', handle }, prepared, 'native.collage'),
+    ).resolves.toBe('native')
+    expect(closed).toBe(true)
+    expect(receivedBeforeClose).toBeGreaterThan(original.size)
+    const reopened = await openArchive(new Blob(chunks))
+    expect(await reopened.assets.get(assetId)?.arrayBuffer()).toEqual(await original.arrayBuffer())
+  })
+
+  it('streams an empty project to a native handle', async () => {
+    const prepared = prepareArchive(createProject('Empty native stream'), { get: () => undefined })
+    let writes = 0
+    let closed = false
+    const handle = {
+      name: 'empty.collage',
+      async createWritable() {
+        return {
+          async write() {
+            writes += 1
+          },
+          async close() {
+            closed = true
+          },
+          async abort() {},
+        }
+      },
+    } as unknown as FileSystemFileHandle
+
+    await writeEmbeddedProject({ format: 'embedded', handle }, prepared, 'empty.collage')
+    expect(writes).toBeGreaterThan(0)
+    expect(closed).toBe(true)
   })
 
   it('rejects unsafe archive paths', async () => {

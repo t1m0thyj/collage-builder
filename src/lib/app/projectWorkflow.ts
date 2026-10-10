@@ -104,7 +104,7 @@ export class ProjectWorkflowController {
     const isCurrent = () =>
       operation === this.saveSequence && this.host.project.isCurrentVersion(snapshot)
     try {
-      const format = await this.host.persistence.save({
+      const saved = await this.host.persistence.save({
         document: snapshot.document,
         registry: this.host.registry(),
         projectTitle: this.host.projectTitle(),
@@ -138,14 +138,18 @@ export class ProjectWorkflowController {
           })
         },
       })
-      if (!format || !isCurrent()) return false
+      if (!saved || !isCurrent()) return false
       this.host.setHasSavedProject(true)
       if (!this.host.project.markClean(snapshot)) return false
       this.host.setRecoveredOnly(false)
       this.host.announce(
-        format === 'embedded'
-          ? 'Embedded project saved.'
-          : 'Linked project saved. Images remain in the chosen folder.',
+        saved.destination === 'download'
+          ? saved.format === 'embedded'
+            ? 'Project download started.'
+            : 'Linked project download started.'
+          : saved.format === 'embedded'
+            ? 'Embedded project saved.'
+            : 'Linked project saved. Images remain in the chosen folder.',
       )
       return true
     } catch (error) {

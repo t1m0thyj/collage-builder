@@ -1,6 +1,13 @@
 import { migrateDocument } from '../domain/migrations'
 import type { CollageDocumentV1 } from '../domain/types'
-import { unzipBlobBounded, zipBlobs, type ZipBlobEntry } from './zipStreams'
+import {
+  unzipBlobBounded,
+  writeZip,
+  zipBlobs,
+  type WriteZipOptions,
+  type ZipBlobEntry,
+  type ZipSink,
+} from './zipStreams'
 import { maxArchiveEntryCount, maxProjectAssetCount, maxProjectBytes } from './limits'
 import { collageMimeType } from './formats'
 
@@ -9,6 +16,11 @@ export { maxProjectBytes } from './limits'
 
 export interface ArchiveAssets {
   get(assetId: string): Blob | undefined
+  hasActive?(assetId: string, sha256: string): boolean
+}
+export interface PreparedArchive {
+  entries: ZipBlobEntry[]
+  payloadBytes: number
 }
 export interface OpenedArchive {
   document: CollageDocumentV1
@@ -37,11 +49,11 @@ async function sha256(blob: Blob): Promise<string> {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
-export async function createArchive(
+/** Validates and snapshots the entries shared by Blob and native stream saves. */
+export function prepareArchive(
   document: CollageDocumentV1,
   assets: ArchiveAssets,
-  options: { onProgress?: (completed: number, total: number) => void; signal?: AbortSignal } = {},
-): Promise<Blob> {
+): PreparedArchive {
   if (Object.keys(document.assets).length > maxProjectAssetCount)
     throw new Error(`Project contains more than ${maxProjectAssetCount} photos`)
   if (
@@ -58,15 +70,45 @@ export async function createArchive(
   if (new TextEncoder().encode(documentJson).byteLength > maxDocumentBytes)
     throw new Error('Project document exceeds the 16 MB safety limit')
   const files: ZipBlobEntry[] = [
-    { name: 'mimetype', blob: new Blob([collageMimeType]) },
-    { name: 'document.json', blob: new Blob([documentJson]) },
+    { name: 'mimetype', blob: new Blob([collageMimeType]), trackProgress: false },
+    { name: 'document.json', blob: new Blob([documentJson]), trackProgress: false },
   ]
+  let payloadBytes = 0
   for (const asset of Object.values(savedDocument.assets)) {
     const blob = assets.get(asset.id)
     if (!blob) throw new Error(`Missing original bytes for ${asset.originalName}`)
+    if (blob.size !== asset.byteLength)
+      throw new Error(`Original bytes changed for ${asset.originalName}`)
+    if (assets.hasActive && !assets.hasActive(asset.id, asset.sha256))
+      throw new Error(`Original bytes changed for ${asset.originalName}`)
     files.push({ name: `assets/${asset.id}`, blob })
+    payloadBytes += blob.size
   }
-  return zipBlobs(files, collageMimeType, {
+  return { entries: files, payloadBytes }
+}
+
+export async function writeArchive(
+  archive: PreparedArchive,
+  sink: ZipSink,
+  options: WriteZipOptions = {},
+): Promise<void> {
+  await writeZip(archive.entries, sink, options)
+}
+
+export async function archiveBlob(
+  archive: PreparedArchive,
+  options: WriteZipOptions = {},
+): Promise<Blob> {
+  return zipBlobs(archive.entries, collageMimeType, options)
+}
+
+export async function createArchive(
+  document: CollageDocumentV1,
+  assets: ArchiveAssets,
+  options: { onProgress?: (completed: number, total: number) => void; signal?: AbortSignal } = {},
+): Promise<Blob> {
+  const archive = prepareArchive(document, assets)
+  return archiveBlob(archive, {
     onProgress: ({ completed, total }) => options.onProgress?.(completed, total ?? 0),
     signal: options.signal,
   })

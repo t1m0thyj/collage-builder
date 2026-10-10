@@ -2,9 +2,18 @@ import type { AssetRecordV1, CollageDocumentV1 } from '../domain/types'
 import { collageMimeType, linkedProjectMimeType } from '../persistence/formats'
 import type { LinkedAssetMatch } from '../persistence/linkedAssets'
 import type { AssetRegistry } from '../render/assetRegistry'
+import type { PreparedArchive } from '../persistence/archive'
 
 export type ProjectSaveFormat = 'embedded' | 'linked'
 export type SaveTarget = { format: ProjectSaveFormat; handle?: FileSystemFileHandle }
+
+function fileWriteChunk(chunk: Uint8Array): Uint8Array<ArrayBuffer> {
+  if (chunk.buffer instanceof ArrayBuffer)
+    return new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength)
+  // File System Access excludes SharedArrayBuffer-backed views. This copy is
+  // only needed for that uncommon case; normal fflate output stays zero-copy.
+  return Uint8Array.from(chunk)
+}
 
 type SavePickerWindow = Window &
   typeof globalThis & {
@@ -65,9 +74,9 @@ export async function writeProjectBlob(
     onFinalizing?: () => void
     signal?: AbortSignal
   } = {},
-) {
+): Promise<'native' | 'download'> {
   if (target.handle) {
-    const writable = await target.handle.createWritable()
+    const writable = await target.handle.createWritable({ keepExistingData: false })
     const reader = blob.stream().getReader()
     let completed = 0
     options.onProgress?.(completed, blob.size)
@@ -76,7 +85,7 @@ export async function writeProjectBlob(
         if (options.signal?.aborted) throw new DOMException('Project save cancelled', 'AbortError')
         const chunk = await reader.read()
         if (chunk.done) break
-        await writable.write(chunk.value)
+        await writable.write(fileWriteChunk(chunk.value))
         completed += chunk.value.byteLength
         options.onProgress?.(completed, blob.size)
       }
@@ -86,14 +95,17 @@ export async function writeProjectBlob(
       await reader.cancel().catch(() => undefined)
       await writable.abort().catch(() => undefined)
       throw error
+    } finally {
+      reader.releaseLock()
     }
-    return
+    return 'native'
   }
   const link = globalThis.document.createElement('a')
   link.href = URL.createObjectURL(blob)
   link.download = filename
   link.click()
   URL.revokeObjectURL(link.href)
+  return 'download'
 }
 
 export async function openProjectFile(
@@ -128,7 +140,86 @@ export async function createEmbeddedProject(
   options: { onProgress?: (completed: number, total: number) => void; signal?: AbortSignal } = {},
 ): Promise<Blob> {
   const { createArchive } = await import('../persistence/archive')
-  return createArchive(document, { get: (assetId) => registry.getBlob(assetId) }, options)
+  return createArchive(
+    document,
+    {
+      get: (assetId) => registry.getBlob(assetId),
+      hasActive: (assetId, sha256) => registry.hasActive(assetId, sha256),
+    },
+    options,
+  )
+}
+
+export async function prepareEmbeddedProject(
+  document: CollageDocumentV1,
+  registry: AssetRegistry,
+): Promise<PreparedArchive> {
+  const { prepareArchive } = await import('../persistence/archive')
+  return prepareArchive(document, {
+    get: (assetId) => registry.getBlob(assetId),
+    hasActive: (assetId, sha256) => registry.hasActive(assetId, sha256),
+  })
+}
+
+/**
+ * Native handles receive ZIP chunks directly. The download path deliberately
+ * collects a Blob because the browser download API only accepts a URL.
+ */
+export async function writeEmbeddedProject(
+  target: SaveTarget,
+  archive: PreparedArchive,
+  filename: string,
+  options: {
+    onProgress?: (completed: number, total: number) => void
+    onFinalizing?: () => void
+    signal?: AbortSignal
+    isCurrent?: () => boolean
+  } = {},
+): Promise<'native' | 'download'> {
+  const assertCurrent = () => {
+    if (options.signal?.aborted) throw new DOMException('Project save cancelled', 'AbortError')
+    if (options.isCurrent && !options.isCurrent())
+      throw new Error('Project save is no longer current')
+  }
+  if (!target.handle) {
+    const { archiveBlob } = await import('../persistence/archive')
+    const blob = await archiveBlob(archive, {
+      signal: options.signal,
+      onProgress: ({ completed, total }) => options.onProgress?.(completed, total ?? 0),
+    })
+    assertCurrent()
+    return writeProjectBlob(target, blob, filename, {
+      onFinalizing: options.onFinalizing,
+      signal: options.signal,
+    })
+  }
+
+  const { writeArchive } = await import('../persistence/archive')
+  const writable = await target.handle.createWritable({ keepExistingData: false })
+  let closed = false
+  try {
+    await writeArchive(
+      archive,
+      {
+        async write(chunk) {
+          assertCurrent()
+          await writable.write(fileWriteChunk(chunk))
+        },
+      },
+      {
+        signal: options.signal,
+        onProgress: ({ completed, total }) => options.onProgress?.(completed, total ?? 0),
+      },
+    )
+    assertCurrent()
+    options.onFinalizing?.()
+    await writable.close()
+    closed = true
+    return 'native'
+  } catch (error) {
+    if (!closed) await writable.abort().catch(() => undefined)
+    throw error
+  }
 }
 
 export async function createLinkedProjectFile(
