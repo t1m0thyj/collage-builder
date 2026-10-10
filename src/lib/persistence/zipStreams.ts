@@ -4,12 +4,17 @@ export interface ZipBlobEntry {
   name: string
   blob: Blob
 }
+export interface ZipProgress {
+  completed: number
+  total?: number
+}
 
 export interface BoundedUnzipOptions {
   maxEntries: number
   maxEntryBytes: number
   maxExpandedBytes: number
   validateName: (name: string) => void
+  onInputProgress?: (completed: number, total: number) => void
 }
 
 // A DEFLATE stream can expand by a little over 1,000x in a single input byte.
@@ -38,7 +43,12 @@ class WorkerUnzipInflate {
   }
 }
 
-async function pushBlob(file: ZipPassThrough, blob: Blob): Promise<void> {
+async function pushBlob(
+  file: ZipPassThrough,
+  blob: Blob,
+  report?: (bytes: number) => void,
+  signal?: AbortSignal,
+): Promise<void> {
   const reader = blob.stream().getReader()
   let current = await reader.read()
   if (current.done) {
@@ -46,8 +56,10 @@ async function pushBlob(file: ZipPassThrough, blob: Blob): Promise<void> {
     return
   }
   while (!current.done) {
+    if (signal?.aborted) throw new DOMException('Project save cancelled', 'AbortError')
     const next = await reader.read()
     file.push(current.value, next.done)
+    report?.(current.value.byteLength)
     current = next
   }
 }
@@ -56,6 +68,7 @@ async function pushBlob(file: ZipPassThrough, blob: Blob): Promise<void> {
 export async function zipBlobs(
   entries: Iterable<ZipBlobEntry> | AsyncIterable<ZipBlobEntry>,
   type: string,
+  options: { onProgress?: (progress: ZipProgress) => void; signal?: AbortSignal } = {},
 ): Promise<Blob> {
   const chunks: BlobPart[] = []
   let resolveComplete: (() => void) | undefined
@@ -75,10 +88,24 @@ export async function zipBlobs(
     if (final) resolveComplete?.()
   })
   try {
+    const total = isAsyncIterable(entries)
+      ? undefined
+      : [...entries].reduce((sum, entry) => sum + entry.blob.size, 0)
+    let completed = 0
+    options.onProgress?.({ completed, total })
     for await (const entry of entries) {
+      if (options.signal?.aborted) throw new DOMException('Project save cancelled', 'AbortError')
       const file = new ZipPassThrough(entry.name)
       archive.add(file)
-      await pushBlob(file, entry.blob)
+      await pushBlob(
+        file,
+        entry.blob,
+        (bytes) => {
+          completed += bytes
+          options.onProgress?.({ completed, total })
+        },
+        options.signal,
+      )
     }
     archive.end()
     await complete
@@ -87,6 +114,12 @@ export async function zipBlobs(
     archive.terminate()
     throw error
   }
+}
+
+function isAsyncIterable(
+  entries: Iterable<ZipBlobEntry> | AsyncIterable<ZipBlobEntry>,
+): entries is AsyncIterable<ZipBlobEntry> {
+  return Symbol.asyncIterator in entries
 }
 
 /** Expands entries incrementally and stops as soon as a declared or actual limit is exceeded. */
@@ -102,6 +135,8 @@ export async function unzipBlobBounded(
     let pendingFiles = 0
     let inputFinished = false
     let failed = false
+    let consumedInputBytes = 0
+    let lastProgressAt = 0
     const seenNames = new Set<string>()
     const maxInputChunkBytes = Math.max(
       1,
@@ -109,6 +144,13 @@ export async function unzipBlobBounded(
         Math.min(options.maxEntryBytes, options.maxExpandedBytes) / maxDeflateExpansionPerInputByte,
       ),
     )
+    const reportInputProgress = (force = false) => {
+      const now = performance.now()
+      if (!force && now - lastProgressAt < 100) return
+      lastProgressAt = now
+      options.onInputProgress?.(consumedInputBytes, blob.size)
+    }
+    reportInputProgress(true)
 
     const fail = (error: unknown) => {
       if (failed) return
@@ -199,6 +241,8 @@ export async function unzipBlobBounded(
                 next.done && end === current.value.byteLength,
               )
             }
+            consumedInputBytes += current.value.byteLength
+            reportInputProgress(next.done)
             current = next
           }
         }

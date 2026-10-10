@@ -56,11 +56,37 @@ export async function chooseSaveTarget(
   }
 }
 
-export async function writeProjectBlob(target: SaveTarget, blob: Blob, filename: string) {
+export async function writeProjectBlob(
+  target: SaveTarget,
+  blob: Blob,
+  filename: string,
+  options: {
+    onProgress?: (completed: number, total: number) => void
+    onFinalizing?: () => void
+    signal?: AbortSignal
+  } = {},
+) {
   if (target.handle) {
     const writable = await target.handle.createWritable()
-    await writable.write(blob)
-    await writable.close()
+    const reader = blob.stream().getReader()
+    let completed = 0
+    options.onProgress?.(completed, blob.size)
+    try {
+      while (true) {
+        if (options.signal?.aborted) throw new DOMException('Project save cancelled', 'AbortError')
+        const chunk = await reader.read()
+        if (chunk.done) break
+        await writable.write(chunk.value)
+        completed += chunk.value.byteLength
+        options.onProgress?.(completed, blob.size)
+      }
+      options.onFinalizing?.()
+      await writable.close()
+    } catch (error) {
+      await reader.cancel().catch(() => undefined)
+      await writable.abort().catch(() => undefined)
+      throw error
+    }
     return
   }
   const link = globalThis.document.createElement('a')
@@ -70,11 +96,20 @@ export async function writeProjectBlob(target: SaveTarget, blob: Blob, filename:
   URL.revokeObjectURL(link.href)
 }
 
-export async function openProjectFile(file: File) {
+export async function openProjectFile(
+  file: File,
+  options: {
+    onProgress?: (
+      phase: 'Reading project' | 'Checking photos',
+      completed: number,
+      total: number,
+    ) => void
+  } = {},
+) {
   const format = formatFromProjectFilename(file.name)
   if (format === 'embedded') {
     const { openArchive } = await import('../persistence/archive')
-    return { format, opened: await openArchive(file) }
+    return { format, opened: await openArchive(file, options) }
   }
   const { openLinkedProject } = await import('../persistence/linkedAssets')
   return {
@@ -90,9 +125,10 @@ export async function openProjectFile(file: File) {
 export async function createEmbeddedProject(
   document: CollageDocumentV1,
   registry: AssetRegistry,
+  options: { onProgress?: (completed: number, total: number) => void; signal?: AbortSignal } = {},
 ): Promise<Blob> {
   const { createArchive } = await import('../persistence/archive')
-  return createArchive(document, { get: (assetId) => registry.getBlob(assetId) })
+  return createArchive(document, { get: (assetId) => registry.getBlob(assetId) }, options)
 }
 
 export async function createLinkedProjectFile(

@@ -3,6 +3,7 @@ interface AppLifecycleHost {
   initializeStartup: () => void
   applyTheme: (dark: boolean) => void
   pendingNavigation: () => boolean
+  operationActive: () => boolean
   cancelPendingNavigation: () => void
   saveProject: (saveAs: boolean) => void
   openProject: () => void
@@ -32,6 +33,10 @@ export function attachAppLifecycle(host: AppLifecycleHost): () => void {
 
   const keyboard = (event: KeyboardEvent) => {
     if (event.defaultPrevented) return
+    if (host.operationActive()) {
+      event.preventDefault()
+      return
+    }
     const target = event.target as HTMLElement | null
     const cropNumberInput = target?.matches('.crop-controls input[type="number"]') ?? false
     if (

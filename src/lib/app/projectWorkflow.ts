@@ -4,6 +4,7 @@ import type { AssetRegistry } from '../render/assetRegistry'
 import type { ProjectStore } from '../state/projectStore'
 import { matchProjectAssets, openProjectFile, type ProjectSaveFormat } from './projectIO'
 import type { ProjectPersistenceController } from './projectPersistence'
+import { formatOperationBytes, type ProjectOperation } from './projectOperation'
 
 type PendingNavigation = 'new' | 'open' | null
 
@@ -14,6 +15,7 @@ interface ProjectWorkflowHost {
   projectTitle: () => string
   registry: () => AssetRegistry
   activePage: () => PageV1
+  preferredPageId?: (document: CollageDocumentV1) => string
   isDirty: () => boolean
   recoveredOnly: () => boolean
   pendingNavigation: () => PendingNavigation
@@ -42,6 +44,7 @@ interface ProjectWorkflowHost {
   setHasSavedProject: (saved: boolean) => void
   incrementImageRevision: () => void
   setOperationProgress: (message: string | null) => void
+  setProjectOperation?: (operation: ProjectOperation | null) => void
   setOpeningPages: (pages: PageV1[] | null, total: number) => void
   announce: (message: string) => void
 }
@@ -110,7 +113,29 @@ export class ProjectWorkflowController {
         chooseLinkedFolder: this.host.chooseLinkedFolderForSave,
         isCurrent,
         onStarted: () => {
-          if (isCurrent()) this.host.setOperationProgress('Saving project…')
+          if (!isCurrent()) return
+          this.host.setOperationProgress('Saving project…')
+          this.host.setProjectOperation?.({
+            id: operation,
+            kind: 'save',
+            phase: 'Packaging photos',
+          })
+        },
+        onProgress: (phase, completed, total) => {
+          if (!isCurrent()) return
+          this.host.setOperationProgress(`${phase}…`)
+          this.host.setProjectOperation?.({
+            id: operation,
+            kind: 'save',
+            phase,
+            completed,
+            total,
+            indeterminate: phase === 'Finalizing',
+            detail:
+              completed !== undefined && total !== undefined
+                ? `${formatOperationBytes(completed)} of ${formatOperationBytes(total)}`
+                : undefined,
+          })
         },
       })
       if (!format || !isCurrent()) return false
@@ -127,7 +152,10 @@ export class ProjectWorkflowController {
       this.host.announce(error instanceof Error ? error.message : 'Unable to save project')
       return false
     } finally {
-      if (operation === this.saveSequence) this.host.setOperationProgress(null)
+      if (operation === this.saveSequence) {
+        this.host.setOperationProgress(null)
+        this.host.setProjectOperation?.(null)
+      }
     }
   }
 
@@ -187,10 +215,32 @@ export class ProjectWorkflowController {
     this.opening = true
     try {
       this.host.setOperationProgress('Opening project…')
+      this.host.setProjectOperation?.({ id: operation, kind: 'open', phase: 'Reading project' })
       this.host.setOpeningPages([], 0)
-      const { format, opened } = await openProjectFile(file)
+      const { format, opened } = await openProjectFile(file, {
+        onProgress: (phase, completed, total) => {
+          if (!isCurrent()) return
+          this.host.setOperationProgress(`${phase}…`)
+          this.host.setProjectOperation?.({
+            id: operation,
+            kind: 'open',
+            phase,
+            completed,
+            total,
+            detail: `${formatOperationBytes(completed)} of ${formatOperationBytes(total)}`,
+          })
+        },
+      })
       if (!isCurrent()) return
       this.host.setOperationProgress(`Opening pages 0/${opened.document.pages.length}…`)
+      this.host.setProjectOperation?.({
+        id: operation,
+        kind: 'open',
+        phase: 'Preparing pages',
+        completed: 0,
+        total: opened.document.pages.length,
+        detail: `0 of ${opened.document.pages.length} pages`,
+      })
       this.host.setOpeningPages([], opened.document.pages.length)
       const installed = await this.host.installDocument(
         opened.document,
@@ -199,6 +249,14 @@ export class ProjectWorkflowController {
         (completed, total, readyPages) => {
           if (!isCurrent()) return
           this.host.setOperationProgress(`Opening pages ${completed}/${total}…`)
+          this.host.setProjectOperation?.({
+            id: operation,
+            kind: 'open',
+            phase: 'Preparing pages',
+            completed,
+            total,
+            detail: `${completed} of ${total} pages`,
+          })
           this.host.setOpeningPages(readyPages, total)
         },
       )
@@ -214,7 +272,9 @@ export class ProjectWorkflowController {
       this.host.setMissingAssetIds(new Set([...opened.missingAssetIds, ...linkedIds]))
       this.host.setPendingLinkedDocument(linkedIds.length ? opened.document : null)
       this.host.setRecoveredOnly(false)
-      this.host.setActivePageId(opened.document.pages[0].id)
+      this.host.setActivePageId(
+        this.host.preferredPageId?.(opened.document) ?? opened.document.pages[0].id,
+      )
       this.host.setSelectedSlotId(null)
       this.host.setProjectTitle(opened.document.title)
       this.host.announce(
@@ -228,6 +288,7 @@ export class ProjectWorkflowController {
       if (operation === this.openSequence) {
         this.opening = false
         this.host.setOperationProgress(null)
+        this.host.setProjectOperation?.(null)
         this.host.setOpeningPages(null, 0)
       }
     }

@@ -15,6 +15,13 @@ export interface OpenedArchive {
   assets: Map<string, Blob>
   missingAssetIds: string[]
 }
+export interface OpenArchiveOptions {
+  onProgress?: (
+    phase: 'Reading project' | 'Checking photos',
+    completed: number,
+    total: number,
+  ) => void
+}
 const maxEntryBytes = 64 * 1024 * 1024
 const maxDocumentBytes = 16 * 1024 * 1024
 const maxExpandedBytes = maxProjectBytes + maxDocumentBytes
@@ -33,6 +40,7 @@ async function sha256(blob: Blob): Promise<string> {
 export async function createArchive(
   document: CollageDocumentV1,
   assets: ArchiveAssets,
+  options: { onProgress?: (completed: number, total: number) => void; signal?: AbortSignal } = {},
 ): Promise<Blob> {
   if (Object.keys(document.assets).length > maxProjectAssetCount)
     throw new Error(`Project contains more than ${maxProjectAssetCount} photos`)
@@ -58,10 +66,16 @@ export async function createArchive(
     if (!blob) throw new Error(`Missing original bytes for ${asset.originalName}`)
     files.push({ name: `assets/${asset.id}`, blob })
   }
-  return zipBlobs(files, collageMimeType)
+  return zipBlobs(files, collageMimeType, {
+    onProgress: ({ completed, total }) => options.onProgress?.(completed, total ?? 0),
+    signal: options.signal,
+  })
 }
 
-export async function openArchive(file: Blob): Promise<OpenedArchive> {
+export async function openArchive(
+  file: Blob,
+  options: OpenArchiveOptions = {},
+): Promise<OpenedArchive> {
   if (file.size > maxArchiveFileBytes)
     throw new Error('Project archive exceeds the 1 GB safety limit')
   const entries = await unzipBlobBounded(file, {
@@ -69,6 +83,8 @@ export async function openArchive(file: Blob): Promise<OpenedArchive> {
     maxEntryBytes,
     maxExpandedBytes,
     validateName: assertSafeEntryName,
+    onInputProgress: (completed, total) =>
+      options.onProgress?.('Reading project', completed, total),
   })
   if (!entries.mimetype || !entries['document.json'])
     throw new Error('Project archive is missing required files')
@@ -91,14 +107,20 @@ export async function openArchive(file: Blob): Promise<OpenedArchive> {
     throw new Error('Project assets exceed the 1 GB safety limit')
   const assets = new Map<string, Blob>()
   const missingAssetIds: string[] = []
+  const embeddedAssets = Object.values(document.assets).filter(
+    (asset) => asset.storage.kind === 'embedded',
+  )
+  const totalAssetBytes = embeddedAssets.reduce((total, asset) => total + asset.byteLength, 0)
+  let checkedBytes = 0
+  options.onProgress?.('Checking photos', checkedBytes, totalAssetBytes)
   for (const asset of Object.values(document.assets)) {
     if (asset.storage.kind !== 'embedded') continue
     const blob = entries[asset.storage.archivePath]
     if (!blob || blob.size !== asset.byteLength || (await sha256(blob)) !== asset.sha256) {
       missingAssetIds.push(asset.id)
-      continue
-    }
-    assets.set(asset.id, blob.slice(0, blob.size, asset.mediaType))
+    } else assets.set(asset.id, blob.slice(0, blob.size, asset.mediaType))
+    checkedBytes += asset.byteLength
+    options.onProgress?.('Checking photos', checkedBytes, totalAssetBytes)
   }
   return { document, assets, missingAssetIds }
 }

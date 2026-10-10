@@ -178,6 +178,66 @@ describe('page image session', () => {
     }
   })
 
+  it('installs the remembered page before secondary pages prepare in the background', async () => {
+    const project = new ProjectStore(createProject('Before open'))
+    const document = createProject('After open')
+    document.pages = [
+      page('Page 1', 'asset-0'),
+      page('Page 2', 'asset-1'),
+      page('Page 3', 'asset-2'),
+    ]
+    const blobs = new Map<string, Blob>()
+    for (let index = 0; index < 3; index += 1) {
+      const id = `asset-${index}`
+      document.assets[id] = {
+        id,
+        originalName: `${id}.png`,
+        mediaType: 'image/png',
+        byteLength: 1,
+        width: 1,
+        height: 1,
+        sha256: `hash-${index}`,
+        storage: { kind: 'embedded', archivePath: `assets/${id}` },
+      }
+      blobs.set(id, new Blob(['x']))
+    }
+    const gates = new Map<string, () => void>()
+    const started: string[] = []
+    const register = vi
+      .spyOn(AssetRegistry.prototype, 'register')
+      .mockImplementation(async (id) => {
+        started.push(id)
+        await new Promise<void>((resolve) => gates.set(id, resolve))
+        return true
+      })
+    const currentRegistry = new AssetRegistry()
+    let installedRegistry = currentRegistry
+    try {
+      const opening = replaceProjectDocument(
+        project,
+        currentRegistry,
+        document,
+        blobs,
+        (registry) => (installedRegistry = registry),
+        () => true,
+        () => undefined,
+        true,
+        'Page 2',
+        (registry) => registry === installedRegistry,
+      )
+      await vi.waitFor(() => expect(started).toEqual(['asset-1']))
+      gates.get('asset-1')?.()
+      await expect(opening).resolves.toBe(true)
+      expect(project.snapshot().title).toBe('After open')
+      await vi.waitFor(() => expect(started).toContain('asset-0'))
+      gates.get('asset-0')?.()
+      await vi.waitFor(() => expect(started).toContain('asset-2'))
+      gates.get('asset-2')?.()
+    } finally {
+      register.mockRestore()
+    }
+  })
+
   it('shows decoded thumbnails before the full page images finish loading', async () => {
     let finishFullLoad: (() => void) | undefined
     const fullLoad = new Promise<void>((resolve) => (finishFullLoad = resolve))

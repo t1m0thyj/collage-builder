@@ -125,6 +125,49 @@ test.describe('recovery opening benchmark', () => {
     console.log(
       `Recovery benchmark: startup ${(readyAt - startupAt).toFixed(0)} ms, open ${(openedAt - readyAt).toFixed(0)} ms`,
     )
+
+    // Preview writes are intentionally best-effort. Wait for the cold open to
+    // populate its local cache before measuring the same recovery again.
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            new Promise<number>((resolve, reject) => {
+              const request = indexedDB.open('collage-builder-preview-cache')
+              request.onerror = () => reject(request.error)
+              request.onsuccess = () => {
+                const db = request.result
+                if (!db.objectStoreNames.contains('previews')) {
+                  db.close()
+                  resolve(0)
+                  return
+                }
+                const count = db.transaction('previews').objectStore('previews').count()
+                count.onerror = () => reject(count.error)
+                count.onsuccess = () => {
+                  db.close()
+                  resolve(count.result)
+                }
+              }
+            }),
+        ),
+      )
+      .toBeGreaterThanOrEqual(12)
+
+    const warmStartedAt = performance.now()
+    await page.reload()
+    const warmDialog = page.getByRole('dialog', { name: 'Pick up where you left off?' })
+    await expect(warmDialog).toBeVisible({ timeout: 120_000 })
+    const warmReadyAt = performance.now()
+    await warmDialog.getByRole('button', { name: 'Continue this collage' }).click()
+    await expect(page.getByRole('textbox', { name: 'Project title' })).toHaveValue(
+      'Recovery benchmark',
+      { timeout: 120_000 },
+    )
+    const warmOpenedAt = performance.now()
+    console.log(
+      `Recovery benchmark: warm startup ${(warmReadyAt - warmStartedAt).toFixed(0)} ms, warm open ${(warmOpenedAt - warmReadyAt).toFixed(0)} ms`,
+    )
   })
 })
 

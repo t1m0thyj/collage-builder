@@ -3,6 +3,7 @@ import type { CollageDocumentV1 } from '../domain/types'
 import { migrateDocument } from '../domain/migrations'
 import type { AssetRegistry } from '../render/assetRegistry'
 import { createRecoveryPreview } from '../render/recoveryPreview'
+import { savePreviewCache } from './previewCache'
 
 const recoveryLimit = 5
 
@@ -84,6 +85,15 @@ export async function saveRecovery(
   for (const key of await assetBlobs.getAllKeys())
     if (typeof key === 'string' && !retainedBlobKeys.has(key)) await assetBlobs.delete(key)
   await tx.done
+
+  // Original recovery data has committed at this point. Derived previews are a
+  // best-effort acceleration layer, so quota pressure must not fail autosave.
+  await Promise.all(
+    Object.values(document.assets).map(async (asset) => {
+      const prepared = registry.getPreparedImages(asset.id)
+      if (prepared) await savePreviewCache(asset, prepared).catch(() => undefined)
+    }),
+  )
 }
 
 export async function loadRecovery(projectId: string): Promise<CollageDocumentV1 | undefined> {

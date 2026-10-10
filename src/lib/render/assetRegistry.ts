@@ -3,6 +3,13 @@ import type { CollageDocumentV1 } from '../domain/types'
 import { maxProjectBytes } from '../persistence/limits'
 import { convertHeicForDisplay, isHeicBlob } from '../domain/heic'
 
+export interface PreparedAssetImages {
+  preview: Blob
+  thumbnail: Blob
+  /** A converted, full-resolution display image for a HEIC/HEIF original when needed. */
+  displayBlob?: Blob
+}
+
 export function decodedImageBudgetForDevice(deviceMemory?: number): number {
   const mebibyte = 1024 * 1024
   if (deviceMemory !== undefined && deviceMemory >= 8) return 256 * mebibyte
@@ -20,6 +27,10 @@ export class AssetRegistry {
   private readonly objectUrls = new Map<AssetId, string>()
   private readonly renderableBlobs = new Map<AssetId, Blob>()
   private readonly thumbnailUrls = new Map<AssetId, string>()
+  private readonly previewBlobs = new Map<AssetId, Blob>()
+  private readonly thumbnailBlobs = new Map<AssetId, Blob>()
+  private readonly displayBlobs = new Map<AssetId, Blob>()
+  private readonly registrations = new Map<AssetId, Promise<boolean>>()
   private readonly retained = new Map<string, Blob>()
   private retainedBytes = 0
   private readonly retainedLimit = maxProjectBytes
@@ -41,19 +52,90 @@ export class AssetRegistry {
     displayBlob?: Blob,
     isCurrent: () => boolean = () => true,
   ): Promise<boolean> {
+    return this.startRegistration(assetId, () =>
+      this.registerUncached(assetId, blob, sha256, dimensions, displayBlob, isCurrent),
+    )
+  }
+
+  private async registerUncached(
+    assetId: AssetId,
+    blob: Blob,
+    sha256?: string,
+    dimensions?: { width: number; height: number },
+    displayBlob?: Blob,
+    isCurrent: () => boolean = () => true,
+  ): Promise<boolean> {
     const { renderableBlob, preview, thumbnail } = await this.createRenderableThumbnail(
       blob,
       dimensions,
       displayBlob,
     )
     if (!isCurrent()) return false
-    const objectUrl = URL.createObjectURL(preview)
-    const thumbnailUrl = URL.createObjectURL(thumbnail)
+    return this.commitPrepared(
+      assetId,
+      blob,
+      sha256,
+      renderableBlob,
+      { preview, thumbnail, displayBlob: renderableBlob === blob ? undefined : renderableBlob },
+      isCurrent,
+    )
+  }
+
+  /** Keeps verified original bytes available while a derived preview is prepared later. */
+  bindOriginal(assetId: AssetId, blob: Blob, sha256?: string): void {
+    this.release(assetId)
+    this.blobs.set(assetId, blob)
+    if (sha256) this.activeHashes.set(assetId, sha256)
+  }
+
+  /** Installs validated derived images without decoding or encoding the original again. */
+  async registerPrepared(
+    assetId: AssetId,
+    blob: Blob,
+    sha256: string | undefined,
+    prepared: PreparedAssetImages,
+    isCurrent: () => boolean = () => true,
+  ): Promise<boolean> {
+    return this.startRegistration(assetId, async () =>
+      this.commitPrepared(assetId, blob, sha256, prepared.displayBlob ?? blob, prepared, isCurrent),
+    )
+  }
+
+  private startRegistration(assetId: AssetId, operation: () => Promise<boolean>): Promise<boolean> {
+    const pending = this.registrations.get(assetId)
+    if (pending) return pending
+    const registration = operation()
+    this.registrations.set(assetId, registration)
+    void registration.then(
+      () => {
+        if (this.registrations.get(assetId) === registration) this.registrations.delete(assetId)
+      },
+      () => {
+        if (this.registrations.get(assetId) === registration) this.registrations.delete(assetId)
+      },
+    )
+    return registration
+  }
+
+  private commitPrepared(
+    assetId: AssetId,
+    blob: Blob,
+    sha256: string | undefined,
+    renderableBlob: Blob,
+    prepared: PreparedAssetImages,
+    isCurrent: () => boolean,
+  ): boolean {
+    if (!isCurrent()) return false
+    const objectUrl = URL.createObjectURL(prepared.preview)
+    const thumbnailUrl = URL.createObjectURL(prepared.thumbnail)
     try {
       if (!isCurrent()) return false
       this.release(assetId)
       this.blobs.set(assetId, blob)
       this.renderableBlobs.set(assetId, renderableBlob)
+      this.previewBlobs.set(assetId, prepared.preview)
+      this.thumbnailBlobs.set(assetId, prepared.thumbnail)
+      if (prepared.displayBlob) this.displayBlobs.set(assetId, prepared.displayBlob)
       if (sha256) this.activeHashes.set(assetId, sha256)
       this.objectUrls.set(assetId, objectUrl)
       this.thumbnailUrls.set(assetId, thumbnailUrl)
@@ -284,6 +366,12 @@ export class AssetRegistry {
   getRenderableBlob(assetId: AssetId): Blob | undefined {
     return this.renderableBlobs.get(assetId)
   }
+  getPreparedImages(assetId: AssetId): PreparedAssetImages | undefined {
+    const preview = this.previewBlobs.get(assetId)
+    const thumbnail = this.thumbnailBlobs.get(assetId)
+    if (!preview || !thumbnail) return undefined
+    return { preview, thumbnail, displayBlob: this.displayBlobs.get(assetId) }
+  }
   getObjectUrl(assetId: AssetId): string | undefined {
     return this.objectUrls.get(assetId)
   }
@@ -351,12 +439,16 @@ export class AssetRegistry {
     this.thumbnailImages.delete(assetId)
     this.blobs.delete(assetId)
     this.renderableBlobs.delete(assetId)
+    this.previewBlobs.delete(assetId)
+    this.thumbnailBlobs.delete(assetId)
+    this.displayBlobs.delete(assetId)
     this.activeHashes.delete(assetId)
   }
 
   clear(): void {
     ;[...this.objectUrls.keys()].forEach((assetId) => this.release(assetId))
     this.retained.clear()
+    this.registrations.clear()
     this.retainedBytes = 0
   }
 }

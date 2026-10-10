@@ -3,6 +3,7 @@
   import type { LayoutPresetDefinition, PageV1, SlotContentV1 } from './lib/domain/types'
   import EditorShell from './lib/components/app/EditorShell.svelte'
   import OpeningProjectView from './lib/components/app/OpeningProjectView.svelte'
+  import ProjectOperationDialog from './lib/components/app/ProjectOperationDialog.svelte'
   import ImageManagerDialog from './lib/components/app/ImageManagerDialog.svelte'
   import RecoveryManagerDialog from './lib/components/app/RecoveryManagerDialog.svelte'
   import StartupDialogs from './lib/components/app/StartupDialogs.svelte'
@@ -48,10 +49,12 @@
   import { layoutShapeSummary } from './lib/layouts/displayName'
   import { completeOnboarding, hasCompletedOnboarding } from './lib/app/onboarding'
   import { applyAvailableUpdate, deploymentState } from './lib/app/deployment'
+  import type { ProjectOperation } from './lib/app/projectOperation'
 
   const defaultSidebarWidth = 255
   const sidebarWidthsStorageKey = 'collage-builder:sidebar-widths'
   const recentColorsStorageKey = 'collage-builder:recent-custom-colors'
+  const lastActivePageStoragePrefix = 'collage-builder:last-active-page:'
 
   const project = new ProjectStore(createProject())
   const projectPersistence = new ProjectPersistenceController()
@@ -142,11 +145,35 @@
     message: 'Local autosave starting…',
   }
   let operationProgress: string | null = null
+  let foregroundOperation: ProjectOperation | null = null
+  let operationDialogVisible = false
+  let operationDialogTimer: ReturnType<typeof setTimeout> | undefined
   let openingProject: { pages: PageV1[]; total: number } | null = null
   let importStatus: ImportBatchStatus | null = null
   let toast = ''
   let toastTimeout: number | undefined
   let projectTitle = document.title
+
+  function setForegroundOperation(operation: ProjectOperation | null) {
+    const newOperation = operation?.id !== foregroundOperation?.id
+    if (!operation || newOperation) {
+      if (operationDialogTimer) globalThis.clearTimeout(operationDialogTimer)
+      operationDialogTimer = undefined
+      operationDialogVisible = false
+    }
+    foregroundOperation = operation
+    if (operation && newOperation)
+      operationDialogTimer = globalThis.setTimeout(() => {
+        if (foregroundOperation?.id === operation.id) operationDialogVisible = true
+      }, 200)
+  }
+
+  function preferredPageId(nextDocument: typeof document): string {
+    const saved = globalThis.localStorage?.getItem(
+      `${lastActivePageStoragePrefix}${nextDocument.projectId}`,
+    )
+    return nextDocument.pages.some((page) => page.id === saved) ? saved! : nextDocument.pages[0].id
+  }
 
   function confirmRelink(message: string): Promise<boolean> {
     resolveRelinkConfirmation(false)
@@ -237,6 +264,7 @@
     projectTitle: () => projectTitle,
     registry: () => assetRegistry,
     activePage: () => activePage,
+    preferredPageId,
     isDirty: () => isDirty,
     recoveredOnly: () => recoveredOnly,
     pendingNavigation: () => pendingNavigation,
@@ -260,6 +288,7 @@
     setHasSavedProject: (value) => (hasSavedProject = value),
     incrementImageRevision: () => (imageRevision += 1),
     setOperationProgress: (message) => (operationProgress = message),
+    setProjectOperation: setForegroundOperation,
     setOpeningPages: (pages, total) => (openingProject = pages === null ? null : { pages, total }),
     announce,
   })
@@ -289,7 +318,7 @@
       projectPersistence.reset()
       hasSavedProject = false
       recoveredOnly = true
-      activePageId = restored.pages[0].id
+      activePageId = preferredPageId(restored)
       projectTitle = restored.title
     },
     onState: (state) => (recoveryState = state),
@@ -373,6 +402,7 @@
         isCurrent,
         () => (imageRevision += 1),
         () => (imageRevision += 1),
+        document.assets,
       )
     } catch (error) {
       announce(error instanceof Error ? error.message : 'Unable to decode a project image')
@@ -385,16 +415,34 @@
     isCurrent: () => boolean = () => true,
     onProgress: (completed: number, total: number, readyPages: PageV1[]) => void = () => undefined,
   ): Promise<boolean> {
-    const installed = await replaceProjectDocument(
-      project,
-      assetRegistry,
-      nextDocument,
-      blobs,
-      (registry) => (assetRegistry = registry),
-      isCurrent,
-      onProgress,
-    )
-    if (installed) imageRevision += 1
+    const previousPageId = activePageId
+    const nextPageId = preferredPageId(nextDocument)
+    // The document subscription fires synchronously when the staged project is
+    // committed. Set the intended page first so it never starts decoding page 1
+    // while the remembered page is being prepared.
+    activePageId = nextPageId
+    let installed: boolean
+    try {
+      installed = await replaceProjectDocument(
+        project,
+        assetRegistry,
+        nextDocument,
+        blobs,
+        (registry) => (assetRegistry = registry),
+        isCurrent,
+        onProgress,
+        true,
+        nextPageId,
+        (registry) => registry === assetRegistry,
+        () => (imageRevision += 1),
+      )
+    } catch (error) {
+      activePageId = previousPageId
+      throw error
+    }
+    if (installed) {
+      imageRevision += 1
+    } else activePageId = previousPageId
     return installed
   }
 
@@ -443,6 +491,7 @@
       initializeStartup: () => void initializeStartup(),
       applyTheme: uiPreferences.applyTheme,
       pendingNavigation: () => pendingNavigation !== null,
+      operationActive: () => foregroundOperation !== null,
       cancelPendingNavigation: () => (pendingNavigation = null),
       saveProject: (saveAs) => void projectWorkflow.save(saveAs),
       openProject: projectWorkflow.requestOpen,
@@ -466,6 +515,11 @@
   )
 
   $: activePage = document.pages.find((page) => page.id === activePageId) ?? document.pages[0]
+  $: if (activePage?.id)
+    globalThis.localStorage?.setItem(
+      `${lastActivePageStoragePrefix}${document.projectId}`,
+      activePage.id,
+    )
   $: void preparePageImages(activePage, assetRegistry)
   $: selectedContent = selectedSlotId ? activePage.slots[selectedSlotId] : null
   $: if (selectedContent) cropZoom = selectedContent.placement.zoom
@@ -542,11 +596,28 @@
     restoringRecovery = true
     openingProject = { pages: [], total: startupRecovery?.pageCount ?? 1 }
     operationProgress = `Opening pages 0/${startupRecovery?.pageCount ?? 1}…`
+    const operationId = Date.now()
+    setForegroundOperation({
+      id: operationId,
+      kind: 'recovery',
+      phase: 'Preparing pages',
+      completed: 0,
+      total: startupRecovery?.pageCount ?? 1,
+      detail: `0 of ${startupRecovery?.pageCount ?? 1} pages`,
+    })
     try {
       await tick()
       await new Promise<void>((resolve) => setTimeout(resolve, 16))
       await recovery.restoreStartup((completed, total, readyPages) => {
         operationProgress = `Opening pages ${completed}/${total}…`
+        setForegroundOperation({
+          id: operationId,
+          kind: 'recovery',
+          phase: 'Preparing pages',
+          completed,
+          total,
+          detail: `${completed} of ${total} pages`,
+        })
         openingProject = { pages: readyPages, total }
       })
       startupRecovery = null
@@ -556,6 +627,7 @@
     } finally {
       restoringRecovery = false
       operationProgress = null
+      setForegroundOperation(null)
       openingProject = null
     }
   }
@@ -674,6 +746,7 @@
     class="workspace"
     aria-label="Collage editor"
     style={`--left-sidebar-width:${leftSidebarWidth}px;--right-sidebar-width:${rightSidebarWidth}px`}
+    inert={foregroundOperation !== null}
   >
     <LeftSidebar
       bind:activeTab
@@ -882,6 +955,9 @@
     onstartblank={startWithoutRecovery}
     onmanagerecovery={manageStartupRecovery}
   ></StartupDialogs>
+
+  <ProjectOperationDialog operation={foregroundOperation} visible={operationDialogVisible}
+  ></ProjectOperationDialog>
 
   <div class:toast-visible={Boolean(toast)} class="toast" role="status" aria-atomic="true">
     {toast}

@@ -20,6 +20,11 @@ interface SaveRequest {
   chooseLinkedFolder: () => Promise<FileList | null>
   isCurrent?: () => boolean
   onStarted?: () => void
+  onProgress?: (
+    phase: 'Packaging photos' | 'Writing file' | 'Finalizing',
+    completed?: number,
+    total?: number,
+  ) => void
 }
 
 export class ProjectPersistenceController {
@@ -77,7 +82,19 @@ export class ProjectPersistenceController {
     chooseLinkedFolder,
     isCurrent = () => true,
     onStarted = () => undefined,
+    onProgress = () => undefined,
   }: SaveRequest): Promise<ProjectSaveFormat | null> {
+    let lastProgressAt = 0
+    const reportProgress = (
+      phase: 'Packaging photos' | 'Writing file' | 'Finalizing',
+      completed?: number,
+      total?: number,
+    ) => {
+      const now = performance.now()
+      if (phase !== 'Finalizing' && completed !== 0 && now - lastProgressAt < 100) return
+      lastProgressAt = now
+      onProgress(phase, completed, total)
+    }
     const choosingDestination = saveAs || !this.hasSavedProject
     const target = choosingDestination
       ? await chooseSaveTarget(projectTitle, this.currentFormat, chooseFallback)
@@ -87,9 +104,15 @@ export class ProjectPersistenceController {
     const baseName = projectTitle || 'collage'
     if (target.format === 'embedded') {
       onStarted()
-      const archive = await createEmbeddedProject(document, registry)
+      const archive = await createEmbeddedProject(document, registry, {
+        onProgress: (completed, total) => reportProgress('Packaging photos', completed, total),
+      })
       if (!isCurrent()) return null
-      await writeProjectBlob(target, archive, `${baseName}.collage`)
+      reportProgress('Writing file', 0, archive.size)
+      await writeProjectBlob(target, archive, `${baseName}.collage`, {
+        onProgress: (completed, total) => reportProgress('Writing file', completed, total),
+        onFinalizing: () => reportProgress('Finalizing'),
+      })
     } else {
       const matches = await this.linkedMatchesForSave(
         document,
@@ -100,7 +123,11 @@ export class ProjectPersistenceController {
       if (!matches || !isCurrent()) return null
       const linkedProject = await createLinkedProjectFile(document, matches)
       if (!isCurrent()) return null
-      await writeProjectBlob(target, linkedProject, `${baseName}.collage.json`)
+      reportProgress('Writing file', 0, linkedProject.size)
+      await writeProjectBlob(target, linkedProject, `${baseName}.collage.json`, {
+        onProgress: (completed, total) => reportProgress('Writing file', completed, total),
+        onFinalizing: () => reportProgress('Finalizing'),
+      })
     }
 
     if (!isCurrent()) return null
