@@ -26,13 +26,14 @@ export interface ValidatedImportedImage {
   asset: AssetRecordV1
   file: File
   displayBlob?: Blob
-  /** Transferred to the registry, which closes it after preview generation. */
-  decodedSource: ImageBitmap
+  /** Caller-owned; close after registration, cancellation, or failure. */
+  decodedSource?: ImageBitmap
 }
 
 export async function validateImportedImage(
   file: File,
   knownHashes?: ReadonlySet<string>,
+  retainDecodedSource = true,
 ): Promise<ValidatedImportedImage> {
   const detectedHeicType = heicMediaType(file)
   if (!supportedMediaTypes.has(file.type) && !detectedHeicType)
@@ -69,7 +70,7 @@ export async function validateImportedImage(
     const id = createId()
     const mediaType = detectedHeicType ?? file.type
     const extension = extensionByMediaType[mediaType]
-    return {
+    const validated: ValidatedImportedImage = {
       file: normalizedFile,
       displayBlob,
       asset: {
@@ -82,8 +83,10 @@ export async function validateImportedImage(
         sha256: hash,
         storage: { kind: 'embedded', archivePath: `assets/${id}.${extension}` },
       },
-      decodedSource: image,
+      decodedSource: retainDecodedSource ? image : undefined,
     }
+    if (!retainDecodedSource) image.close()
+    return validated
   } catch (error) {
     image.close()
     throw error

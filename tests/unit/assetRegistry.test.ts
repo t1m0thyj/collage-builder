@@ -1,7 +1,56 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AssetRegistry, decodedImageBudgetForDevice } from '../../src/lib/render/assetRegistry'
 
 describe('decoded image cache', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('rejects undecodable prepared images before installing their URLs', async () => {
+    const registry = new AssetRegistry()
+    const original = new Blob(['original'])
+    registry.bindOriginal('photo', original, 'hash')
+    const close = vi.fn()
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn().mockResolvedValueOnce({ close }).mockRejectedValueOnce(new Error('Bad thumbnail')),
+    )
+    await expect(
+      registry.registerPrepared('photo', original, 'hash', {
+        preview: new Blob(['preview']),
+        thumbnail: new Blob(['bad']),
+      }),
+    ).rejects.toThrow('Bad thumbnail')
+    expect(close).toHaveBeenCalledOnce()
+    expect(registry.getThumbnailUrl('photo')).toBeUndefined()
+    expect(registry.getBlob('photo')).toBe(original)
+  })
+
+  it('rejects the old source as soon as a replacement starts preparing', async () => {
+    const registry = new AssetRegistry()
+    const original = new Blob(['original'])
+    const replacement = new Blob(['replacement'])
+    registry.bindOriginal('photo', original, 'old')
+    let finish!: () => void
+    const gate = new Promise<void>((resolve) => {
+      finish = resolve
+    })
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn(async () => {
+        await gate
+        return { close: vi.fn() }
+      }),
+    )
+    const preparing = registry.registerPrepared('photo', replacement, 'new', {
+      preview: replacement,
+      thumbnail: replacement,
+    })
+    expect(registry.isOriginalCurrent('photo', original, 'old')).toBe(false)
+    registry.clear()
+    finish()
+    await expect(preparing).resolves.toBe(false)
+    expect(registry.getBlob('photo')).toBeUndefined()
+  })
+
   it('releases originals that have not finished preview preparation', () => {
     const registry = new AssetRegistry()
     registry.bindOriginal('pending', new Blob(['photo']), 'pending-hash')

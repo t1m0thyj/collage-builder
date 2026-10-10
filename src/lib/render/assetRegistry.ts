@@ -35,6 +35,7 @@ export class AssetRegistry {
   private lifecycleVersion = 0
   private readonly retained = new Map<string, Blob>()
   private retainedBytes = 0
+  private retainedVersion = 0
   private readonly retainedLimit = maxProjectBytes
   private readonly thumbnailEdge = 256
   private readonly previewEdge = 2048
@@ -46,6 +47,7 @@ export class AssetRegistry {
       : (navigator as Navigator & { deviceMemory?: number }).deviceMemory,
   )
 
+  /** A supplied bitmap stays caller-owned and must be closed in a finally block. */
   async register(
     assetId: AssetId,
     blob: Blob,
@@ -110,16 +112,24 @@ export class AssetRegistry {
     prepared: PreparedAssetImages,
     isCurrent: () => boolean = () => true,
   ): Promise<boolean> {
-    return this.startRegistration(assetId, blob, async (isActive) =>
-      this.commitPrepared(
+    return this.startRegistration(assetId, blob, async (isActive) => {
+      for (const source of [prepared.preview, prepared.thumbnail, prepared.displayBlob]) {
+        if (!source) continue
+        if (!isActive() || !isCurrent()) return false
+        // A Blob with valid metadata can still contain undecodable bytes. Check
+        // using a tiny bitmap so background cache validation stays bounded.
+        const bitmap = await createImageBitmap(source, { resizeWidth: 32, resizeHeight: 32 })
+        bitmap.close()
+      }
+      return this.commitPrepared(
         assetId,
         blob,
         sha256,
         prepared.displayBlob ?? blob,
         prepared,
         () => isActive() && isCurrent(),
-      ),
-    )
+      )
+    })
   }
 
   private startRegistration(
@@ -227,7 +237,7 @@ export class AssetRegistry {
       ])
       return { renderableBlob, preview, thumbnail }
     } finally {
-      bitmap.close()
+      if (!decodedSource) bitmap.close()
     }
   }
 
@@ -425,6 +435,14 @@ export class AssetRegistry {
   hasActive(assetId: AssetId, sha256: string): boolean {
     return this.activeHashes.get(assetId) === sha256
   }
+  isOriginalCurrent(assetId: AssetId, blob: Blob, sha256: string): boolean {
+    const pending = this.registrations.get(assetId)
+    return (
+      this.blobs.get(assetId) === blob &&
+      this.hasActive(assetId, sha256) &&
+      (!pending || pending.blob === blob)
+    )
+  }
   get generation(): number {
     return this.lifecycleVersion
   }
@@ -441,6 +459,7 @@ export class AssetRegistry {
     if (!blob || this.retained.has(key)) return
     this.retained.set(key, blob)
     this.retainedBytes += blob.size
+    this.retainedVersion += 1
   }
 
   get isOverRetainedLimit(): boolean {
@@ -448,6 +467,9 @@ export class AssetRegistry {
   }
   get hasRetainedAssets(): boolean {
     return this.retained.size > 0
+  }
+  get retainedRevision(): number {
+    return this.retainedVersion
   }
 
   /** Release retained versions no longer reachable through document history. */
@@ -460,6 +482,7 @@ export class AssetRegistry {
       if (!referenced.has(key)) {
         this.retained.delete(key)
         this.retainedBytes -= blob.size
+        this.retainedVersion += 1
       }
   }
 
@@ -511,6 +534,7 @@ export class AssetRegistry {
     ])
     assetIds.forEach((assetId) => this.discard(assetId))
     this.retained.clear()
+    this.retainedVersion += 1
     this.registrations.clear()
     this.registrationVersions.clear()
     this.retainedBytes = 0

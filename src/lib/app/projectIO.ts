@@ -1,6 +1,6 @@
 import type { AssetRecordV1, CollageDocumentV1 } from '../domain/types'
 import { collageMimeType, linkedProjectMimeType } from '../persistence/formats'
-import type { LinkedAssetMatch } from '../persistence/linkedAssets'
+import type { LinkedAssetMatch, LinkedAssetMatchOptions } from '../persistence/linkedAssets'
 import type { AssetRegistry } from '../render/assetRegistry'
 import type { PreparedArchive } from '../persistence/archive'
 
@@ -73,30 +73,41 @@ export async function writeProjectBlob(
     onProgress?: (completed: number, total: number) => void
     onFinalizing?: () => void
     signal?: AbortSignal
+    isCurrent?: () => boolean
   } = {},
 ): Promise<'native' | 'download'> {
+  const assertCurrent = () => {
+    if (options.signal?.aborted) throw new DOMException('Project save cancelled', 'AbortError')
+    if (options.isCurrent && !options.isCurrent())
+      throw new Error('Project save is no longer current')
+  }
+  assertCurrent()
   if (target.handle) {
     const writable = await target.handle.createWritable({ keepExistingData: false })
-    const reader = blob.stream().getReader()
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
     let completed = 0
-    options.onProgress?.(completed, blob.size)
     try {
+      reader = blob.stream().getReader()
+      options.onProgress?.(completed, blob.size)
       while (true) {
-        if (options.signal?.aborted) throw new DOMException('Project save cancelled', 'AbortError')
+        assertCurrent()
         const chunk = await reader.read()
         if (chunk.done) break
+        assertCurrent()
         await writable.write(fileWriteChunk(chunk.value))
         completed += chunk.value.byteLength
         options.onProgress?.(completed, blob.size)
       }
+      assertCurrent()
       options.onFinalizing?.()
+      assertCurrent()
       await writable.close()
     } catch (error) {
-      await reader.cancel().catch(() => undefined)
+      await reader?.cancel().catch(() => undefined)
       await writable.abort().catch(() => undefined)
       throw error
     } finally {
-      reader.releaseLock()
+      reader?.releaseLock()
     }
     return 'native'
   }
@@ -195,6 +206,7 @@ export async function writeEmbeddedProject(
   }
 
   const { writeArchive } = await import('../persistence/archive')
+  assertCurrent()
   const writable = await target.handle.createWritable({ keepExistingData: false })
   let closed = false
   try {
@@ -213,6 +225,7 @@ export async function writeEmbeddedProject(
     )
     assertCurrent()
     options.onFinalizing?.()
+    assertCurrent()
     await writable.close()
     closed = true
     return 'native'
@@ -233,9 +246,10 @@ export async function createLinkedProjectFile(
 export async function matchProjectAssets(
   assets: Record<string, AssetRecordV1>,
   files: FileList,
+  options: LinkedAssetMatchOptions = {},
 ): Promise<Map<string, LinkedAssetMatch>> {
   const { matchLinkedAssets } = await import('../persistence/linkedAssets')
-  return matchLinkedAssets(assets, files)
+  return matchLinkedAssets(assets, files, options)
 }
 
 export type { LinkedAssetMatch }

@@ -1,8 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createProject } from '../../src/lib/domain/factories'
 import { createArchive, openArchive, prepareArchive } from '../../src/lib/persistence/archive'
-import { createLinkedProject, openLinkedProject } from '../../src/lib/persistence/linkedAssets'
-import { writeEmbeddedProject } from '../../src/lib/app/projectIO'
+import {
+  createLinkedProject,
+  matchLinkedAssets,
+  openLinkedProject,
+} from '../../src/lib/persistence/linkedAssets'
+import { writeEmbeddedProject, writeProjectBlob } from '../../src/lib/app/projectIO'
 import { zipSync, strToU8 } from 'fflate'
 import { createHash, randomUUID } from 'node:crypto'
 
@@ -144,6 +148,103 @@ describe('collage archive', () => {
     await writeEmbeddedProject({ format: 'embedded', handle }, prepared, 'empty.collage')
     expect(writes).toBeGreaterThan(0)
     expect(closed).toBe(true)
+  })
+
+  it.each(['source', 'write', 'close'] as const)(
+    'aborts the temporary native archive on a %s failure and preserves the saved file',
+    async (failure) => {
+      const previousFile = new Blob(['Previously saved project'])
+      let savedFile = previousFile
+      const photo = new Blob([new Uint8Array(300_000)])
+      if (failure === 'source')
+        photo.slice = () =>
+          ({
+            arrayBuffer: async () => {
+              throw new Error('source failed')
+            },
+          }) as Blob
+      const chunks: Uint8Array[] = []
+      const abort = vi.fn(async () => {
+        chunks.length = 0
+      })
+      const close = vi.fn(async () => {
+        if (failure === 'close') throw new Error('close failed')
+        savedFile = new Blob(chunks)
+      })
+      const write = vi.fn(async (chunk: Uint8Array) => {
+        if (failure === 'write') throw new Error('write failed')
+        chunks.push(chunk.slice())
+      })
+      const handle = {
+        createWritable: async () => ({ write, close, abort }),
+      } as unknown as FileSystemFileHandle
+      await expect(
+        writeEmbeddedProject(
+          { format: 'embedded', handle },
+          { entries: [{ name: 'assets/photo', blob: photo }], payloadBytes: photo.size },
+          'project.collage',
+        ),
+      ).rejects.toThrow(`${failure} failed`)
+      expect(abort).toHaveBeenCalledOnce()
+      expect(savedFile).toBe(previousFile)
+      expect(close).toHaveBeenCalledTimes(failure === 'close' ? 1 : 0)
+    },
+  )
+
+  it('aborts a linked save when the project changes during the final write', async () => {
+    let current = true
+    const close = vi.fn()
+    const abort = vi.fn(async () => undefined)
+    const handle = {
+      createWritable: async () => ({
+        write: async () => {
+          current = false
+        },
+        close,
+        abort,
+      }),
+    } as unknown as FileSystemFileHandle
+    await expect(
+      writeProjectBlob({ format: 'linked', handle }, new Blob(['{}']), 'project.collage.json', {
+        isCurrent: () => current,
+      }),
+    ).rejects.toThrow('no longer current')
+    expect(close).not.toHaveBeenCalled()
+    expect(abort).toHaveBeenCalledOnce()
+  })
+
+  it('reports matching progress without hashing the same candidate again', async () => {
+    const document = createProject('Matching progress')
+    const file = new File(['original'], 'photo.jpg')
+    const hash = await sha256(file)
+    for (const id of ['one', 'two'])
+      document.assets[id] = {
+        id,
+        originalName: file.name,
+        mediaType: 'image/jpeg',
+        byteLength: file.size,
+        width: 1,
+        height: 1,
+        sha256: hash,
+        storage: { kind: 'linked', relativePath: file.name, displayHint: file.name },
+      }
+    const read = vi.spyOn(file, 'arrayBuffer')
+    const progress = vi.fn()
+    const matches = await matchLinkedAssets(document.assets, [file], { onProgress: progress })
+    expect(matches.size).toBe(2)
+    expect(read).toHaveBeenCalledOnce()
+    expect(progress.mock.calls[0][0]).toEqual({
+      completed: 0,
+      total: 2,
+      checkedFiles: 0,
+      matched: 0,
+    })
+    expect(progress.mock.calls.at(-1)![0]).toEqual({
+      completed: 2,
+      total: 2,
+      checkedFiles: 1,
+      matched: 2,
+    })
   })
 
   it('rejects unsafe archive paths', async () => {

@@ -1,9 +1,9 @@
-import { openDB } from 'idb'
+import { browserDatabase } from './browserDatabase'
 import type { CollageDocumentV1 } from '../domain/types'
 import { migrateDocument } from '../domain/migrations'
 import type { AssetRegistry } from '../render/assetRegistry'
 import { createRecoveryPreview } from '../render/recoveryPreview'
-import { savePreviewCaches } from './previewCache'
+import { evictPreviewCache, prunePreviewCache, savePreviewCaches } from './previewCache'
 
 const recoveryLimit = 5
 const recoveryPreviewStore = 'recoveryPreviews'
@@ -35,16 +35,14 @@ async function sha256(blob: Blob): Promise<string> {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
-// Open the browser's current recovery database version, including older local upgrades.
-const database = () =>
-  openDB('collage-builder', 2, {
-    upgrade(db) {
-      if (!db.objectStoreNames.contains('projects')) db.createObjectStore('projects')
-      if (!db.objectStoreNames.contains('assetBlobs')) db.createObjectStore('assetBlobs')
-      if (!db.objectStoreNames.contains(recoveryPreviewStore))
-        db.createObjectStore(recoveryPreviewStore)
-    },
-  })
+// Version 2 already exists in older installations without recoveryPreviews.
+// Adding that store requires a new version so IndexedDB runs the upgrade.
+const database = browserDatabase('collage-builder', 3, (db) => {
+  if (!db.objectStoreNames.contains('projects')) db.createObjectStore('projects')
+  if (!db.objectStoreNames.contains('assetBlobs')) db.createObjectStore('assetBlobs')
+  if (!db.objectStoreNames.contains(recoveryPreviewStore))
+    db.createObjectStore(recoveryPreviewStore)
+})
 
 export async function saveRecovery(
   document: CollageDocumentV1,
@@ -60,48 +58,16 @@ export async function saveRecovery(
   const recoveryPreview = await createRecoveryPreview(savedDocument, previewAssets).catch(
     () => undefined,
   )
-  const db = await database()
-  const tx = db.transaction(['projects', 'assetBlobs', recoveryPreviewStore], 'readwrite')
-  const projects = tx.objectStore('projects')
-  const assetBlobs = tx.objectStore('assetBlobs')
-  const previews = tx.objectStore(recoveryPreviewStore)
-  await projects.put(savedDocument, savedDocument.projectId)
-  if (recoveryPreview) await previews.put(recoveryPreview, savedDocument.projectId)
-  for (const asset of Object.values(document.assets)) {
-    const blob = registry.getBlob(asset.id)
-    if (blob) {
-      const key = `${document.projectId}:${asset.id}:${asset.sha256}`
-      if ((await assetBlobs.getKey(key)) === undefined) await assetBlobs.put(blob, key)
-    }
+  let retainedProjects: CollageDocumentV1[]
+  try {
+    retainedProjects = await commitRecovery(savedDocument, registry, recoveryPreview)
+  } catch (error) {
+    if (!(error instanceof DOMException) || error.name !== 'QuotaExceededError') throw error
+    // The aborted transaction preserves the previous recovery. Reclaim only
+    // reproducible previews, then try the authoritative write once more.
+    await evictPreviewCache().catch(() => undefined)
+    retainedProjects = await commitRecovery(savedDocument, registry, recoveryPreview)
   }
-
-  const savedProjects: CollageDocumentV1[] = []
-  for (const key of await projects.getAllKeys()) {
-    try {
-      savedProjects.push(migrateDocument(await projects.get(key)))
-    } catch {
-      await projects.delete(key)
-    }
-  }
-  const retainedProjects = savedProjects
-    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
-    .slice(0, recoveryLimit)
-  const retainedProjectIds = new Set(retainedProjects.map((project) => project.projectId))
-  const retainedBlobKeys = new Set(
-    retainedProjects.flatMap((project) =>
-      Object.values(project.assets).map(
-        (asset) => `${project.projectId}:${asset.id}:${asset.sha256}`,
-      ),
-    ),
-  )
-  for (const project of savedProjects)
-    if (!retainedProjectIds.has(project.projectId)) {
-      await projects.delete(project.projectId)
-      await previews.delete(project.projectId)
-    }
-  for (const key of await assetBlobs.getAllKeys())
-    if (typeof key === 'string' && !retainedBlobKeys.has(key)) await assetBlobs.delete(key)
-  await tx.done
 
   // Original recovery data has committed at this point. Derived previews are a
   // best-effort acceleration layer, so quota pressure must not fail autosave.
@@ -111,6 +77,73 @@ export async function saveRecovery(
       return prepared ? [{ asset, images: prepared }] : []
     }),
   ).catch(() => undefined)
+  await prunePreviewCache(
+    retainedProjects.flatMap((project) =>
+      Object.values(project.assets).map((asset) => asset.sha256),
+    ),
+  ).catch(() => undefined)
+}
+
+async function commitRecovery(
+  document: CollageDocumentV1,
+  registry: AssetRegistry,
+  recoveryPreview?: Blob,
+): Promise<CollageDocumentV1[]> {
+  const db = await database()
+  const tx = db.transaction(['projects', 'assetBlobs', recoveryPreviewStore], 'readwrite')
+  // Individual requests can fail before tx.done is awaited.
+  void tx.done.catch(() => undefined)
+  const projects = tx.objectStore('projects')
+  const assetBlobs = tx.objectStore('assetBlobs')
+  const previews = tx.objectStore(recoveryPreviewStore)
+  try {
+    await projects.put(document, document.projectId)
+    if (recoveryPreview) await previews.put(recoveryPreview, document.projectId)
+    for (const asset of Object.values(document.assets)) {
+      const blob = registry.getBlob(asset.id)
+      if (blob) {
+        const key = `${document.projectId}:${asset.id}:${asset.sha256}`
+        if ((await assetBlobs.getKey(key)) === undefined) await assetBlobs.put(blob, key)
+      }
+    }
+
+    const savedProjects: CollageDocumentV1[] = []
+    for (const key of await projects.getAllKeys()) {
+      try {
+        savedProjects.push(migrateDocument(await projects.get(key)))
+      } catch {
+        await projects.delete(key)
+      }
+    }
+    const retainedProjects = savedProjects
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+      .slice(0, recoveryLimit)
+    const retainedProjectIds = new Set(retainedProjects.map((project) => project.projectId))
+    const retainedBlobKeys = new Set(
+      retainedProjects.flatMap((project) =>
+        Object.values(project.assets).map(
+          (asset) => `${project.projectId}:${asset.id}:${asset.sha256}`,
+        ),
+      ),
+    )
+    for (const project of savedProjects)
+      if (!retainedProjectIds.has(project.projectId)) {
+        await projects.delete(project.projectId)
+        await previews.delete(project.projectId)
+      }
+    for (const key of await assetBlobs.getAllKeys())
+      if (typeof key === 'string' && !retainedBlobKeys.has(key)) await assetBlobs.delete(key)
+    await tx.done
+    return retainedProjects
+  } catch (error) {
+    try {
+      tx.abort()
+    } catch {
+      /* The database may already have aborted it. */
+    }
+    await tx.done.catch(() => undefined)
+    throw error
+  }
 }
 
 export async function loadRecovery(projectId: string): Promise<CollageDocumentV1 | undefined> {
@@ -290,6 +323,15 @@ export async function deleteRecovery(projectId: string): Promise<void> {
   for (const key of await assetBlobs.getAllKeys())
     if (typeof key === 'string' && key.startsWith(prefix)) await assetBlobs.delete(key)
   await tx.done
+  await prunePreviewCache(
+    (await db.getAll('projects')).flatMap((stored) => {
+      try {
+        return Object.values(migrateDocument(stored).assets).map((asset) => asset.sha256)
+      } catch {
+        return []
+      }
+    }),
+  ).catch(() => undefined)
 }
 
 export async function clearRecoveries(): Promise<void> {
@@ -301,4 +343,5 @@ export async function clearRecoveries(): Promise<void> {
     tx.objectStore(recoveryPreviewStore).clear(),
   ])
   await tx.done
+  await prunePreviewCache([]).catch(() => undefined)
 }

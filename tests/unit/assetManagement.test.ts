@@ -59,6 +59,51 @@ describe('asset usage counts', () => {
 })
 
 describe('asset operation lifecycle guards', () => {
+  it.each(['cancelled validation', 'registration failure', 'confirmation failure'])(
+    'releases the imported bitmap after %s',
+    async (failure) => {
+      const document = createProject()
+      const id = 'photo'
+      const asset = {
+        id,
+        originalName: 'photo.png',
+        mediaType: 'image/png' as const,
+        width: 1,
+        height: 1,
+        byteLength: 1,
+        sha256: 'new-hash',
+        storage: { kind: 'embedded' as const, archivePath: 'assets/photo' },
+      }
+      document.assets[id] = { ...asset, sha256: 'old-hash' }
+      const close = vi.fn()
+      imageValidation.validate.mockResolvedValueOnce({
+        asset,
+        file: new File(['x'], 'photo.png'),
+        decodedSource: { close },
+      })
+      const registry = {
+        register: vi.fn().mockRejectedValue(new Error('Registration failed')),
+      } as unknown as AssetRegistry
+      const project = new ProjectStore(document)
+      const operation = relinkProjectAsset(
+        new File(['x'], 'photo.png'),
+        id,
+        document,
+        registry,
+        project,
+        () => {
+          if (failure === 'confirmation failure') throw new Error('Confirmation failed')
+          return true
+        },
+        () => failure !== 'cancelled validation',
+      )
+      if (failure === 'cancelled validation') await expect(operation).resolves.toBe(false)
+      else await expect(operation).rejects.toThrow(/failed/i)
+      expect(close).toHaveBeenCalledOnce()
+      expect(project.historySnapshots()).toHaveLength(0)
+    },
+  )
+
   it('does not commit an import after its original project is replaced', async () => {
     const original = createProject('Original')
     const replacement = createProject('Replacement')

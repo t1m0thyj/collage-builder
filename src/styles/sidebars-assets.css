@@ -1,6 +1,6 @@
 .editor-column {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) 46px;
+  grid-template-rows: minmax(0, 1fr) 41px;
   min-width: 0;
   min-height: 0;
   position: relative;

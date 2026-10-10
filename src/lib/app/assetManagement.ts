@@ -30,6 +30,7 @@ export interface RelinkBatchResult {
 }
 
 type ValidatedImage = Awaited<ReturnType<typeof validateImportedImage>>
+type RelinkCandidate = Omit<ValidatedImage, 'decodedSource'>
 
 export type AssetUsageCounts = ReadonlyMap<string, number>
 
@@ -160,16 +161,14 @@ export async function importProjectAssets(
         isCurrent,
       )
       if (!registered || !isCurrent()) {
-        validated = undefined
+        registry.release(asset.id)
         break
       }
       staged.push(completed)
-      validated = undefined
       knownHashes.add(asset.sha256)
       status.added += 1
       status.importedAssetIds.push(asset.id)
     } catch (error) {
-      validated?.decodedSource.close()
       status.skipped += 1
       const message = error instanceof Error ? error.message : 'Unable to import image'
       const filePrefix = `${file.name}: `
@@ -178,6 +177,7 @@ export async function importProjectAssets(
         message: message.startsWith(filePrefix) ? message.slice(filePrefix.length) : message,
       })
     } finally {
+      validated?.decodedSource?.close()
       status.processed += 1
       if (isCurrent()) onProgress(snapshot())
     }
@@ -225,23 +225,24 @@ export async function replaceProjectAsset(
     displayBlob,
     decodedSource,
   } = await validateImportedImage(file)
-  if (!isCurrent()) {
-    decodedSource.close()
-    return false
+  try {
+    if (!isCurrent()) return false
+    registry.retain(target, document.assets[target].sha256)
+    const registered = await registry.register(
+      target,
+      normalizedFile,
+      asset.sha256,
+      asset,
+      displayBlob,
+      decodedSource,
+      isCurrent,
+    )
+    if (!registered || !isCurrent()) return false
+    project.replaceAsset(target, embeddedReplacement(asset, target))
+    return true
+  } finally {
+    decodedSource?.close()
   }
-  registry.retain(target, document.assets[target].sha256)
-  const registered = await registry.register(
-    target,
-    normalizedFile,
-    asset.sha256,
-    asset,
-    displayBlob,
-    decodedSource,
-    isCurrent,
-  )
-  if (!registered || !isCurrent()) return false
-  project.replaceAsset(target, embeddedReplacement(asset, target))
-  return true
 }
 
 export async function relinkProjectAsset(
@@ -259,31 +260,26 @@ export async function relinkProjectAsset(
     displayBlob,
     decodedSource,
   } = await validateImportedImage(file)
-  if (!isCurrent()) {
-    decodedSource.close()
-    return false
+  try {
+    if (!isCurrent()) return false
+    const original = document.assets[target]
+    if (original.sha256 !== asset.sha256 && !(await confirmMismatch())) return false
+    if (!isCurrent()) return false
+    const registered = await registry.register(
+      target,
+      normalizedFile,
+      asset.sha256,
+      asset,
+      displayBlob,
+      decodedSource,
+      isCurrent,
+    )
+    if (!registered || !isCurrent()) return false
+    project.replaceAsset(target, embeddedReplacement(asset, target))
+    return true
+  } finally {
+    decodedSource?.close()
   }
-  const original = document.assets[target]
-  if (original.sha256 !== asset.sha256 && !(await confirmMismatch())) {
-    decodedSource.close()
-    return false
-  }
-  if (!isCurrent()) {
-    decodedSource.close()
-    return false
-  }
-  const registered = await registry.register(
-    target,
-    normalizedFile,
-    asset.sha256,
-    asset,
-    displayBlob,
-    decodedSource,
-    isCurrent,
-  )
-  if (!registered || !isCurrent()) return false
-  project.replaceAsset(target, embeddedReplacement(asset, target))
-  return true
 }
 
 function candidateScore(original: AssetRecordV1, candidate: ValidatedImage): number {
@@ -306,12 +302,17 @@ export async function relinkMissingProjectAssets(
   isCurrent: () => boolean = () => true,
 ): Promise<RelinkBatchResult> {
   const targetIds = [...new Set(missingAssetIds)].filter((id) => document.assets[id])
-  const candidates: ValidatedImage[] = []
+  const candidates: RelinkCandidate[] = []
   const issues: ImportIssue[] = []
   for (const file of files ? [...files] : []) {
     if (!isCurrent()) break
     try {
-      candidates.push(await validateImportedImage(file))
+      // Only metadata and converted Blobs survive validation. Keeping decoded
+      // candidates until matching finishes would scale pixel memory with the
+      // whole folder; registration decodes each chosen source serially instead.
+      const { decodedSource, ...candidate } = await validateImportedImage(file, undefined, false)
+      decodedSource?.close()
+      candidates.push(candidate)
     } catch (error) {
       issues.push({
         fileName: file.name,
@@ -319,13 +320,10 @@ export async function relinkMissingProjectAssets(
       })
     }
   }
-  if (!isCurrent()) {
-    candidates.forEach((candidate) => candidate.decodedSource.close())
-    return { relinkedAssetIds: [], unmatchedAssetIds: targetIds, issues }
-  }
+  if (!isCurrent()) return { relinkedAssetIds: [], unmatchedAssetIds: targetIds, issues }
 
-  const matches = new Map<string, ValidatedImage>()
-  const usedCandidates = new Set<ValidatedImage>()
+  const matches = new Map<string, RelinkCandidate>()
+  const usedCandidates = new Set<RelinkCandidate>()
   for (const targetId of targetIds) {
     const original = document.assets[targetId]
     const exact = candidates.find(
@@ -346,10 +344,7 @@ export async function relinkMissingProjectAssets(
       .sort((left, right) => right.score - left.score)[0]?.candidate
     if (suggestion) {
       const accepted = await confirmSuggestion(original, suggestion.file)
-      if (!isCurrent()) {
-        candidates.forEach((candidate) => candidate.decodedSource.close())
-        return { relinkedAssetIds: [], unmatchedAssetIds: targetIds, issues }
-      }
+      if (!isCurrent()) return { relinkedAssetIds: [], unmatchedAssetIds: targetIds, issues }
       if (accepted) {
         matches.set(targetId, suggestion)
         usedCandidates.add(suggestion)
@@ -366,12 +361,11 @@ export async function relinkMissingProjectAssets(
         candidate.asset.sha256,
         candidate.asset,
         candidate.displayBlob,
-        candidate.decodedSource,
+        undefined,
         isCurrent,
       )
       if (!registered || !isCurrent()) {
         registeredIds.forEach((id) => registry.release(id))
-        candidates.forEach((candidate) => candidate.decodedSource.close())
         return { relinkedAssetIds: [], unmatchedAssetIds: targetIds, issues }
       }
       registeredIds.push(targetId)
@@ -386,10 +380,6 @@ export async function relinkMissingProjectAssets(
     registeredIds.forEach((id) => registry.release(id))
     throw error
   }
-  const matchedCandidates = new Set(matches.values())
-  candidates
-    .filter((candidate) => !matchedCandidates.has(candidate))
-    .forEach((candidate) => candidate.decodedSource.close())
   return {
     relinkedAssetIds: [...matches.keys()],
     unmatchedAssetIds: targetIds.filter((id) => !matches.has(id)),

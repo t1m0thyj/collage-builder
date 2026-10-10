@@ -15,6 +15,7 @@
   import SidebarResizer from './lib/components/app/SidebarResizer.svelte'
   import { ProjectStore } from './lib/state/projectStore'
   import { AssetRegistry } from './lib/render/assetRegistry'
+  import { releaseOpenPreviewAssets, setOpenPreviewAssets } from './lib/persistence/previewCache'
   import { onMount, tick } from 'svelte'
   import { RecoveryController, type RecoveryState, type StartupRecovery } from './lib/app/recovery'
   import { ExportWorkflowController } from './lib/app/exportProject'
@@ -451,6 +452,10 @@
   }
 
   let subscribedProjectId = document.projectId
+  let reconciledAssets: typeof document.assets | undefined
+  let reconciledRegistry: AssetRegistry | undefined
+  let reconciledRetainedRevision = -1
+  let reconciledHistoryRevision = -1
   project.document.subscribe((value) => {
     if (value.projectId !== subscribedProjectId) {
       resolveRelinkConfirmation(false)
@@ -458,13 +463,24 @@
       importStatus = null
     }
     document = value
+    setOpenPreviewAssets(value.assets)
     // Retained blobs and Undo snapshots have one shared budget. Evict the
     // corresponding oldest history state before dropping any required bytes.
-    if (assetRegistry.hasRetainedAssets) {
+    if (
+      assetRegistry.hasRetainedAssets &&
+      (value.assets !== reconciledAssets ||
+        assetRegistry !== reconciledRegistry ||
+        assetRegistry.retainedRevision !== reconciledRetainedRevision ||
+        project.historyRetentionRevision !== reconciledHistoryRevision)
+    ) {
       assetRegistry.reconcileRetainedHistory([value, ...project.historySnapshots()])
       while (assetRegistry.isOverRetainedLimit && project.discardOldestUndo())
         assetRegistry.reconcileRetainedHistory([value, ...project.historySnapshots()])
     }
+    reconciledAssets = value.assets
+    reconciledRegistry = assetRegistry
+    reconciledRetainedRevision = assetRegistry.retainedRevision
+    reconciledHistoryRevision = project.historyRetentionRevision
     const unresolvedAssetIds: string[] = []
     for (const asset of Object.values(value.assets)) {
       if (assetRegistry.hasRetained(asset.id, asset.sha256)) {
@@ -516,7 +532,10 @@
       isDirty: () => isDirty,
       flushRecovery: () => recovery.flushNow(),
       recoverFromLoadError: () => void reloadAfterRecovery(),
-      cleanup: () => recovery.cleanup(),
+      cleanup: () => {
+        releaseOpenPreviewAssets()
+        recovery.cleanup()
+      },
     }),
   )
 

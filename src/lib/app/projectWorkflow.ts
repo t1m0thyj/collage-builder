@@ -4,7 +4,11 @@ import type { AssetRegistry } from '../render/assetRegistry'
 import type { ProjectStore } from '../state/projectStore'
 import { matchProjectAssets, openProjectFile, type ProjectSaveFormat } from './projectIO'
 import type { ProjectPersistenceController } from './projectPersistence'
-import { formatOperationBytes, type ProjectOperation } from './projectOperation'
+import {
+  formatLinkedAssetProgress,
+  formatOperationBytes,
+  type ProjectOperation,
+} from './projectOperation'
 
 type PendingNavigation = 'new' | 'open' | null
 
@@ -121,7 +125,7 @@ export class ProjectWorkflowController {
             phase: 'Packaging photos',
           })
         },
-        onProgress: (phase, completed, total) => {
+        onProgress: (phase, completed, total, detail) => {
           if (!isCurrent()) return
           this.host.setOperationProgress(`${phase}…`)
           this.host.setProjectOperation?.({
@@ -132,9 +136,10 @@ export class ProjectWorkflowController {
             total,
             indeterminate: phase === 'Finalizing',
             detail:
-              completed !== undefined && total !== undefined
+              detail ??
+              (completed !== undefined && total !== undefined
                 ? `${formatOperationBytes(completed)} of ${formatOperationBytes(total)}`
-                : undefined,
+                : undefined),
           })
         },
       })
@@ -178,12 +183,44 @@ export class ProjectWorkflowController {
       registry === this.host.registry() &&
       this.host.project.isCurrentProject(version)
     try {
-      this.host.setOperationProgress('Locating linked images…')
       const files = await this.host.chooseLinkedFolder()
       if (!files || !isCurrent()) return
-      const matches = await matchProjectAssets(target.assets, files)
+      this.host.setOperationProgress('Locating photos…')
+      this.host.setProjectOperation?.({ id: operation, kind: 'open', phase: 'Locating photos' })
+      const matches = await matchProjectAssets(target.assets, files, {
+        isCurrent,
+        onProgress: (progress) => {
+          if (!isCurrent()) return
+          this.host.setProjectOperation?.({
+            id: operation,
+            kind: 'open',
+            phase: 'Locating photos',
+            completed: progress.completed,
+            total: progress.total,
+            detail: formatLinkedAssetProgress(progress),
+          })
+        },
+      })
       if (!isCurrent()) return
       this.host.persistence.setLinkedMatches(matches)
+      let prepared = 0
+      let lastProgressAt = 0
+      const reportPreparation = (force = false) => {
+        if (!isCurrent()) return
+        const now = performance.now()
+        if (!force && now - lastProgressAt < 100) return
+        lastProgressAt = now
+        this.host.setOperationProgress('Preparing photos…')
+        this.host.setProjectOperation?.({
+          id: operation,
+          kind: 'open',
+          phase: 'Preparing photos',
+          completed: prepared,
+          total: matches.size,
+          detail: `${prepared} of ${matches.size} photos`,
+        })
+      }
+      reportPreparation(true)
       for (const [assetId, match] of matches) {
         if (!isCurrent()) return
         const asset = target.assets[assetId]
@@ -196,6 +233,8 @@ export class ProjectWorkflowController {
           undefined,
           isCurrent,
         )
+        prepared += 1
+        reportPreparation(prepared === matches.size)
       }
       if (!isCurrent()) return
       this.host.setMissingAssetIds(
@@ -214,7 +253,10 @@ export class ProjectWorkflowController {
         error instanceof Error ? error.message : 'Unable to use the selected asset folder',
       )
     } finally {
-      if (operation === this.linkedFolderSequence) this.host.setOperationProgress(null)
+      if (operation === this.linkedFolderSequence) {
+        this.host.setOperationProgress(null)
+        this.host.setProjectOperation?.(null)
+      }
     }
   }
 

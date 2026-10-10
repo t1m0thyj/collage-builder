@@ -1,5 +1,7 @@
 import type { CollageDocumentV1 } from '../domain/types'
 import type { AssetRegistry } from '../render/assetRegistry'
+import { formatLinkedAssetProgress } from './projectOperation'
+import type { LinkedAssetMatchOptions } from '../persistence/linkedAssets'
 import {
   chooseSaveTarget,
   createLinkedProjectFile,
@@ -22,9 +24,11 @@ interface SaveRequest {
   isCurrent?: () => boolean
   onStarted?: () => void
   onProgress?: (
-    phase: 'Packaging photos' | 'Saving project' | 'Writing file' | 'Finalizing',
+    phase:
+      'Packaging photos' | 'Saving project' | 'Writing file' | 'Finalizing' | 'Locating photos',
     completed?: number,
     total?: number,
+    detail?: string,
   ) => void
 }
 
@@ -61,6 +65,7 @@ export class ProjectPersistenceController {
     chooseLinkedFolder: () => Promise<FileList | null>,
     forceChooseFolder: boolean,
     onStarted: () => void,
+    options: LinkedAssetMatchOptions,
   ) {
     const assetIds = Object.keys(document.assets)
     if (!assetIds.length) {
@@ -75,7 +80,7 @@ export class ProjectPersistenceController {
     const files = await chooseLinkedFolder()
     if (!files) return null
     onStarted()
-    this.linkedMatches = await matchProjectAssets(document.assets, files)
+    this.linkedMatches = await matchProjectAssets(document.assets, files, options)
     return this.linkedMatches
   }
 
@@ -92,15 +97,17 @@ export class ProjectPersistenceController {
   }: SaveRequest): Promise<ProjectSaveResult | null> {
     let lastProgressAt = 0
     const reportProgress = (
-      phase: 'Packaging photos' | 'Saving project' | 'Writing file' | 'Finalizing',
+      phase:
+        'Packaging photos' | 'Saving project' | 'Writing file' | 'Finalizing' | 'Locating photos',
       completed?: number,
       total?: number,
       force = false,
+      detail?: string,
     ) => {
       const now = performance.now()
       if (!force && phase !== 'Finalizing' && completed !== 0 && now - lastProgressAt < 100) return
       lastProgressAt = now
-      onProgress(phase, completed, total)
+      onProgress(phase, completed, total, detail)
     }
     const choosingDestination = saveAs || !this.hasSavedProject
     const target = choosingDestination
@@ -137,12 +144,24 @@ export class ProjectPersistenceController {
         chooseLinkedFolder,
         choosingDestination,
         onStarted,
+        {
+          isCurrent,
+          onProgress: (progress) =>
+            reportProgress(
+              'Locating photos',
+              progress.completed,
+              progress.total,
+              progress.completed === 0 || progress.completed === progress.total,
+              formatLinkedAssetProgress(progress),
+            ),
+        },
       )
       if (!matches || !isCurrent()) return null
       const linkedProject = await createLinkedProjectFile(document, matches)
       if (!isCurrent()) return null
       reportProgress('Writing file', 0, linkedProject.size)
       destination = await writeProjectBlob(target, linkedProject, `${baseName}.collage.json`, {
+        isCurrent,
         onProgress: (completed, total) => reportProgress('Writing file', completed, total),
         onFinalizing: () => reportProgress('Finalizing'),
       })

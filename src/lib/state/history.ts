@@ -1,6 +1,7 @@
 export class History<T> {
   private undoStack: T[] = []
   private redoStack: T[] = []
+  retentionRevision = 0
 
   constructor(private readonly limit = 100) {}
 
@@ -13,7 +14,11 @@ export class History<T> {
 
   push(snapshot: T): void {
     this.undoStack.push(snapshot)
-    if (this.undoStack.length > this.limit) this.undoStack.shift()
+    if (this.undoStack.length > this.limit) {
+      this.undoStack.shift()
+      this.retentionRevision += 1
+    }
+    if (this.redoStack.length) this.retentionRevision += 1
     this.redoStack = []
   }
 
@@ -30,6 +35,7 @@ export class History<T> {
   discardOldestUndo(): boolean {
     if (!this.undoStack.length) return false
     this.undoStack.shift()
+    this.retentionRevision += 1
     return true
   }
 
@@ -48,6 +54,7 @@ export class History<T> {
   }
 
   clear(): void {
+    this.retentionRevision += 1
     this.undoStack = []
     this.redoStack = []
   }

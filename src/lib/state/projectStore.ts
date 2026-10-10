@@ -94,12 +94,21 @@ export class ProjectStore {
     if (dirty !== undefined) this.dirty.set(dirty)
   }
 
-  private commit(mutator: (draft: CollageDocumentV1) => void): void {
+  private commit(
+    mutator: (draft: CollageDocumentV1) => void,
+    changedPages: readonly string[] = [],
+    changeAssets = false,
+  ): void {
     this.finishPageStyleInteraction()
     // Published documents are never mutated. Keeping the current immutable
     // state for Undo avoids cloning a complete project solely for history.
     const before = get(this.state)
-    const draft = clone(before)
+    const changed = new Set(changedPages)
+    const draft = {
+      ...before,
+      pages: before.pages.map((page) => (changed.has(page.id) ? clone(page) : page)),
+      assets: changeAssets ? { ...before.assets } : before.assets,
+    }
     mutator(draft)
     draft.updatedAt = new Date().toISOString()
     assertDocumentInvariants(draft)
@@ -120,23 +129,29 @@ export class ProjectStore {
   }
 
   changeLayout(pageId: string, preset: LayoutPresetDefinition): void {
-    this.commit((draft) => {
-      const page = this.findPage(draft, pageId)
-      const orderedContent = resolveLayout(page).map((frame) => page.slots[frame.slotId])
-      const instance = instantiatePreset(preset)
-      const newSlotIds = Object.keys(instance.slots)
-      newSlotIds.forEach((slotId, index) => {
-        instance.slots[slotId] = orderedContent[index] ?? null
-      })
-      page.layout = instance.layout
-      page.slots = instance.slots
-    })
+    this.commit(
+      (draft) => {
+        const page = this.findPage(draft, pageId)
+        const orderedContent = resolveLayout(page).map((frame) => page.slots[frame.slotId])
+        const instance = instantiatePreset(preset)
+        const newSlotIds = Object.keys(instance.slots)
+        newSlotIds.forEach((slotId, index) => {
+          instance.slots[slotId] = orderedContent[index] ?? null
+        })
+        page.layout = instance.layout
+        page.slots = instance.slots
+      },
+      [pageId],
+    )
   }
 
   setPageStyle(pageId: string, patch: Partial<PageV1['style']>): void {
-    this.commit((draft) => {
-      Object.assign(this.findPage(draft, pageId).style, patch)
-    })
+    this.commit(
+      (draft) => {
+        Object.assign(this.findPage(draft, pageId).style, clone(patch))
+      },
+      [pageId],
+    )
   }
 
   previewPageStyle(pageId: string, control: string, patch: Partial<PageV1['style']>): void {
@@ -152,7 +167,7 @@ export class ProjectStore {
       }
 
     const draft = this.updatePage(get(this.state), pageId, (page) => {
-      Object.assign(page.style, patch)
+      Object.assign(page.style, clone(patch))
     })
     assertDocumentInvariants(draft)
     this.publish(draft, true)
@@ -169,12 +184,15 @@ export class ProjectStore {
     if (!interaction) return
     this.pageStyleInteraction = undefined
 
-    const after = clone(get(this.state))
-    if (JSON.stringify(after) === JSON.stringify(interaction.before)) {
+    const current = get(this.state)
+    if (
+      JSON.stringify(this.findPage(current, interaction.pageId).style) ===
+      JSON.stringify(this.findPage(interaction.before, interaction.pageId).style)
+    ) {
       this.dirty.set(interaction.wasDirty)
       return
     }
-    after.updatedAt = new Date().toISOString()
+    const after = { ...current, updatedAt: new Date().toISOString() }
     assertDocumentInvariants(after)
     this.history.push(interaction.before)
     this.historyRevision.update((value) => value + 1)
@@ -182,13 +200,16 @@ export class ProjectStore {
   }
 
   resizePage(pageId: string, width: number, height: number): void {
-    this.commit((draft) => {
-      if (!Number.isFinite(width) || !Number.isFinite(height) || width < 64 || height < 64)
-        throw new Error('Page dimensions must be at least 64 px')
-      const page = this.findPage(draft, pageId)
-      page.width = Math.round(width)
-      page.height = Math.round(height)
-    })
+    this.commit(
+      (draft) => {
+        if (!Number.isFinite(width) || !Number.isFinite(height) || width < 64 || height < 64)
+          throw new Error('Page dimensions must be at least 64 px')
+        const page = this.findPage(draft, pageId)
+        page.width = Math.round(width)
+        page.height = Math.round(height)
+      },
+      [pageId],
+    )
   }
 
   addAsset(asset: AssetRecordV1): void {
@@ -197,39 +218,53 @@ export class ProjectStore {
 
   addAssets(assets: AssetRecordV1[]): void {
     if (!assets.length) return
-    this.commit((draft) => {
-      if (Object.keys(draft.assets).length + assets.length > maxProjectAssetCount)
-        throw new Error(`Projects can contain no more than ${maxProjectAssetCount} photos`)
-      const hashes = new Set(Object.values(draft.assets).map((candidate) => candidate.sha256))
-      for (const asset of assets) {
-        if (hashes.has(asset.sha256)) throw new Error('This exact image is already in the project')
-        hashes.add(asset.sha256)
-        draft.assets[asset.id] = clone(asset)
-      }
-    })
+    this.commit(
+      (draft) => {
+        if (Object.keys(draft.assets).length + assets.length > maxProjectAssetCount)
+          throw new Error(`Projects can contain no more than ${maxProjectAssetCount} photos`)
+        const hashes = new Set(Object.values(draft.assets).map((candidate) => candidate.sha256))
+        for (const asset of assets) {
+          if (hashes.has(asset.sha256))
+            throw new Error('This exact image is already in the project')
+          hashes.add(asset.sha256)
+          draft.assets[asset.id] = clone(asset)
+        }
+      },
+      [],
+      true,
+    )
   }
 
   assignAsset(pageId: string, slotId: SlotId, assetId: string): void {
-    this.commit((draft) => {
-      if (!draft.assets[assetId]) throw new Error(`Unknown asset: ${assetId}`)
-      const page = this.findPage(draft, pageId)
-      if (!(slotId in page.slots)) throw new Error(`Unknown slot: ${slotId}`)
-      page.slots[slotId] = { assetId, placement: defaultPlacement() }
-    })
+    this.commit(
+      (draft) => {
+        if (!draft.assets[assetId]) throw new Error(`Unknown asset: ${assetId}`)
+        const page = this.findPage(draft, pageId)
+        if (!(slotId in page.slots)) throw new Error(`Unknown slot: ${slotId}`)
+        page.slots[slotId] = { assetId, placement: defaultPlacement() }
+      },
+      [pageId],
+    )
   }
 
   clearSlot(pageId: string, slotId: SlotId): void {
-    this.commit((draft) => {
-      this.findPage(draft, pageId).slots[slotId] = null
-    })
+    this.commit(
+      (draft) => {
+        this.findPage(draft, pageId).slots[slotId] = null
+      },
+      [pageId],
+    )
   }
 
   setSlotContent(pageId: string, slotId: SlotId, content: SlotContentV1 | null): void {
-    this.commit((draft) => {
-      const page = this.findPage(draft, pageId)
-      if (!(slotId in page.slots)) throw new Error(`Unknown slot: ${slotId}`)
-      page.slots[slotId] = content ? clone(content) : null
-    })
+    this.commit(
+      (draft) => {
+        const page = this.findPage(draft, pageId)
+        if (!(slotId in page.slots)) throw new Error(`Unknown slot: ${slotId}`)
+        page.slots[slotId] = content ? clone(content) : null
+      },
+      [pageId],
+    )
   }
 
   previewSlotContent(pageId: string, slotId: SlotId, content: SlotContentV1): void {
@@ -242,35 +277,39 @@ export class ProjectStore {
   }
 
   commitCrop(pageId: string, slotId: SlotId, originalPlacement: SlotContentV1['placement']): void {
-    const after = this.snapshot()
+    const current = get(this.state)
+    const after = { ...current, updatedAt: new Date().toISOString() }
     const content = this.findPage(after, pageId).slots[slotId]
     if (!content) return
-    const before = clone(after)
-    this.findPage(before, pageId).slots[slotId] = {
-      ...content,
-      placement: clone(originalPlacement),
-    }
-    after.updatedAt = new Date().toISOString()
+    const before = this.updatePage(current, pageId, (page) => {
+      page.slots[slotId] = { ...content, placement: clone(originalPlacement) }
+    })
     assertDocumentInvariants(after)
     this.history.push(before)
+    this.historyRevision.update((value) => value + 1)
     this.publish(after, true)
   }
 
   cancelCrop(pageId: string, slotId: SlotId, originalPlacement: SlotContentV1['placement']): void {
-    const draft = this.snapshot()
-    const content = this.findPage(draft, pageId).slots[slotId]
+    const current = get(this.state)
+    const content = this.findPage(current, pageId).slots[slotId]
     if (!content) return
-    content.placement = clone(originalPlacement)
+    const draft = this.updatePage(current, pageId, (page) => {
+      page.slots[slotId] = { ...content, placement: clone(originalPlacement) }
+    })
     this.publish(draft)
   }
 
   moveOrSwapSlots(pageId: string, sourceSlotId: SlotId, targetSlotId: SlotId): void {
     if (sourceSlotId === targetSlotId) return
-    this.commit((draft) => {
-      const slots = this.findPage(draft, pageId).slots
-      if (!(sourceSlotId in slots) || !(targetSlotId in slots)) throw new Error('Unknown frame')
-      ;[slots[sourceSlotId], slots[targetSlotId]] = [slots[targetSlotId], slots[sourceSlotId]]
-    })
+    this.commit(
+      (draft) => {
+        const slots = this.findPage(draft, pageId).slots
+        if (!(sourceSlotId in slots) || !(targetSlotId in slots)) throw new Error('Unknown frame')
+        ;[slots[sourceSlotId], slots[targetSlotId]] = [slots[targetSlotId], slots[sourceSlotId]]
+      },
+      [pageId],
+    )
   }
 
   removeAsset(assetId: string): void {
@@ -280,18 +319,29 @@ export class ProjectStore {
   removeAssets(assetIds: Iterable<string>): void {
     const uniqueAssetIds = [...new Set(assetIds)]
     if (!uniqueAssetIds.length) return
-    this.commit((draft) => {
-      for (const assetId of uniqueAssetIds)
-        if (!draft.assets[assetId]) throw new Error(`Unknown asset: ${assetId}`)
-      const removedAssetIds = new Set(uniqueAssetIds)
-      draft.pages.forEach((page) =>
-        Object.keys(page.slots).forEach((slotId) => {
-          if (page.slots[slotId]?.assetId && removedAssetIds.has(page.slots[slotId]!.assetId))
-            page.slots[slotId] = null
-        }),
+    const removedAssetIds = new Set(uniqueAssetIds)
+    const changedPages = get(this.state)
+      .pages.filter((page) =>
+        Object.values(page.slots).some(
+          (content) => content && removedAssetIds.has(content.assetId),
+        ),
       )
-      uniqueAssetIds.forEach((assetId) => delete draft.assets[assetId])
-    })
+      .map((page) => page.id)
+    this.commit(
+      (draft) => {
+        for (const assetId of uniqueAssetIds)
+          if (!draft.assets[assetId]) throw new Error(`Unknown asset: ${assetId}`)
+        draft.pages.forEach((page) =>
+          Object.keys(page.slots).forEach((slotId) => {
+            if (page.slots[slotId]?.assetId && removedAssetIds.has(page.slots[slotId]!.assetId))
+              page.slots[slotId] = null
+          }),
+        )
+        uniqueAssetIds.forEach((assetId) => delete draft.assets[assetId])
+      },
+      changedPages,
+      true,
+    )
   }
 
   replaceAsset(assetId: string, replacement: AssetRecordV1): void {
@@ -300,25 +350,33 @@ export class ProjectStore {
 
   replaceAssets(replacements: Array<{ assetId: string; replacement: AssetRecordV1 }>): void {
     if (!replacements.length) return
-    this.commit((draft) => {
-      for (const { assetId } of replacements)
-        if (!draft.assets[assetId]) throw new Error(`Unknown asset: ${assetId}`)
-      for (const { assetId, replacement } of replacements)
-        draft.assets[assetId] = { ...clone(replacement), id: assetId }
-    })
+    this.commit(
+      (draft) => {
+        for (const { assetId } of replacements)
+          if (!draft.assets[assetId]) throw new Error(`Unknown asset: ${assetId}`)
+        for (const { assetId, replacement } of replacements)
+          draft.assets[assetId] = { ...clone(replacement), id: assetId }
+      },
+      [],
+      true,
+    )
   }
 
   removeUnusedAssets(): void {
-    this.commit((draft) => {
-      const used = new Set(
-        draft.pages.flatMap((page) =>
-          Object.values(page.slots).flatMap((content) => (content ? [content.assetId] : [])),
-        ),
-      )
-      Object.keys(draft.assets).forEach((assetId) => {
-        if (!used.has(assetId)) delete draft.assets[assetId]
-      })
-    })
+    this.commit(
+      (draft) => {
+        const used = new Set(
+          draft.pages.flatMap((page) =>
+            Object.values(page.slots).flatMap((content) => (content ? [content.assetId] : [])),
+          ),
+        )
+        Object.keys(draft.assets).forEach((assetId) => {
+          if (!used.has(assetId)) delete draft.assets[assetId]
+        })
+      },
+      [],
+      true,
+    )
   }
 
   addPage(sourcePageId?: string): void {
@@ -352,19 +410,25 @@ export class ProjectStore {
   }
 
   clearPage(pageId: string): void {
-    this.commit((draft) => {
-      const page = this.findPage(draft, pageId)
-      Object.keys(page.slots).forEach((slotId) => (page.slots[slotId] = null))
-    })
+    this.commit(
+      (draft) => {
+        const page = this.findPage(draft, pageId)
+        Object.keys(page.slots).forEach((slotId) => (page.slots[slotId] = null))
+      },
+      [pageId],
+    )
   }
 
   renamePage(pageId: string, name: string): void {
     const normalized = name.trim() || 'Untitled page'
     if (normalized.length > maxNameLength)
       throw new Error('Page name must be 200 characters or fewer')
-    this.commit((draft) => {
-      this.findPage(draft, pageId).name = normalized
-    })
+    this.commit(
+      (draft) => {
+        this.findPage(draft, pageId).name = normalized
+      },
+      [pageId],
+    )
   }
 
   movePage(pageId: string, direction: -1 | 1): void {
@@ -377,7 +441,7 @@ export class ProjectStore {
   }
 
   reorderPage(pageId: string, insertionIndex: number): void {
-    const pages = this.snapshot().pages
+    const pages = get(this.state).pages
     const sourceIndex = pages.findIndex((page) => page.id === pageId)
     if (sourceIndex < 0) throw new Error(`Unknown page: ${pageId}`)
     const boundary = Math.min(pages.length, Math.max(0, Math.round(insertionIndex)))
@@ -403,63 +467,72 @@ export class ProjectStore {
       if (node.kind !== 'split') throw new Error('Unknown divider')
       return node
     }
-    const node = splitAtPath(this.findPage(this.snapshot(), pageId))
+    const node = splitAtPath(this.findPage(get(this.state), pageId))
     const equalWeight = node.weights.reduce((sum, weight) => sum + weight, 0) / node.weights.length
     if (node.weights.every((weight) => Math.abs(weight - equalWeight) < 0.000001)) return
-    this.commit((draft) => {
-      splitAtPath(this.findPage(draft, pageId)).weights = node.weights.map(() => equalWeight)
-    })
+    this.commit(
+      (draft) => {
+        splitAtPath(this.findPage(draft, pageId)).weights = node.weights.map(() => equalWeight)
+      },
+      [pageId],
+    )
   }
 
   adjustDividers(
     pageId: string,
     changes: Array<{ path: number[]; index: number; position: number }>,
   ): void {
-    this.commit((draft) => {
-      const page = this.findPage(draft, pageId)
-      for (const { path, index, position } of changes) {
-        let node = page.layout.root
-        for (const childIndex of path) {
-          if (node.kind !== 'split' || !node.children[childIndex])
-            throw new Error('Unknown divider')
-          node = node.children[childIndex]
+    this.commit(
+      (draft) => {
+        const page = this.findPage(draft, pageId)
+        for (const { path, index, position } of changes) {
+          let node = page.layout.root
+          for (const childIndex of path) {
+            if (node.kind !== 'split' || !node.children[childIndex])
+              throw new Error('Unknown divider')
+            node = node.children[childIndex]
+          }
+          if (node.kind !== 'split') throw new Error('Unknown divider')
+          const total = node.weights.reduce((sum, weight) => sum + weight, 0)
+          const before = node.weights.slice(0, index).reduce((sum, weight) => sum + weight, 0)
+          const pair = node.weights[index] + node.weights[index + 1]
+          const first = Math.min(pair - 0.1, Math.max(0.1, position * total - before))
+          node.weights[index] = first
+          node.weights[index + 1] = pair - first
         }
-        if (node.kind !== 'split') throw new Error('Unknown divider')
-        const total = node.weights.reduce((sum, weight) => sum + weight, 0)
-        const before = node.weights.slice(0, index).reduce((sum, weight) => sum + weight, 0)
-        const pair = node.weights[index] + node.weights[index + 1]
-        const first = Math.min(pair - 0.1, Math.max(0.1, position * total - before))
-        node.weights[index] = first
-        node.weights[index + 1] = pair - first
-      }
-    })
+      },
+      [pageId],
+    )
   }
 
   setFramePolygon(pageId: string, slotId: SlotId, polygon?: NormalizedPoint[]): void {
-    this.commit((draft) => {
-      const visit = (node: PageV1['layout']['root']): boolean => {
-        if (node.kind === 'leaf') {
-          if (node.slotId !== slotId) return false
-          node.polygon = polygon ? clone(polygon) : undefined
-          return true
+    this.commit(
+      (draft) => {
+        const visit = (node: PageV1['layout']['root']): boolean => {
+          if (node.kind === 'leaf') {
+            if (node.slotId !== slotId) return false
+            node.polygon = polygon ? clone(polygon) : undefined
+            return true
+          }
+          if (node.kind === 'grid') return false
+          return node.children.some(visit)
         }
-        if (node.kind === 'grid') return false
-        return node.children.some(visit)
-      }
-      if (!visit(this.findPage(draft, pageId).layout.root)) throw new Error('Unknown frame')
-    })
+        if (!visit(this.findPage(draft, pageId).layout.root)) throw new Error('Unknown frame')
+      },
+      [pageId],
+    )
   }
 
   undo(): void {
     this.finishPageStyleInteraction()
-    const previous = this.history.undo(this.snapshot())
+    const previous = this.history.undo(get(this.state))
     if (previous) {
       this.publish(previous, true)
     }
   }
   redo(): void {
     this.finishPageStyleInteraction()
-    const next = this.history.redo(this.snapshot())
+    const next = this.history.redo(get(this.state))
     if (next) {
       this.publish(next, true)
     }
@@ -467,6 +540,10 @@ export class ProjectStore {
 
   historySnapshots(): readonly CollageDocumentV1[] {
     return this.history.snapshots()
+  }
+
+  get historyRetentionRevision(): number {
+    return this.history.retentionRevision
   }
 
   discardOldestUndo(): boolean {

@@ -1,3 +1,5 @@
+import type { LinkedAssetProgress } from '../persistence/linkedAssets'
+
 export type ProjectOperationKind = 'save' | 'open' | 'recovery'
 
 export interface ProjectOperation {
@@ -8,6 +10,10 @@ export interface ProjectOperation {
   total?: number
   detail?: string
   indeterminate?: boolean
+}
+
+export function formatLinkedAssetProgress(progress: LinkedAssetProgress): string {
+  return `${progress.completed} of ${progress.total} photos checked · ${progress.matched} matched · ${progress.checkedFiles} files verified`
 }
 
 export function operationPercent(operation: ProjectOperation): number | undefined {

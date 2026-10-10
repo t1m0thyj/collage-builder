@@ -35,7 +35,7 @@ test('a maximum-length project title remains recoverable', async ({ page }) => {
   expect(savedTitles).toContain('a'.repeat(200))
 })
 
-test('opens a disk project when local recovery was upgraded to version 2', async ({ page }) => {
+test('upgrades version 2 recovery without losing the saved draft', async ({ page }) => {
   const storedDraft = createProject('Existing local draft')
   await page.route('**/__db-setup', (route) =>
     route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Setup</title>' }),
@@ -67,6 +67,19 @@ test('opens a disk project when local recovery was upgraded to version 2', async
   await page.goto('/')
   const recoveryDialog = page.getByRole('dialog', { name: 'Pick up where you left off?' })
   await expect(recoveryDialog).toContainText('Existing local draft')
+  await recoveryDialog.getByRole('button', { name: 'Continue this collage' }).click()
+  const title = page.getByRole('textbox', { name: 'Project title' })
+  await expect(title).toHaveValue('Existing local draft')
+  await title.fill('Updated migrated draft')
+  await title.press('Tab')
+  await expect(
+    page.getByRole('button', { name: /Saved locally.*Manage local copies/i }),
+  ).toBeVisible()
+  await page.reload()
+  await expect(recoveryDialog).toContainText('Updated migrated draft')
+  await expect(
+    recoveryDialog.getByRole('img', { name: 'Preview of Updated migrated draft' }),
+  ).toBeVisible()
   await recoveryDialog.getByRole('button', { name: 'Start a new collage' }).click()
   const diskProject = createProject('Project from disk')
   await page.getByTestId('project-file-input').setInputFiles({
@@ -81,17 +94,17 @@ test('opens a disk project when local recovery was upgraded to version 2', async
   expect(
     await page.evaluate(
       () =>
-        new Promise<number>((resolve, reject) => {
+        new Promise<{ version: number; stores: string[] }>((resolve, reject) => {
           const request = indexedDB.open('collage-builder')
           request.onerror = () => reject(request.error)
           request.onsuccess = () => {
             const db = request.result
-            resolve(db.version)
+            resolve({ version: db.version, stores: [...db.objectStoreNames] })
             db.close()
           }
         }),
     ),
-  ).toBe(2)
+  ).toEqual({ version: 3, stores: ['assetBlobs', 'projects', 'recoveryPreviews'] })
 })
 
 test('startup recovery asks before restoring an unsaved project', async ({ page, browserName }) => {

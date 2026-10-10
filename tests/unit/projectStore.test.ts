@@ -6,6 +6,63 @@ import { layout4Presets } from '../../src/lib/layouts/definitions/4'
 import { layout3Presets } from '../../src/lib/layouts/definitions/3'
 
 describe('project history', () => {
+  it('preserves unchanged pages and assets while keeping Undo snapshots immutable', () => {
+    const store = new ProjectStore(createProject())
+    store.addPage()
+    const before = get(store.document)
+    const pageId = before.pages[0].id
+    const padding = before.pages[0].style.padding
+    store.setPageStyle(pageId, { padding: padding + 5 })
+    const after = get(store.document)
+    expect(after.pages[1]).toBe(before.pages[1])
+    expect(after.assets).toBe(before.assets)
+    expect(before.pages[0].style.padding).toBe(padding)
+    expect(after.pages[0]).not.toBe(before.pages[0])
+    store.undo()
+    expect(get(store.document)).toBe(before)
+    store.redo()
+    expect(get(store.document)).toBe(after)
+  })
+
+  it('does not invalidate history retention on ordinary edits or slider previews', () => {
+    const store = new ProjectStore(createProject())
+    const pageId = get(store.document).pages[0].id
+    const revision = store.historyRetentionRevision
+    store.renameProject('Edited')
+    store.previewPageStyle(pageId, 'padding', { padding: 17 })
+    store.previewPageStyle(pageId, 'padding', { padding: 18 })
+    store.commitPageStyle(pageId, 'padding')
+    expect(store.historyRetentionRevision).toBe(revision)
+    store.undo()
+    store.renameProject('New branch')
+    expect(store.historyRetentionRevision).toBeGreaterThan(revision)
+  })
+
+  it('only changes pages using a removed asset and restores their content through Undo', () => {
+    const store = new ProjectStore(createProject())
+    store.addPage()
+    store.addAsset({
+      id: 'photo',
+      originalName: 'photo.png',
+      mediaType: 'image/png',
+      width: 1,
+      height: 1,
+      byteLength: 1,
+      sha256: 'photo',
+      storage: { kind: 'embedded', archivePath: 'assets/photo' },
+    })
+    const page = get(store.document).pages[0]
+    const slot = Object.keys(page.slots)[0]
+    store.assignAsset(page.id, slot, 'photo')
+    const before = get(store.document)
+    store.removeAsset('photo')
+    expect(before.pages[0].slots[slot]?.assetId).toBe('photo')
+    expect(get(store.document).pages[1]).toBe(before.pages[1])
+    expect(get(store.document).pages[0].slots[slot]).toBeNull()
+    store.undo()
+    expect(get(store.document)).toBe(before)
+  })
+
   it('does not mark an unchanged project title as a new edit', () => {
     const store = new ProjectStore(createProject('Already saved'))
     const saved = store.versionedSnapshot()

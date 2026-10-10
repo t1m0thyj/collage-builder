@@ -13,6 +13,18 @@ export interface LinkedAssetMatch {
   sha256: string
 }
 
+export interface LinkedAssetProgress {
+  completed: number
+  total: number
+  checkedFiles: number
+  matched: number
+}
+
+export interface LinkedAssetMatchOptions {
+  onProgress?: (progress: LinkedAssetProgress) => void
+  isCurrent?: () => boolean
+}
+
 export function relativePathFor(file: DirectoryFile): string {
   const path = file.webkitRelativePath?.replaceAll('\\', '/') || file.name
   const parts = path.split('/').filter(Boolean)
@@ -40,11 +52,31 @@ async function digest(file: Blob): Promise<string> {
 export async function matchLinkedAssets(
   assets: Record<string, AssetRecordV1>,
   files: Iterable<DirectoryFile>,
+  options: LinkedAssetMatchOptions = {},
 ): Promise<Map<string, LinkedAssetMatch>> {
   const candidates = [...files].map((file) => ({ file, relativePath: relativePathFor(file) }))
   const matches = new Map<string, LinkedAssetMatch>()
   const digests = new Map<File, Promise<string>>()
+  const progress: LinkedAssetProgress = {
+    completed: 0,
+    total: Object.keys(assets).length,
+    checkedFiles: 0,
+    matched: 0,
+  }
+  let lastProgressAt = 0
+  const report = (force = false) => {
+    const now = performance.now()
+    if (!force && now - lastProgressAt < 100) return
+    lastProgressAt = now
+    options.onProgress?.({ ...progress })
+  }
+  const assertCurrent = () => {
+    if (options.isCurrent && !options.isCurrent())
+      throw new Error('Photo matching is no longer current')
+  }
+  report(true)
   for (const asset of Object.values(assets)) {
+    assertCurrent()
     const wanted = asset.storage.kind === 'linked' ? asset.storage.relativePath : undefined
     const possible = candidates.filter(
       (candidate) =>
@@ -54,10 +86,15 @@ export async function matchLinkedAssets(
           candidate.file.name === wanted.split('/').at(-1)),
     )
     for (const candidate of possible) {
+      assertCurrent()
       let sha256 = digests.get(candidate.file)
       if (!sha256) {
         sha256 = digest(candidate.file)
         digests.set(candidate.file, sha256)
+        await sha256
+        assertCurrent()
+        progress.checkedFiles += 1
+        report()
       }
       const resolvedHash = await sha256
       if (resolvedHash === asset.sha256) {
@@ -65,6 +102,9 @@ export async function matchLinkedAssets(
         break
       }
     }
+    progress.completed += 1
+    progress.matched = matches.size
+    report(progress.completed === progress.total)
   }
   return matches
 }

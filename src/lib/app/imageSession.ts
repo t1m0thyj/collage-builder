@@ -2,7 +2,7 @@ import { assertDocumentInvariants } from '../domain/invariants'
 import type { CollageDocumentV1, PageV1 } from '../domain/types'
 import { AssetRegistry } from '../render/assetRegistry'
 import type { ProjectStore } from '../state/projectStore'
-import { loadPreviewCache, savePreviewCache } from '../persistence/previewCache'
+import { loadPreviewCache, removePreviewCache, savePreviewCache } from '../persistence/previewCache'
 
 const preparationConcurrency = 3
 
@@ -70,6 +70,13 @@ class PreparationQueue {
 }
 
 const preparationQueues = new WeakMap<AssetRegistry, PreparationQueue>()
+const blobKeys = new WeakMap<Blob, number>()
+let nextBlobKey = 0
+
+function preparationKey(assetId: string, hash: string, blob: Blob, generation: number): string {
+  if (!blobKeys.has(blob)) blobKeys.set(blob, ++nextBlobKey)
+  return `${generation}:${assetId}:${hash}:${blobKeys.get(blob)}`
+}
 
 function preparationQueue(registry: AssetRegistry): PreparationQueue {
   let queue = preparationQueues.get(registry)
@@ -93,11 +100,25 @@ async function prepareAsset(
       ? undefined
       : await loadPreviewCache(asset).catch(() => undefined)
   if (!isCurrent()) return false
-  const registered = cached
-    ? await registry.registerPrepared(assetId, blob, asset.sha256, cached, isCurrent)
-    : await registry.register(assetId, blob, asset.sha256, asset, undefined, undefined, isCurrent)
+  if (cached) {
+    try {
+      return await registry.registerPrepared(assetId, blob, asset.sha256, cached, isCurrent)
+    } catch {
+      if (!isCurrent()) return false
+      await removePreviewCache(asset).catch(() => undefined)
+    }
+  }
+  if (!isCurrent()) return false
+  const registered = await registry.register(
+    assetId,
+    blob,
+    asset.sha256,
+    asset,
+    undefined,
+    undefined,
+    isCurrent,
+  )
   if (!registered) return false
-  if (cached) return true
   const prepared = registry.getPreparedImages(assetId)
   if (prepared) void savePreviewCache(asset, prepared).catch(() => undefined)
   return true
@@ -123,10 +144,19 @@ export async function preparePageImages(
         const asset = assets[assetId]
         const blob = registry.getBlob(assetId)
         if (!asset || !blob) return
-        await preparationQueue(registry).enqueue(assetId, 1, () =>
-          prepareAsset(registry, assetId, blob, asset, () =>
-            registry.isGenerationCurrent(generation),
-          ),
+        await preparationQueue(registry).enqueue(
+          preparationKey(assetId, asset.sha256, blob, generation),
+          1,
+          () =>
+            prepareAsset(
+              registry,
+              assetId,
+              blob,
+              asset,
+              () =>
+                registry.isGenerationCurrent(generation) &&
+                registry.isOriginalCurrent(assetId, blob, asset.sha256),
+            ),
         )
       }),
     )
@@ -192,15 +222,20 @@ async function stagedRegistry(
     const asset = document.assets[assetId]
     try {
       const generation = staged.generation
-      const prepared = await preparationQueue(staged).enqueue(assetId, background ? 0 : 1, () =>
-        prepareAsset(
-          staged,
-          assetId,
-          blob,
-          asset,
-          () =>
-            staged.isGenerationCurrent(generation) && (!background || isRegistryCurrent(staged)),
-        ),
+      const prepared = await preparationQueue(staged).enqueue(
+        preparationKey(assetId, asset.sha256, blob, generation),
+        background ? 0 : 1,
+        () =>
+          prepareAsset(
+            staged,
+            assetId,
+            blob,
+            asset,
+            () =>
+              staged.isGenerationCurrent(generation) &&
+              staged.isOriginalCurrent(assetId, blob, asset.sha256) &&
+              (!background || isRegistryCurrent(staged)),
+          ),
       )
       if (!prepared) return
       const previousPages = completedPages
