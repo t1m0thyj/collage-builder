@@ -99,8 +99,16 @@ test('single click selects and double click crops with usable handles at small z
   for (const zoom of ['10%', '25%']) {
     await page.getByRole('button', { name: /Canvas zoom:/ }).click()
     await page.getByRole('menuitem', { name: zoom, exact: true }).click()
-    const hostBox = (await host.boundingBox())!
-    await page.mouse.click(hostBox.x + 8, hostBox.y + 8)
+    await expect(host).toHaveAttribute('data-fit-scale', zoom === '10%' ? '0.1' : '0.25')
+    // Konva batches scene and hit-graph updates into the next animation frame.
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    )
+    const stageBox = (await stage.boundingBox())!
+    await page.mouse.click(stageBox.x + 8, stageBox.y + 8)
     await expect(selected).toHaveAttribute('aria-pressed', 'false')
     const center = await canvasDocumentPoint(page, {
       x: frame.x + frame.width / 2,
@@ -181,10 +189,15 @@ test.describe('touch crop interaction', () => {
     await page.touchscreen.tap(center.x, center.y)
     await expect(selected).toHaveAttribute('aria-pressed', 'true')
     await expect(host).not.toHaveAttribute('data-crop-placement')
+    // Start a separate double-tap gesture, keeping assertions outside Konva's
+    // 400 ms double-click window so slower CI machines still deliver both taps.
+    await page.waitForTimeout(450)
+    await page.touchscreen.tap(center.x, center.y)
     await page.touchscreen.tap(center.x, center.y)
     await expect(host).toHaveAttribute('data-crop-placement', /.+/)
     await page.keyboard.press('Escape')
     await expect(host).not.toHaveAttribute('data-crop-placement')
+    await page.waitForTimeout(450)
     await page.touchscreen.tap(center.x, center.y)
     await expect(selected).toHaveAttribute('aria-pressed', 'true')
     await expect(host).not.toHaveAttribute('data-crop-placement')

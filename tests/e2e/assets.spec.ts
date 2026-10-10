@@ -123,14 +123,15 @@ test('import progress replaces the sidebar actions until the photo finishes load
   page,
 }) => {
   await page.addInitScript(() => {
-    const decode = HTMLImageElement.prototype.decode
-    HTMLImageElement.prototype.decode = function () {
-      return new Promise<void>((resolve, reject) => {
+    // Import validates with createImageBitmap; HTMLImageElement.decode runs later,
+    // when a placed photo is displayed, and does not hold the import open.
+    const decode = window.createImageBitmap.bind(window)
+    window.createImageBitmap = ((...args: Parameters<typeof createImageBitmap>) =>
+      new Promise<ImageBitmap>((resolve, reject) => {
         Object.assign(window, {
-          resumeImportDecode: () => decode.call(this).then(resolve, reject),
+          resumeImportDecode: () => decode(...args).then(resolve, reject),
         })
-      })
-    }
+      })) as typeof createImageBitmap
   })
   await page.goto('/')
   await page

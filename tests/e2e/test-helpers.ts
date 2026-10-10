@@ -302,10 +302,23 @@ export async function sampleDownloadedPng(
     { encoded: [...bytes], points },
   )
 }
+// Use keyboard edits in the export dialog: WebKit's insertText-based fill can
+// change the DOM value without delivering the input event to the bound settings.
+export async function fillExportInput(input: Locator, value: string) {
+  await input.click()
+  await input.press('ControlOrMeta+A')
+  await input.pressSequentially(value)
+  await input.press('Tab')
+  await expect(input).toHaveValue(value)
+}
+
 export async function exportCurrentPng(page: BrowserPage, longSide: number) {
   await page.getByRole('button', { name: 'Export…' }).click()
   const dialog = page.getByRole('dialog', { name: 'Export pages' })
-  await dialog.getByRole('spinbutton', { name: 'Long side (px)' }).fill(String(longSide))
+  await fillExportInput(
+    dialog.getByRole('spinbutton', { name: 'Long side (px)' }),
+    String(longSide),
+  )
   // Wait for the bound settings to reach the output preview before downloading.
   await expect(dialog).toContainText(
     new RegExp(

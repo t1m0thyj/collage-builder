@@ -107,15 +107,11 @@ test('upgrades version 2 recovery without losing the saved draft', async ({ page
   ).toEqual({ version: 3, stores: ['assetBlobs', 'projects', 'recoveryPreviews'] })
 })
 
-test('startup recovery asks before restoring an unsaved project', async ({ page, browserName }) => {
+test('startup recovery asks before restoring an unsaved project', async ({ page }) => {
   await page.goto('/')
-  // Playwright's Windows WebKit build cannot clone Blob/File values into IndexedDB.
-  // Its layout-only recovery thumbnail remains covered here and in the manager test below.
-  if (browserName !== 'webkit') {
-    await chooseTwoColumnLayout(page)
-    await importImage(page, 'recovery-preview.png', redPng)
-    await assignSidebarImage(page, 'recovery-preview.png', 1)
-  }
+  await chooseTwoColumnLayout(page)
+  await importImage(page, 'recovery-preview.png', redPng)
+  await assignSidebarImage(page, 'recovery-preview.png', 1)
   const title = page.getByRole('textbox', { name: 'Project title' })
   await title.fill('Recovered project')
   await title.press('Tab')
@@ -127,26 +123,24 @@ test('startup recovery asks before restoring an unsaved project', async ({ page,
   await expect(recoveryDialog).toContainText('Recovered project')
   const preview = recoveryDialog.getByRole('img', { name: 'Preview of Recovered project' })
   await expect(preview).toBeVisible()
-  if (browserName !== 'webkit') {
-    const previewPixel = await preview.evaluate(async (image: HTMLImageElement) => {
-      await image.decode()
-      const canvas = document.createElement('canvas')
-      canvas.width = image.naturalWidth
-      canvas.height = image.naturalHeight
-      const context = canvas.getContext('2d')!
-      context.drawImage(image, 0, 0)
-      return [
-        ...context.getImageData(
-          Math.round(canvas.width * 0.25),
-          Math.round(canvas.height * 0.5),
-          1,
-          1,
-        ).data,
-      ]
-    })
-    expect(previewPixel[0]).toBeGreaterThan(180)
-    expect(previewPixel[1]).toBeLessThan(100)
-  }
+  const previewPixel = await preview.evaluate(async (image: HTMLImageElement) => {
+    await image.decode()
+    const canvas = document.createElement('canvas')
+    canvas.width = image.naturalWidth
+    canvas.height = image.naturalHeight
+    const context = canvas.getContext('2d')!
+    context.drawImage(image, 0, 0)
+    return [
+      ...context.getImageData(
+        Math.round(canvas.width * 0.25),
+        Math.round(canvas.height * 0.5),
+        1,
+        1,
+      ).data,
+    ]
+  })
+  expect(previewPixel[0]).toBeGreaterThan(180)
+  expect(previewPixel[1]).toBeLessThan(100)
   await expect(title).toHaveValue('Untitled collage')
   await recoveryDialog.getByRole('button', { name: 'Continue this collage' }).click()
   await expect(title).toHaveValue('Recovered project')

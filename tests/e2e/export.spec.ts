@@ -10,6 +10,7 @@ import {
   rasterDimensions,
   sampleDownloadedPng,
   exportCurrentPng,
+  fillExportInput,
   chooseTwoColumnLayout,
   twoColumnFrameCenters,
   assignSidebarImage,
@@ -41,14 +42,14 @@ test('page-range export validates input and downloads the requested pages', asyn
   await page.getByRole('button', { name: 'Choose export scope' }).click()
   await page.getByRole('menuitem', { name: 'Page range…' }).click()
   const exportDialog = page.getByRole('dialog', { name: 'Export pages' })
-  await exportDialog.getByRole('spinbutton', { name: 'Long side (px)' }).fill('400')
+  await fillExportInput(exportDialog.getByRole('spinbutton', { name: 'Long side (px)' }), '400')
   const range = exportDialog.getByPlaceholder('1-3')
-  await range.fill('2-1')
+  await fillExportInput(range, '2-1')
   await exportDialog.getByRole('button', { name: 'Export', exact: true }).click()
   await expect(page.locator('.toast')).toContainText('Choose pages between 1 and 2')
   await expect(exportDialog).toBeVisible()
 
-  await range.fill('1-2')
+  await fillExportInput(range, '1-2')
   const downloadPromise = page.waitForEvent('download')
   await exportDialog.getByRole('button', { name: 'Export', exact: true }).click()
   const download = await downloadPromise

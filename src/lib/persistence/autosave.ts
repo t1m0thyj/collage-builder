@@ -1,4 +1,5 @@
 import { browserDatabase } from './browserDatabase'
+import { decodeStoredBlob, encodeStoredBlob, type StoredBlob } from './storedBlob'
 import type { CollageDocumentV1 } from '../domain/types'
 import { migrateDocument } from '../domain/migrations'
 import type { AssetRegistry } from '../render/assetRegistry'
@@ -89,7 +90,17 @@ async function commitRecovery(
   registry: AssetRegistry,
   recoveryPreview?: Blob,
 ): Promise<CollageDocumentV1[]> {
+  // Read Blob bytes before opening the transaction: async file reads would let
+  // IndexedDB auto-commit before the writes are queued. Skip unchanged originals.
   const db = await database()
+  const preview = recoveryPreview ? await encodeStoredBlob(recoveryPreview) : undefined
+  const originals = new Map<string, StoredBlob>()
+  for (const asset of Object.values(document.assets)) {
+    const key = `${document.projectId}:${asset.id}:${asset.sha256}`
+    if ((await db.getKey('assetBlobs', key)) !== undefined) continue
+    const blob = registry.getBlob(asset.id)
+    if (blob) originals.set(key, await encodeStoredBlob(blob))
+  }
   const tx = db.transaction(['projects', 'assetBlobs', recoveryPreviewStore], 'readwrite')
   // Individual requests can fail before tx.done is awaited.
   void tx.done.catch(() => undefined)
@@ -98,14 +109,8 @@ async function commitRecovery(
   const previews = tx.objectStore(recoveryPreviewStore)
   try {
     await projects.put(document, document.projectId)
-    if (recoveryPreview) await previews.put(recoveryPreview, document.projectId)
-    for (const asset of Object.values(document.assets)) {
-      const blob = registry.getBlob(asset.id)
-      if (blob) {
-        const key = `${document.projectId}:${asset.id}:${asset.sha256}`
-        if ((await assetBlobs.getKey(key)) === undefined) await assetBlobs.put(blob, key)
-      }
-    }
+    if (preview) await previews.put(preview, document.projectId)
+    for (const [key, original] of originals) await assetBlobs.put(original, key)
 
     const savedProjects: CollageDocumentV1[] = []
     for (const key of await projects.getAllKeys()) {
@@ -182,8 +187,8 @@ export async function loadLatestRecoverySummary(): Promise<
   }
   const document = projects.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0]
   if (!document) return undefined
-  const preview = (await db.get(recoveryPreviewStore, document.projectId)) as Blob | undefined
-  return { document, preview: preview instanceof Blob ? preview : undefined }
+  const preview = decodeStoredBlob(await db.get(recoveryPreviewStore, document.projectId))
+  return { document, preview }
 }
 
 export async function loadRecoveryAssets(document: CollageDocumentV1): Promise<Map<string, Blob>> {
@@ -196,10 +201,10 @@ export async function loadRecoveryAssets(document: CollageDocumentV1): Promise<M
       while (next < entries.length) {
         const index = next++
         const asset = entries[index]
-        const blob = ((await db.get(
-          'assetBlobs',
-          `${document.projectId}:${asset.id}:${asset.sha256}`,
-        )) ?? (await db.get('assetBlobs', `${document.projectId}:${asset.id}`))) as Blob | undefined
+        const blob = decodeStoredBlob(
+          (await db.get('assetBlobs', `${document.projectId}:${asset.id}:${asset.sha256}`)) ??
+            (await db.get('assetBlobs', `${document.projectId}:${asset.id}`)),
+        )
         if (blob && blob.size === asset.byteLength && (await sha256(blob)) === asset.sha256)
           verified[index] = blob.slice(0, blob.size, asset.mediaType)
       }
@@ -234,8 +239,8 @@ async function recoveryBytes(
   const prefix = projectBlobPrefix(projectId)
   for (const key of await assetBlobs.getAllKeys()) {
     if (typeof key !== 'string' || !key.startsWith(prefix)) continue
-    const blob = await assetBlobs.get(key)
-    if (blob instanceof Blob) bytes += blob.size
+    const blob = decodeStoredBlob(await assetBlobs.get(key))
+    if (blob) bytes += blob.size
   }
   return bytes
 }
@@ -303,10 +308,10 @@ export async function getRecoveryManagementSnapshot(): Promise<RecoveryManagemen
     summary.preview = await createRecoveryPreview(document, async (assetId) => {
       const asset = document.assets[assetId]
       if (!asset) return undefined
-      const blob = ((await db.get(
-        'assetBlobs',
-        `${document.projectId}:${asset.id}:${asset.sha256}`,
-      )) ?? (await db.get('assetBlobs', `${document.projectId}:${asset.id}`))) as Blob | undefined
+      const blob = decodeStoredBlob(
+        (await db.get('assetBlobs', `${document.projectId}:${asset.id}:${asset.sha256}`)) ??
+          (await db.get('assetBlobs', `${document.projectId}:${asset.id}`)),
+      )
       return blob?.slice(0, blob.size, asset.mediaType)
     }).catch(() => undefined)
   recoveries.sort((left, right) => (right.updatedAt ?? '').localeCompare(left.updatedAt ?? ''))
