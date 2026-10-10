@@ -9,6 +9,36 @@ import { collageMimeType } from '../../src/lib/persistence/archive'
 export type BrowserPage = import('@playwright/test').Page
 type Locator = import('@playwright/test').Locator
 
+type ImportDecodeGate = Window & {
+  importDecodeGate: { blocked: boolean; calls: number; release?: () => void }
+}
+
+/** Pause only validation of the named File; previews and startup decodes stay native. */
+export async function holdImportDecode(page: BrowserPage, filename: string) {
+  await page.addInitScript((filename) => {
+    const decode = window.createImageBitmap.bind(window)
+    const gate: ImportDecodeGate['importDecodeGate'] = { blocked: false, calls: 0 }
+    ;(window as ImportDecodeGate).importDecodeGate = gate
+    window.createImageBitmap = (async (...args: Parameters<typeof createImageBitmap>) => {
+      if (args[0] instanceof File && args[0].name === filename && gate.calls++ === 0) {
+        await new Promise<void>((resolve) => {
+          gate.release = resolve
+          gate.blocked = true
+        })
+        gate.blocked = false
+      }
+      return decode(...args)
+    }) as typeof createImageBitmap
+  }, filename)
+  return {
+    waitUntilBlocked: () =>
+      expect
+        .poll(() => page.evaluate(() => (window as ImportDecodeGate).importDecodeGate.blocked))
+        .toBe(true),
+    release: () => page.evaluate(() => (window as ImportDecodeGate).importDecodeGate.release!()),
+  }
+}
+
 export async function useWideSystemFont(page: BrowserPage) {
   // Exercise Linux CI's wider fallback metrics on other operating systems too.
   await page.addStyleTag({

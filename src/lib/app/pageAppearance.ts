@@ -45,7 +45,6 @@ export function resizePage(
   value: number,
   aspectLinked: boolean,
 ): void {
-  if (!Number.isFinite(value)) return
   const aspectRatio = page.width / page.height
   const width =
     axis === 'width' ? value : aspectLinked ? Math.round(value * aspectRatio) : page.width

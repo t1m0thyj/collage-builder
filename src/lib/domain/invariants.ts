@@ -1,4 +1,5 @@
 import { resolveLayout } from './geometry'
+import { assertPageDimensions } from './pageLimits'
 import type { CollageDocumentV1, LayoutNodeV1 } from './types'
 
 function leafIds(node: LayoutNodeV1, ids: string[]): void {
@@ -11,6 +12,7 @@ export function assertDocumentInvariants(document: CollageDocumentV1): void {
   if (document.pages.length === 0) throw new Error('A project needs at least one page')
   const pageIds = new Set<string>()
   for (const page of document.pages) {
+    assertPageDimensions(page.width, page.height)
     if (pageIds.has(page.id)) throw new Error('Page IDs must be unique')
     pageIds.add(page.id)
     const slots: string[] = []

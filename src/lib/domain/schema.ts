@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { maxImageDimension, maxImagePixels } from './imageLimits'
+import { pageDimensionError } from './pageLimits'
 
 const finiteNumber = z.number().finite()
 const nonNegative = finiteNumber.nonnegative()
@@ -55,50 +56,55 @@ export const collageDocumentSchema = z.object({
   updatedAt: z.iso.datetime(),
   pages: z
     .array(
-      z.object({
-        id: z.string().uuid(),
-        name: z.string().trim().min(1).max(200),
-        width: finiteNumber.positive(),
-        height: finiteNumber.positive(),
-        layout: z.object({
-          presetId: z.string().min(1),
-          presetRevision: z.number().int().positive(),
-          root: layoutNodeSchema,
-        }),
-        slots: z.record(
-          z.string().uuid(),
-          z
-            .object({
-              assetId: z.string().uuid(),
-              placement: z.object({
-                zoom: finiteNumber.min(1).max(8),
-                positionX: finiteNumber.min(0).max(1),
-                positionY: finiteNumber.min(0).max(1),
-                rotation: z
-                  .union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)])
-                  .default(0),
-                flipHorizontal: z.boolean().default(false),
-                flipVertical: z.boolean().default(false),
-              }),
-            })
-            .nullable(),
-        ),
-        style: z.object({
-          backgroundColor: color,
-          transparentBackground: z.boolean().default(false),
-          padding: nonNegative,
-          gap: nonNegative,
-          cornerRadius: nonNegative,
-          shadow: z.object({
-            enabled: z.boolean(),
-            color: z.string().regex(/^#[0-9A-F]{6}$/),
-            opacity: finiteNumber.min(0).max(1),
-            blur: nonNegative,
-            offsetX: finiteNumber,
-            offsetY: finiteNumber,
+      z
+        .object({
+          id: z.string().uuid(),
+          name: z.string().trim().min(1).max(200),
+          width: finiteNumber.positive(),
+          height: finiteNumber.positive(),
+          layout: z.object({
+            presetId: z.string().min(1),
+            presetRevision: z.number().int().positive(),
+            root: layoutNodeSchema,
           }),
+          slots: z.record(
+            z.string().uuid(),
+            z
+              .object({
+                assetId: z.string().uuid(),
+                placement: z.object({
+                  zoom: finiteNumber.min(1).max(8),
+                  positionX: finiteNumber.min(0).max(1),
+                  positionY: finiteNumber.min(0).max(1),
+                  rotation: z
+                    .union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)])
+                    .default(0),
+                  flipHorizontal: z.boolean().default(false),
+                  flipVertical: z.boolean().default(false),
+                }),
+              })
+              .nullable(),
+          ),
+          style: z.object({
+            backgroundColor: color,
+            transparentBackground: z.boolean().default(false),
+            padding: nonNegative,
+            gap: nonNegative,
+            cornerRadius: nonNegative,
+            shadow: z.object({
+              enabled: z.boolean(),
+              color: z.string().regex(/^#[0-9A-F]{6}$/),
+              opacity: finiteNumber.min(0).max(1),
+              blur: nonNegative,
+              offsetX: finiteNumber,
+              offsetY: finiteNumber,
+            }),
+          }),
+        })
+        .superRefine((page, context) => {
+          const message = pageDimensionError(page.width, page.height)
+          if (message) context.addIssue({ code: 'custom', message, path: ['width'] })
         }),
-      }),
     )
     .min(1),
   assets: z.record(

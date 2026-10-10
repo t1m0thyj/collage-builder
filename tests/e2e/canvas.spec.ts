@@ -100,20 +100,21 @@ test('single click selects and double click crops with usable handles at small z
     await page.getByRole('button', { name: /Canvas zoom:/ }).click()
     await page.getByRole('menuitem', { name: zoom, exact: true }).click()
     await expect(host).toHaveAttribute('data-fit-scale', zoom === '10%' ? '0.1' : '0.25')
-    // Konva batches scene and hit-graph updates into the next animation frame.
-    await page.evaluate(
-      () =>
-        new Promise<void>((resolve) =>
-          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-        ),
-    )
-    const stageBox = (await stage.boundingBox())!
-    await page.mouse.click(stageBox.x + 8, stageBox.y + 8)
+    // Locator clicks wait for the closing zoom menu to stop intercepting events.
+    await stage.click({ position: { x: 8, y: 8 } })
     await expect(selected).toHaveAttribute('aria-pressed', 'false')
     const center = await canvasDocumentPoint(page, {
       x: frame.x + frame.width / 2,
       y: frame.y + frame.height / 2,
     })
+    // Wait for the photo at its new coordinates, not just Svelte's scale attribute.
+    // Konva batches scene and hit-graph drawing after the DOM update.
+    await expect
+      .poll(async () => {
+        const [r, g, b, a] = await sampleStagePixel(page, center)
+        return r > 160 && r < 210 && g > 90 && g < 160 && b < 120 && a === 255
+      })
+      .toBe(true)
     await page.mouse.click(center.x, center.y)
     await expect(selected).toHaveAttribute('aria-pressed', 'true')
     await expect(host).not.toHaveAttribute('data-crop-placement')

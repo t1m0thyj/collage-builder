@@ -49,6 +49,20 @@ Keep browser-only APIs behind focused modules, add tests for behavior changes, a
 
 ## Project persistence and performance
 
+Page dimensions share one policy in `src/lib/domain/pageLimits.ts`: 64–16,384 pixels
+per side and at most 64 megapixels per page. Schema parsing applies it to embedded and
+linked imports and recovery; document invariants cover direct installation and local
+edits. Resize proposals are validated before changing history, and rejected input drafts
+are restored while the existing error announcement explains the limit.
+
+`src/lib/render/editorSurface.ts` caps each editor backing surface at 16 megapixels and
+8,192 pixels per side, including the actual Konva scene pixel ratio and the ratio-1 hit
+canvases. The budget includes viewport size, zoom, margins, and rounded stage dimensions.
+Oversized zoom requests use a bounded effective scale with a visible notice; page data
+and export resolution do not change. Stage resizing shrinks dimensions first to prevent
+temporary over-allocation when Konva applies width and height separately. This is the
+immediate allocation guard; viewport-only rendering remains a separate follow-up.
+
 Preview caching, remembered-page preparation, and foreground save/load progress are implemented.
 The shared preparation queue allows three jobs, with active-page work prioritized. Derived
 previews have a 192 MiB cache budget, incremental writes, access metadata separate from image

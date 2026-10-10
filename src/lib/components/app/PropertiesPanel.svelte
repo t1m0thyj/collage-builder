@@ -12,6 +12,7 @@
   } from '@lucide/svelte'
   import type { PageStyleControl } from '../../app/pageActions'
   import type { PageV1, SlotContentV1 } from '../../domain/types'
+  import { maxPageDimension, minPageDimension } from '../../domain/pageLimits'
   import * as Collapsible from '../ui/collapsible'
   import * as Popover from '../ui/popover'
   import * as Slider from '../ui/slider'
@@ -51,6 +52,13 @@
   export let onfinishcrop: () => void
   export let onresetcrop: () => void
   export let onremoveimage: () => void
+
+  function resizeDimension(event: Event, axis: 'width' | 'height') {
+    const input = event.currentTarget as HTMLInputElement
+    onresizepage(axis, Number(input.value))
+    // A rejected edit does not publish a new page, so restore the DOM draft too.
+    input.value = String(activePage[axis])
+  }
 </script>
 
 <aside class="sidebar right-panel" aria-label="Properties">
@@ -223,18 +231,20 @@
               <span>Width</span><input
                 aria-label="Page width"
                 type="number"
-                min="64"
+                min={minPageDimension}
+                max={maxPageDimension}
                 value={activePage.width}
-                onchange={(event) => onresizepage('width', Number(event.currentTarget.value))}
+                onchange={(event) => resizeDimension(event, 'width')}
               />
             </label>
             <label>
               <span>Height</span><input
                 aria-label="Page height"
                 type="number"
-                min="64"
+                min={minPageDimension}
+                max={maxPageDimension}
                 value={activePage.height}
-                onchange={(event) => onresizepage('height', Number(event.currentTarget.value))}
+                onchange={(event) => resizeDimension(event, 'height')}
               />
             </label>
             <button

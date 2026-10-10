@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { Stage } from 'svelte-konva'
+  import Konva from 'konva'
   import type { SceneContext } from 'konva/lib/Context'
   import { panPlacement, resolveCoverPlacement, zoomPlacement } from '../../domain/crop'
   import {
@@ -14,6 +15,7 @@
   } from '../../domain/dividerSnapping'
   import { resolveDividers } from '../../domain/geometry'
   import { createPageRenderModel } from '../../render/pageRenderer'
+  import { editorSurface, prepareEditorResize } from '../../render/editorSurface'
   import type { AssetId, AssetRecordV1, PageV1, SlotContentV1, SlotId } from '../../domain/types'
   import CropOverlay from './CropOverlay.svelte'
   import CanvasPageLayer from './CanvasPageLayer.svelte'
@@ -55,6 +57,10 @@
   export let assets: Record<AssetId, AssetRecordV1>
 
   let host: HTMLDivElement
+  let stage: { node: Konva.Stage } | undefined
+  // Set the exact scene ratio before any Stage/Layer allocates its canvases.
+  const pixelRatio = Konva.pixelRatio || globalThis.devicePixelRatio || 1
+  Konva.pixelRatio = pixelRatio
   let viewportWidth = 600
   let viewportHeight = 500
   let resizeObserver: ResizeObserver | undefined
@@ -651,15 +657,25 @@
           cropContent.placement,
         )
       : undefined
-  $: fittedZoom = Math.min(
-    (viewportWidth - 48) / page.width,
-    (viewportHeight - 48) / page.height,
-    1,
+  $: fittedZoom = Math.max(
+    0.000001,
+    Math.min(
+      Math.max(1, viewportWidth - 48) / page.width,
+      Math.max(1, viewportHeight - 48) / page.height,
+      1,
+    ),
   )
-  $: fitScale = fitToViewport ? fittedZoom : viewportZoom
+  $: surface = editorSurface(
+    page,
+    { width: viewportWidth, height: viewportHeight },
+    fitToViewport ? fittedZoom : viewportZoom,
+    pixelRatio,
+  )
+  $: fitScale = surface.zoom
   $: onfitzoomchange(fittedZoom)
-  $: stageWidth = Math.max(viewportWidth, Math.ceil(page.width * fitScale + 48))
-  $: stageHeight = Math.max(viewportHeight, Math.ceil(page.height * fitScale + 48))
+  $: stageWidth = surface.width
+  $: stageHeight = surface.height
+  $: if (stage) prepareEditorResize(stage.node, { width: stageWidth, height: stageHeight })
   $: stageX = Math.max(24, (stageWidth - page.width * fitScale) / 2)
   $: stageY = Math.max(24, (stageHeight - page.height * fitScale) / 2)
 
@@ -737,7 +753,13 @@
   ondragover={(event) => event.preventDefault()}
   ondrop={dropAsset}
 >
+  {#if surface.limited}
+    <p class="canvas-limit-notice" role="status">
+      Canvas zoom limited to {Math.floor(fitScale * 100)}% to stay within rendering limits.
+    </p>
+  {/if}
   <Stage
+    bind:this={stage}
     width={stageWidth}
     height={stageHeight}
     onwheel={handleWheel}

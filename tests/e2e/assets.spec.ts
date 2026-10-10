@@ -15,6 +15,7 @@ import {
   sampleDownloadedPng,
   exportCurrentPng,
   collageMimeType,
+  holdImportDecode,
 } from './test-helpers'
 
 test('photo selection uses sidebar highlights and manager checkmarks in both views', async ({
@@ -122,21 +123,12 @@ test('successful photo imports show a brief toast instead of a sidebar summary',
 test('import progress replaces the sidebar actions until the photo finishes loading', async ({
   page,
 }) => {
-  await page.addInitScript(() => {
-    // Import validates with createImageBitmap; HTMLImageElement.decode runs later,
-    // when a placed photo is displayed, and does not hold the import open.
-    const decode = window.createImageBitmap.bind(window)
-    window.createImageBitmap = ((...args: Parameters<typeof createImageBitmap>) =>
-      new Promise<ImageBitmap>((resolve, reject) => {
-        Object.assign(window, {
-          resumeImportDecode: () => decode(...args).then(resolve, reject),
-        })
-      })) as typeof createImageBitmap
-  })
+  const decodeGate = await holdImportDecode(page, 'slow.png')
   await page.goto('/')
   await page
     .getByTestId('photo-upload-input')
     .setInputFiles({ name: 'slow.png', mimeType: 'image/png', buffer: redPng })
+  await decodeGate.waitUntilBlocked()
 
   const actions = page.locator('.image-panel-actions')
   await expect(actions.locator('.import-progress')).toContainText('Importing 0 of 1')
@@ -144,15 +136,15 @@ test('import progress replaces the sidebar actions until the photo finishes load
   await expect(actions.getByRole('button', { name: 'Add photos' })).toHaveCount(0)
   await expect(actions.getByRole('button', { name: 'Manage photos' })).toHaveCount(0)
 
-  await page.evaluate(() =>
-    (window as Window & { resumeImportDecode: () => void }).resumeImportDecode(),
-  )
+  await decodeGate.release()
   await expect(actions.locator('.import-progress')).toHaveCount(0)
   await expect(actions.getByRole('button', { name: 'Add photos' })).toBeVisible()
   await expect(actions.getByRole('button', { name: 'Manage photos' })).toBeVisible()
   await expect(
     page.locator('.sidebar-asset-card').getByText('slow.png', { exact: true }),
   ).toBeVisible()
+  // Later imports must not be captured by the gate.
+  await importImage(page, 'next.png', bluePng)
 })
 
 test('import keeps Unused and the sort order, but clears Used when new photos would be hidden', async ({

@@ -7,6 +7,7 @@ import {
   instantiatePreset,
 } from '../domain/factories'
 import { resolveLayout } from '../domain/geometry'
+import { assertPageDimensions } from '../domain/pageLimits'
 import type {
   AssetRecordV1,
   CollageDocumentV1,
@@ -200,13 +201,15 @@ export class ProjectStore {
   }
 
   resizePage(pageId: string, width: number, height: number): void {
+    assertPageDimensions(width, height)
+    width = Math.round(width)
+    height = Math.round(height)
+    assertPageDimensions(width, height)
     this.commit(
       (draft) => {
-        if (!Number.isFinite(width) || !Number.isFinite(height) || width < 64 || height < 64)
-          throw new Error('Page dimensions must be at least 64 px')
         const page = this.findPage(draft, pageId)
-        page.width = Math.round(width)
-        page.height = Math.round(height)
+        page.width = width
+        page.height = height
       },
       [pageId],
     )
