@@ -7,11 +7,13 @@
   export let open = false
   let panel: HTMLDivElement
   let dragging = false
+  let dragPending = false
 
   export function close(restoreFocus = false) {
     if (!compact || !open) return
     open = false
     dragging = false
+    dragPending = false
     if (restoreFocus) globalThis.document.getElementById('left-sidebar-toggle')?.focus()
   }
 
@@ -28,11 +30,7 @@
   }
 
   export function beginDrag() {
-    // Let the browser capture the source's drag image before hiding the overlay.
-    if (compact && open)
-      requestAnimationFrame(() => {
-        if (compact && open) dragging = true
-      })
+    dragPending = compact && open
   }
 
   onMount(() => {
@@ -48,6 +46,7 @@
       compact = media.matches
       open = false
       dragging = false
+      dragPending = false
       if (compact && focusedInside)
         void tick().then(() => globalThis.document.getElementById('left-sidebar-toggle')?.focus())
       else if (!compact && focusedToggle)
@@ -83,21 +82,31 @@
       event.stopPropagation()
       close(true)
     }
+    const revealCanvas = () => {
+      if (!dragPending) return
+      // The native drag image is captured by the first dragover. Linux WebKit
+      // can suspend animation frames during a native drag, so use the event.
+      dragPending = false
+      if (compact && open) dragging = true
+    }
     const finishDrag = () => {
-      if (dragging) close()
+      if (dragging || dragPending) close()
       dragging = false
+      dragPending = false
     }
     sync()
     media.addEventListener('change', sync)
     globalThis.document.addEventListener('pointerdown', outside)
     globalThis.document.addEventListener('focusin', rememberFocus)
     globalThis.addEventListener('keydown', escape, true)
+    globalThis.addEventListener('dragover', revealCanvas, true)
     globalThis.addEventListener('dragend', finishDrag)
     return () => {
       media.removeEventListener('change', sync)
       globalThis.document.removeEventListener('pointerdown', outside)
       globalThis.document.removeEventListener('focusin', rememberFocus)
       globalThis.removeEventListener('keydown', escape, true)
+      globalThis.removeEventListener('dragover', revealCanvas, true)
       globalThis.removeEventListener('dragend', finishDrag)
     }
   })
