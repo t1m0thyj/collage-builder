@@ -78,7 +78,7 @@ This checklist tracks every finding from the initial architecture and first-rele
 
 ## Release validation
 
-- [x] Type check, lint, unit tests, and production build pass with `npm run verify`.
+- [x] Type check, lint, unit tests, and production build pass with `bun run verify`.
 - [x] Run the production dependency audit with zero known production vulnerabilities.
 - [x] Run the Playwright smoke scenarios in Chromium, Firefox, and WebKit.
 - [x] Complete a live desktop visual/focus pass with no console errors.
@@ -93,10 +93,10 @@ This checklist tracks every finding from the initial architecture and first-rele
 
 ## Repeatable checks
 
-- Run `npm run verify` for type checking, linting, unit tests, and the production build.
-- Run `npm run test:e2e` for the normal cross-browser smoke suite.
-- Run `npm run test:offline` for the production-build offline reload and complete-precache check in Chromium.
-- Run `npm run test:benchmark` in Chromium for the representative-image 100-image/25-populated-page regression scenario. It exports a 1920 px ZIP and reports import, page creation, export and per-page render timing, renderer selection, long tasks, and available Chromium heap figures.
+- Run `bun run verify` for type checking, linting, unit tests, and the production build.
+- Run `bun run test:e2e` for the normal cross-browser smoke suite.
+- Run `bun run test:offline` for the production-build offline reload and complete-precache check in Chromium.
+- Run `bun run test:benchmark` in Chromium for the representative-image 100-image/25-populated-page regression scenario. It exports a 1920 px ZIP and reports import, page creation, export and per-page render timing, renderer selection, long tasks, and available Chromium heap figures.
 - Before release, use representative real photos to check every remaining manual item above.
 
 ### Superseded synthetic export baseline

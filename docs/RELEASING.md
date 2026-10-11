@@ -4,10 +4,10 @@ Collage Builder uses semantic versions. Before version 1.0, minor releases may i
 
 ## Release checklist
 
-1. Choose the version and update `package.json`, `package-lock.json`, and `CHANGELOG.md`.
-2. Run `npm ci` and `npm run verify`.
-3. Install Playwright browsers with `npx playwright install --with-deps`, then run `npm run test:e2e` and `npm run test:offline`.
-4. Run `npm audit --omit=dev` and review any production finding before release.
+1. Choose the version and update `package.json`, `bun.lock`, and `CHANGELOG.md`.
+2. Run `bun install --frozen-lockfile` and `bun run verify`.
+3. Install Playwright browsers with `bun x --bun playwright install --with-deps`, then run `bun run test:e2e` and `bun run test:offline`.
+4. Run `bun audit --prod` and review any production finding before release.
 5. Complete the relevant manual checks in [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md), including browser, accessibility, save/recovery, and export checks.
 6. Confirm the distribution includes `LICENSE.txt`, generated `THIRD_PARTY_NOTICES.md`, and the generated `licenses/` directory.
 7. Merge the green commit to `main`, tag it as `vX.Y.Z`, and create a GitHub release from the matching changelog entry.

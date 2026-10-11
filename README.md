@@ -13,14 +13,14 @@ Collage Builder is a local-first browser editor for arranging photos into clean,
 
 ## Run locally
 
-Requires Node.js 22 and npm.
+Requires Bun 1.4 or newer. The development and CI version is pinned in `.bun-version`.
 
 ```sh
-npm ci
-npm run dev
+bun install --frozen-lockfile
+bun run dev
 ```
 
-For a production build, run `npm run build`. The output in `dist/` can be served by any static HTTPS host.
+For a production build, run `bun run build`. The output in `dist/` can be served by any static HTTPS host.
 
 ## Documentation
 

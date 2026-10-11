@@ -1,0 +1,4 @@
+[run]
+# Run package binaries and their child processes with Bun, including Node shebangs.
+bun = true
+shell = "bun"

@@ -29,7 +29,7 @@ Output ordering and IDs are deterministic. The picker groups grids first, ordere
 and simple boundaries, then cycles through featured and editorial compositions before placing long
 strips at the end. This makes familiar row and column arrangements easy to find across photo counts.
 
-Run `npm run generate:layouts` to rebuild the runtime files in
+Run `bun run generate:layouts` to rebuild the runtime files in
 `src/lib/layouts/definitions/`. The generator requires every tiling to convert to a native split
 tree so all preset dividers can be dragged and snapped consistently. Generated IDs use the
 `generated-{photoCount}-t{topologyHash}` namespace. The hash follows the editable split structure,

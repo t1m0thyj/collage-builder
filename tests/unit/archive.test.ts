@@ -276,7 +276,8 @@ describe('collage archive', () => {
       document,
       new Map([[assetId, { file, relativePath: 'dogs/dogs.jpg', sha256: 'a'.repeat(64) }]]),
     )
-    expect(linked.type).toBe('application/json')
+    // Bun includes the UTF-8 charset for Blobs constructed from JSON strings.
+    expect(linked.type.split(';', 1)[0]).toBe('application/json')
     expect((await linked.text()).trimStart().startsWith('{')).toBe(true)
     const opened = await openLinkedProject(linked)
     expect(opened.assets[assetId].storage).toMatchObject({

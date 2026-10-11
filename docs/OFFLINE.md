@@ -6,7 +6,7 @@ After the service worker finishes activating, later visits and reloads can start
 
 ## Self-hosting
 
-Run `npm ci` and `npm run build`, then serve the complete `dist` directory from a static web server. The directory is the self-contained distribution; the application has no runtime server dependency.
+Run `bun install --frozen-lockfile` and `bun run build`, then serve the complete `dist` directory from a static web server. The directory is the self-contained distribution; the application has no runtime server dependency.
 
 Service workers require HTTPS in production. Browsers also allow them on `localhost` for development. Configure the server to serve `service-worker.js` from the deployment root, and preferably make that file revalidate on every visit so application updates are discovered promptly.
 
@@ -14,7 +14,7 @@ For a subdirectory deployment, provide its public path when building. For exampl
 
 ```powershell
 $env:BASE_PATH = '/collage-builder/'
-npm run build
+bun run build
 ```
 
 The base path must begin and end with `/`. Deploy every file in `dist`; filenames and the generated service worker are content-revisioned together, so mixing files from separate builds can prevent offline setup.

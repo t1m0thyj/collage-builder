@@ -13,16 +13,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version-file: '.nvmrc'
-          cache: npm
+          bun-version-file: '.bun-version'
       - name: Install dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
       - name: Check formatting
-        run: npm run format
+        run: bun run format
       - name: Verify types, lint, unit tests, and build
-        run: npm run verify:code
+        run: bun run verify:code
 
   test:
     needs: verify
@@ -33,14 +32,13 @@ jobs:
         browser: [chromium, firefox, webkit]
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version-file: '.nvmrc'
-          cache: npm
-      - run: npm ci
-      - run: npx playwright install --with-deps ${{ matrix.browser }}
-      - run: npx playwright test --project=${{ matrix.browser }} --workers=1
-      - run: npm run test:offline
+          bun-version-file: '.bun-version'
+      - run: bun install --frozen-lockfile
+      - run: bun x --bun playwright install --with-deps ${{ matrix.browser }}
+      - run: bun run test:e2e --project=${{ matrix.browser }} --workers=1
+      - run: bun run test:offline
         if: matrix.browser == 'chromium'
       - name: Upload failure artifacts
         if: failure()
@@ -63,12 +61,11 @@ jobs:
       cancel-in-progress: true
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version-file: '.nvmrc'
-          cache: npm
-      - run: npm ci
-      - run: npm run build
+          bun-version-file: '.bun-version'
+      - run: bun install --frozen-lockfile
+      - run: bun run build
         env:
           BASE_PATH: /${{ github.event.repository.name }}/
       - name: Publish dist to gh-pages
