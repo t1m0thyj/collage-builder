@@ -2,6 +2,14 @@ import type { LayoutNodeV1, PageV1, ResolvedFrame } from './types'
 
 const readingTolerance = 0.001
 
+// Normalize before summing so large finite weights cannot overflow to Infinity.
+function normalizedWeights(weights: number[]): number[] {
+  const maximum = Math.max(...weights)
+  const normalized = weights.map((weight) => weight / maximum)
+  const total = normalized.reduce((sum, weight) => sum + weight, 0)
+  return normalized.map((weight) => weight / total)
+}
+
 function resolveNode(
   node: LayoutNodeV1,
   x: number,
@@ -33,10 +41,10 @@ function resolveNode(
   const axisLength = node.axis === 'x' ? width : height
   const usableLength = axisLength - gap * (node.children.length - 1)
   if (usableLength <= 0) throw new Error('Layout gap leaves no space for frames')
-  const totalWeight = node.weights.reduce((total, weight) => total + weight, 0)
+  const weights = normalizedWeights(node.weights)
   let offset = 0
   node.children.forEach((child, index) => {
-    const childLength = usableLength * (node.weights[index] / totalWeight)
+    const childLength = usableLength * weights[index]
     const childX = node.axis === 'x' ? x + offset : x
     const childY = node.axis === 'y' ? y + offset : y
     resolveNode(
@@ -59,6 +67,12 @@ export function readingOrder<T extends { x: number; y: number }>(items: T[]): T[
 }
 
 export function resolveLayout(page: PageV1): ResolvedFrame[] {
+  if (
+    ![page.width, page.height, page.style.padding, page.style.gap].every(Number.isFinite) ||
+    page.style.padding < 0 ||
+    page.style.gap < 0
+  )
+    throw new Error('Page margin and spacing must be finite, non-negative values')
   const width = page.width - page.style.padding * 2
   const height = page.height - page.style.padding * 2
   if (width <= 0 || height <= 0) throw new Error('Page padding leaves no space for frames')
@@ -72,8 +86,19 @@ export function resolveLayout(page: PageV1): ResolvedFrame[] {
     page.style.gap,
     frames,
   )
-  if (frames.some((frame) => frame.width <= 0 || frame.height <= 0))
-    throw new Error('Layout produced a non-positive frame')
+  if (
+    frames.some(
+      (frame) =>
+        ![frame.x, frame.y, frame.width, frame.height].every(Number.isFinite) ||
+        frame.width <= 0 ||
+        frame.height <= 0 ||
+        frame.x < 0 ||
+        frame.y < 0 ||
+        frame.x + frame.width > page.width + readingTolerance ||
+        frame.y + frame.height > page.height + readingTolerance,
+    )
+  )
+    throw new Error('Layout produced a non-finite, empty, or out-of-page frame')
   return readingOrder(frames)
 }
 
@@ -106,10 +131,10 @@ export function resolveDividers(page: PageV1): ResolvedDivider[] {
     if (node.kind !== 'split') return
     const axisLength = node.axis === 'x' ? nodeWidth : nodeHeight
     const usable = axisLength - page.style.gap * (node.children.length - 1)
-    const total = node.weights.reduce((sum, value) => sum + value, 0)
+    const weights = normalizedWeights(node.weights)
     let offset = 0
     node.children.forEach((child, index) => {
-      const length = (usable * node.weights[index]) / total
+      const length = usable * weights[index]
       if (index < node.children.length - 1) {
         const center = offset + length + page.style.gap / 2
         dividers.push(

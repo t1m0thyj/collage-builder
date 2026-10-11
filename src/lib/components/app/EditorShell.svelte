@@ -32,6 +32,7 @@
   export let onrequestcrop: (slotId: SlotId) => void
   export let onexitcrop: () => void
   export let onrequestimage: (slotId: SlotId) => void
+  export let onremoveframeimage: (slotId: SlotId) => void
   export let onplacementchange: (slotId: SlotId, placement: SlotContentV1['placement']) => void
   export let onassetdrop: (assetId: AssetId, slotId: SlotId) => void
   export let onfiledrop: (files: FileList, slotId: SlotId | null) => void
@@ -242,6 +243,7 @@
         {onrequestcrop}
         {onexitcrop}
         {onrequestimage}
+        {onremoveframeimage}
         {onplacementchange}
         {onassetdrop}
         {onfiledrop}

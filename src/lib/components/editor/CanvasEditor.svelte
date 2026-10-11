@@ -2,6 +2,7 @@
   import { onMount } from 'svelte'
   import { Stage } from 'svelte-konva'
   import Konva from 'konva'
+  import { hasOpenDialog } from '../../app/appLifecycle'
   import type { SceneContext } from 'konva/lib/Context'
   import { panPlacement, resolveCoverPlacement, zoomPlacement } from '../../domain/crop'
   import {
@@ -34,6 +35,7 @@
   export let selectedSlotId: SlotId | null = null
   export let onselect: (slotId: SlotId) => void
   export let onrequestimage: (slotId: SlotId) => void
+  export let onremoveframeimage: (slotId: SlotId) => void
   export let cropSlotId: SlotId | null = null
   export let onplacementchange: (slotId: SlotId, placement: SlotContentV1['placement']) => void
   export let ondividerchange: (
@@ -845,7 +847,14 @@
         type="button"
         aria-pressed={selectedSlotId === frame.slotId}
         aria-label={`Frame ${index + 1}, ${asset ? asset.originalName : 'empty'}`}
-        aria-keyshortcuts={content ? 'Enter Delete' : undefined}
+        aria-keyshortcuts={content ? 'Enter Delete Backspace' : undefined}
+        onkeydown={(event) => {
+          if ((event.key === 'Delete' || event.key === 'Backspace') && content) {
+            event.preventDefault()
+            event.stopPropagation()
+            if (!hasOpenDialog()) onremoveframeimage(frame.slotId)
+          }
+        }}
         onclick={() =>
           content ? selectFrameControl(frame.slotId, index) : onrequestimage(frame.slotId)}
       >

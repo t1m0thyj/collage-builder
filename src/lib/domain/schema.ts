@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { maxImageDimension, maxImagePixels } from './imageLimits'
 import { pageDimensionError } from './pageLimits'
+import { maxPageFrames, maxPolygonPoints, maxProjectPages } from './documentLimits'
 
 const finiteNumber = z.number().finite()
 const nonNegative = finiteNumber.nonnegative()
@@ -15,14 +16,15 @@ export const layoutNodeSchema: z.ZodType<unknown> = z.lazy(() =>
       polygon: z
         .array(z.object({ x: finiteNumber.min(0).max(1), y: finiteNumber.min(0).max(1) }))
         .min(3)
+        .max(maxPolygonPoints)
         .optional(),
     }),
     z
       .object({
         kind: z.literal('split'),
         axis: z.enum(['x', 'y']),
-        weights: z.array(finiteNumber.positive()).min(2),
-        children: z.array(layoutNodeSchema).min(2),
+        weights: z.array(finiteNumber.positive()).min(2).max(maxPageFrames),
+        children: z.array(layoutNodeSchema).min(2).max(maxPageFrames),
       })
       .refine(
         (value) => value.weights.length === value.children.length,
@@ -30,8 +32,8 @@ export const layoutNodeSchema: z.ZodType<unknown> = z.lazy(() =>
       ),
     z.object({
       kind: z.literal('grid'),
-      columns: z.number().int().positive(),
-      rows: z.number().int().positive(),
+      columns: z.number().int().positive().max(maxPageFrames),
+      rows: z.number().int().positive().max(maxPageFrames),
       cells: z
         .array(
           z.object({
@@ -42,7 +44,8 @@ export const layoutNodeSchema: z.ZodType<unknown> = z.lazy(() =>
             height: z.number().int().positive(),
           }),
         )
-        .min(1),
+        .min(1)
+        .max(maxPageFrames),
     }),
   ]),
 )
@@ -106,7 +109,8 @@ export const collageDocumentSchema = z.object({
           if (message) context.addIssue({ code: 'custom', message, path: ['width'] })
         }),
     )
-    .min(1),
+    .min(1)
+    .max(maxProjectPages),
   assets: z.record(
     z.string().uuid(),
     z

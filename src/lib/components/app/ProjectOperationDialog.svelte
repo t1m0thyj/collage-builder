@@ -31,7 +31,7 @@
           <div
             class="project-operation-progress"
             role="progressbar"
-            aria-label={operation.phase}
+            aria-labelledby="project-operation-detail"
             aria-valuemin="0"
             aria-valuemax="100"
             aria-valuenow={percent}
@@ -45,6 +45,7 @@
           <div
             class="project-operation-progress project-operation-indeterminate"
             role="progressbar"
+            aria-labelledby="project-operation-detail"
           >
             <span></span>
           </div>

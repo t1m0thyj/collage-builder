@@ -63,6 +63,22 @@ and export resolution do not change. Stage resizing shrinks dimensions first to 
 temporary over-allocation when Konva applies width and height separately. This is the
 immediate allocation guard; viewport-only rendering remains a separate follow-up.
 
+Document imports and recovery use `migrateDocument` for iterative preflight, schema
+validation, and semantic invariants before installation. Shared complexity limits in
+`documentLimits.ts` allow 256 pages, 256 frames per page, 1,024 layout nodes per page,
+32 layout levels, and 64 points per polygon. The generic preflight bounds depth to 128
+and visited values to 500,000 before recursive parsing. Linked and embedded documents
+share the existing 4,094-photo and 1 GiB aggregate asset budgets. Asset-map identities,
+grid containment, finite resolved geometry, and positive frame area are required.
+Split weights are normalized before summing to avoid overflow.
+
+Margin and spacing controls derive whole-pixel limits from the current page and layout.
+Rejected discrete edits and previews leave the document, history, and current gesture
+unchanged. The controls restore rejected drafts and associate inline feedback with the
+field. Frame-owned Delete/Backspace preserves focus and undo; open dialogs block editor
+shortcuts. Both project-operation progress branches reference the visible phase for
+their accessible name.
+
 Preview caching, remembered-page preparation, and foreground save/load progress are implemented.
 The shared preparation queue allows three jobs, with active-page work prioritized. Derived
 previews have a 192 MiB cache budget, incremental writes, access metadata separate from image

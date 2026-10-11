@@ -1,4 +1,5 @@
 export type SidebarTab = 'layouts' | 'images'
+export type StyleEditResult = { ok: true } | { ok: false; message: string }
 export type PageStyleControl =
   | 'padding'
   | 'gap'

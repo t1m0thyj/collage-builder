@@ -578,6 +578,10 @@ test('shows saving progress only after the native file picker returns', async ({
     } as FileSystemFileHandle)
   })
   await expect(progress).toHaveText('Saving project…')
+  const savingBar = page.getByRole('dialog', { name: 'Saving project' }).getByRole('progressbar')
+  await expect(savingBar).toBeVisible()
+  await expect(savingBar).toHaveAccessibleName(/\S+/)
+  await expect(savingBar).toHaveAttribute('aria-labelledby', 'project-operation-detail')
   await expect
     .poll(() =>
       page.evaluate(

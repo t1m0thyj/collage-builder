@@ -23,6 +23,14 @@ interface AppLifecycleHost {
   cleanup: () => void
 }
 
+export function hasOpenDialog(): boolean {
+  return Boolean(
+    globalThis.document.querySelector(
+      '[role="dialog"]:not([data-state="closed"]):not([aria-hidden="true"])',
+    ),
+  )
+}
+
 export function attachAppLifecycle(host: AppLifecycleHost): () => void {
   host.initializePreferences()
   const darkMedia = globalThis.matchMedia('(prefers-color-scheme: dark)')
@@ -56,6 +64,7 @@ export function attachAppLifecycle(host: AppLifecycleHost): () => void {
       event.preventDefault()
       return
     }
+    if (hasOpenDialog()) return
     const modifier = event.ctrlKey || event.metaKey
     if (modifier && event.key.toLowerCase() === 's') {
       event.preventDefault()

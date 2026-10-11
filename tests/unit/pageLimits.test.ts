@@ -14,6 +14,8 @@ describe('page dimension limits', () => {
     expect(() => assertPageDimensions(width, height)).not.toThrow()
     const document = createProject()
     Object.assign(document.pages[0], { width, height })
+    document.pages[0].style.padding = 0
+    document.pages[0].style.gap = 0
     expect(migrateDocument(document).pages[0].width).toBe(width)
   })
 

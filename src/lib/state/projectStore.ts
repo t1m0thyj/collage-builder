@@ -100,7 +100,6 @@ export class ProjectStore {
     changedPages: readonly string[] = [],
     changeAssets = false,
   ): void {
-    this.finishPageStyleInteraction()
     // Published documents are never mutated. Keeping the current immutable
     // state for Undo avoids cloning a complete project solely for history.
     const before = get(this.state)
@@ -113,6 +112,7 @@ export class ProjectStore {
     mutator(draft)
     draft.updatedAt = new Date().toISOString()
     assertDocumentInvariants(draft)
+    this.finishPageStyleInteraction()
     this.history.push(before)
     this.historyRevision.update((value) => value + 1)
     this.publish(draft, true)
@@ -156,6 +156,10 @@ export class ProjectStore {
   }
 
   previewPageStyle(pageId: string, control: string, patch: Partial<PageV1['style']>): void {
+    const draft = this.updatePage(get(this.state), pageId, (page) => {
+      Object.assign(page.style, clone(patch))
+    })
+    assertDocumentInvariants(draft)
     const interaction = this.pageStyleInteraction
     if (interaction && (interaction.pageId !== pageId || interaction.control !== control))
       this.finishPageStyleInteraction()
@@ -167,10 +171,6 @@ export class ProjectStore {
         wasDirty: get(this.dirty),
       }
 
-    const draft = this.updatePage(get(this.state), pageId, (page) => {
-      Object.assign(page.style, clone(patch))
-    })
-    assertDocumentInvariants(draft)
     this.publish(draft, true)
   }
 

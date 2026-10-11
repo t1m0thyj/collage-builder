@@ -44,10 +44,15 @@
   } from './lib/app/pageAppearance'
   import { EditorSessionController } from './lib/app/editorSession'
   import { ProjectWorkflowController } from './lib/app/projectWorkflow'
-  import { attachAppLifecycle } from './lib/app/appLifecycle'
+  import { attachAppLifecycle, hasOpenDialog } from './lib/app/appLifecycle'
   import { UiPreferencesController } from './lib/app/uiPreferences'
   import { suggestBackgroundFromImages } from './lib/app/backgroundSuggestion'
-  import { clampViewportZoom, type PageStyleControl, type SidebarTab } from './lib/app/pageActions'
+  import {
+    clampViewportZoom,
+    type PageStyleControl,
+    type SidebarTab,
+    type StyleEditResult,
+  } from './lib/app/pageActions'
   import { layoutShapeSummary } from './lib/layouts/displayName'
   import { completeOnboarding, hasCompletedOnboarding } from './lib/app/onboarding'
   import { applyAvailableUpdate, deploymentState } from './lib/app/deployment'
@@ -365,11 +370,25 @@
     applyViewportWheelZoom(factor: number) {
       pageActions.setViewportZoom((isViewportFit ? fittedViewportZoom : viewportZoom) * factor)
     },
-    updateStyle(patch: Partial<PageV1['style']>) {
-      project.setPageStyle(activePage.id, patch)
+    updateStyle(patch: Partial<PageV1['style']>): StyleEditResult {
+      try {
+        project.setPageStyle(activePage.id, patch)
+        return { ok: true }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unable to apply page style'
+        announce(message)
+        return { ok: false, message }
+      }
     },
-    previewStyle(control: PageStyleControl, patch: Partial<PageV1['style']>) {
-      project.previewPageStyle(activePage.id, control, patch)
+    previewStyle(control: PageStyleControl, patch: Partial<PageV1['style']>): StyleEditResult {
+      try {
+        project.previewPageStyle(activePage.id, control, patch)
+        return { ok: true }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unable to preview page style'
+        announce(message)
+        return { ok: false, message }
+      }
     },
     commitStyle(control: PageStyleControl) {
       project.commitPageStyle(activePage.id, control)
@@ -835,6 +854,13 @@
           selectedSlotId = null
         }}
         onrequestimage={pageActions.requestImage}
+        onremoveframeimage={(slotId) => {
+          if (foregroundOperation || hasOpenDialog()) return
+          editorSession.cancelCrop()
+          editorSession.selectFrame(slotId)
+          project.clearSlot(activePage.id, slotId)
+          announce('Photo removed from frame.')
+        }}
         onplacementchange={(slotId, placement) => editorSession.commitPan(slotId, placement)}
         onassetdrop={pageActions.assignAsset}
         onfiledrop={(files, slotId) =>

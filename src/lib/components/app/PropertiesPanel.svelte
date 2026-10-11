@@ -10,9 +10,10 @@
     RotateCw,
     WandSparkles,
   } from '@lucide/svelte'
-  import type { PageStyleControl } from '../../app/pageActions'
+  import type { PageStyleControl, StyleEditResult } from '../../app/pageActions'
   import type { PageV1, SlotContentV1 } from '../../domain/types'
   import { maxPageDimension, minPageDimension } from '../../domain/pageLimits'
+  import { pageSpacingLimits } from '../../domain/pageStyle'
   import * as Collapsible from '../ui/collapsible'
   import * as Popover from '../ui/popover'
   import * as Slider from '../ui/slider'
@@ -28,8 +29,11 @@
   export let cropModeSlotId: string | null
   export let cropZoom: number
   export let onresizepage: (axis: 'width' | 'height', value: number) => void
-  export let onupdatestyle: (patch: Partial<PageV1['style']>) => void
-  export let onpreviewstyle: (control: PageStyleControl, patch: Partial<PageV1['style']>) => void
+  export let onupdatestyle: (patch: Partial<PageV1['style']>) => StyleEditResult
+  export let onpreviewstyle: (
+    control: PageStyleControl,
+    patch: Partial<PageV1['style']>,
+  ) => StyleEditResult
   export let oncommitstyle: (control: PageStyleControl) => void
   export let onsetbackground: (color: string, rememberCustom?: boolean) => void
   export let onsuggestbackground: () => void
@@ -52,6 +56,29 @@
   export let onfinishcrop: () => void
   export let onresetcrop: () => void
   export let onremoveimage: () => void
+
+  let spacingError: { pageId: string; control: 'padding' | 'gap'; message: string } | null = null
+  $: spacingLimits = pageSpacingLimits(activePage)
+  $: if (spacingError && spacingError.pageId !== activePage.id) spacingError = null
+
+  function applySpacing(control: 'padding' | 'gap', value: number, preview = false) {
+    const result = preview
+      ? onpreviewstyle(control, { [control]: value })
+      : onupdatestyle({ [control]: value })
+    spacingError = result.ok
+      ? null
+      : {
+          pageId: activePage.id,
+          control,
+          message: `${result.message}. Choose ${control === 'padding' ? 'an outer margin' : 'inner spacing'} between 0 and ${spacingLimits[control]} px for this page and layout.`,
+        }
+  }
+
+  function editSpacing(event: Event, control: 'padding' | 'gap') {
+    const input = event.currentTarget as HTMLInputElement
+    applySpacing(control, Number(input.value))
+    input.value = String(activePage.style[control])
+  }
 
   function resizeDimension(event: Event, axis: 'width' | 'height') {
     const input = event.currentTarget as HTMLInputElement
@@ -342,54 +369,70 @@
               <Slider.Root
                 class="inspector-slider-root"
                 aria-label="Outer margin"
+                aria-invalid={spacingError?.control === 'padding' ? 'true' : undefined}
+                aria-describedby={spacingError?.control === 'padding' ? 'padding-error' : undefined}
                 type="single"
                 min={0}
-                max={120}
+                max={spacingLimits.padding}
                 step={1}
                 value={activePage.style.padding}
-                onValueChange={(padding) => onpreviewstyle('padding', { padding })}
+                onValueChange={(padding) => applySpacing('padding', padding, true)}
                 onValueCommit={() => oncommitstyle('padding')}
               /><input
                 class="slider-value"
                 aria-label="Outer margin value"
+                aria-invalid={spacingError?.control === 'padding' ? 'true' : undefined}
+                aria-describedby={spacingError?.control === 'padding' ? 'padding-error' : undefined}
                 type="number"
                 min="0"
-                max="120"
+                max={spacingLimits.padding}
                 value={activePage.style.padding}
-                onchange={(event) =>
-                  onupdatestyle({
-                    padding: Math.min(120, Math.max(0, Number(event.currentTarget.value))),
-                  })}
+                onchange={(event) => editSpacing(event, 'padding')}
               />
             </div>
           </div>
+          {#if spacingError?.control === 'padding'}<p
+              id="padding-error"
+              class="property-error"
+              role="status"
+            >
+              {spacingError.message}
+            </p>{/if}
           <div>
             <span>Inner spacing</span>
             <div class="inspector-slider">
               <Slider.Root
                 class="inspector-slider-root"
                 aria-label="Inner spacing"
+                aria-invalid={spacingError?.control === 'gap' ? 'true' : undefined}
+                aria-describedby={spacingError?.control === 'gap' ? 'gap-error' : undefined}
                 type="single"
                 min={0}
-                max={120}
+                max={spacingLimits.gap}
                 step={1}
                 value={activePage.style.gap}
-                onValueChange={(gap) => onpreviewstyle('gap', { gap })}
+                onValueChange={(gap) => applySpacing('gap', gap, true)}
                 onValueCommit={() => oncommitstyle('gap')}
               /><input
                 class="slider-value"
                 aria-label="Inner spacing value"
+                aria-invalid={spacingError?.control === 'gap' ? 'true' : undefined}
+                aria-describedby={spacingError?.control === 'gap' ? 'gap-error' : undefined}
                 type="number"
                 min="0"
-                max="120"
+                max={spacingLimits.gap}
                 value={activePage.style.gap}
-                onchange={(event) =>
-                  onupdatestyle({
-                    gap: Math.min(120, Math.max(0, Number(event.currentTarget.value))),
-                  })}
+                onchange={(event) => editSpacing(event, 'gap')}
               />
             </div>
           </div>
+          {#if spacingError?.control === 'gap'}<p
+              id="gap-error"
+              class="property-error"
+              role="status"
+            >
+              {spacingError.message}
+            </p>{/if}
           <div>
             <span>Corner radius</span>
             <div class="inspector-slider">
