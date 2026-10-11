@@ -4,6 +4,7 @@ import { maxProjectAssetCount, maxProjectBytes } from '../persistence/limits'
 import type { AssetRegistry } from '../render/assetRegistry'
 import type { ProjectStore } from '../state/projectStore'
 import type { ProjectPersistenceController } from './projectPersistence'
+import { writeAssetDragData } from './assetDrag'
 
 export type AssetFilter = 'all' | 'used' | 'unused' | 'missing'
 export type AssetSort = 'import' | 'name' | 'size' | 'usage'
@@ -466,8 +467,7 @@ export class AssetWorkflowController {
   }
 
   startDrag = (event: DragEvent, assetId: string) => {
-    event.dataTransfer?.setData('application/x-collage-asset', assetId)
-    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'copy'
+    writeAssetDragData(event.dataTransfer, assetId)
   }
 
   requestRemoval = (assetIds: string[]) => {

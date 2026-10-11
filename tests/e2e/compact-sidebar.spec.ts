@@ -1,5 +1,5 @@
 import { test, expect } from './test-fixtures'
-import { assignSidebarImage, redPng, canvasDocumentPoint } from './test-helpers'
+import { assignSidebarImage, redPng, canvasDocumentPoint, useWideSystemFont } from './test-helpers'
 
 for (const width of [768, 959]) {
   test(`the ${width}px editor fits and opens layouts from the top-left button`, async ({
@@ -7,6 +7,7 @@ for (const width of [768, 959]) {
   }, testInfo) => {
     await page.setViewportSize({ width, height: 720 })
     await page.goto('/')
+    await useWideSystemFont(page)
     const toggle = page.getByRole('button', { name: 'Layouts and images', exact: true })
     const sidebar = page.getByRole('complementary', { name: 'Layouts and images' })
     await expect(toggle).toBeVisible()
@@ -93,7 +94,7 @@ test('compact image dragging reaches a frame behind the overlay', async ({ page 
     x: frame.x + frame.width / 2,
     y: frame.y + frame.height / 2,
   })
-  const source = await card.boundingBox()
+  const source = await card.locator('img.asset-thumb').boundingBox()
   await page.mouse.move(source!.x + source!.width / 2, source!.y + source!.height / 2)
   await page.mouse.down()
   await page.mouse.move(source!.x + source!.width / 2 + 10, source!.y + source!.height / 2, {
@@ -139,6 +140,7 @@ test('compact layout fits saved wide sidebars in dark mode', async ({ page }, te
   })
   await page.goto('/')
   const properties = page.getByRole('complementary', { name: 'Properties' })
+  await useWideSystemFont(page)
   await expect(properties).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(768)
   await page.getByRole('button', { name: 'Layouts and images', exact: true }).click()

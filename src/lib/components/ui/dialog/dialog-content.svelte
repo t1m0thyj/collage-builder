@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Dialog as DialogPrimitive } from 'bits-ui'
-  import { cn, type WithoutChildrenOrChild } from '$lib/utils.js'
+  import { cn, type WithoutChildrenOrChild } from '$lib/utils/ui.js'
   import DialogPortal from './dialog-portal.svelte'
   import type { ComponentProps } from 'svelte'
 

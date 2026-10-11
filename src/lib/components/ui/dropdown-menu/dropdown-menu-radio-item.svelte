@@ -1,7 +1,7 @@
 <script lang="ts">
   import { DropdownMenu as DropdownMenuPrimitive } from 'bits-ui'
   import RiCheckLine from 'remixicon-svelte/icons/check-line'
-  import { cn, type WithoutChild } from '$lib/utils.js'
+  import { cn, type WithoutChild } from '$lib/utils/ui.js'
 
   let {
     ref = $bindable(null),

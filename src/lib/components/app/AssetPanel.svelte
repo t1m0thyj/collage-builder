@@ -158,6 +158,7 @@
             onclick={(event) => onselectasset(asset.id, event.ctrlKey || event.metaKey)}
             >{#if assetRegistry.getThumbnailUrl(asset.id, imageRevision)}<img
                 class="asset-thumb"
+                draggable="false"
                 src={assetRegistry.getThumbnailUrl(asset.id, imageRevision)}
                 alt=""
               />{:else}<span class="asset-thumb"><ImageIcon size={20}></ImageIcon></span>{/if}<span
@@ -214,7 +215,13 @@
       </section>
     {:else}
       <button class="button button-primary" onclick={onchooseimages}>Add photos</button>
-      <button class="button" onclick={onmanageimages}>Manage photos</button>
+      <button
+        class="button"
+        onclick={(event) => {
+          event.currentTarget.focus()
+          onmanageimages()
+        }}>Manage photos</button
+      >
     {/if}
   </div>
 </div>

@@ -2,7 +2,7 @@
   import { DropdownMenu as DropdownMenuPrimitive } from 'bits-ui'
   import RiSubtractLine from 'remixicon-svelte/icons/subtract-line'
   import RiCheckLine from 'remixicon-svelte/icons/check-line'
-  import { cn, type WithoutChildrenOrChild } from '$lib/utils.js'
+  import { cn, type WithoutChildrenOrChild } from '$lib/utils/ui.js'
   import type { Snippet } from 'svelte'
 
   let {

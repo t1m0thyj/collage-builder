@@ -10,7 +10,7 @@
   } from '../../domain/types'
   import type { AssetRegistry } from '../../render/assetRegistry'
   import CanvasEditor from '../editor/CanvasEditor.svelte'
-  import PageActions from '../PageActions.svelte'
+  import PageActions from './PageActions.svelte'
   import PageThumbnail from './PageThumbnail.svelte'
   import { scrollTabsWithWheel } from './tabWheel'
 

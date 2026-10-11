@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ArrowLeft, ArrowRight, ChevronDown, Copy, Eraser, Pencil, Trash2 } from '@lucide/svelte'
-  import * as DropdownMenu from '$lib/components/ui/dropdown-menu'
+  import * as DropdownMenu from '../ui/dropdown-menu'
 
   export let open = false
   export let pageIndex: number

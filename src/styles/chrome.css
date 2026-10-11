@@ -485,7 +485,7 @@
     padding-right: 37px;
   }
   .topbar .project-title {
-    min-width: 100px;
+    min-width: 0;
   }
   .topbar .recovery-slot {
     flex: 0 0 24px;

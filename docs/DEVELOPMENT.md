@@ -37,12 +37,23 @@ Run the broader suite when the change affects several features or a required ver
 ## Project map
 
 - `src/lib/app/`: application workflows and lifecycle
-- `src/lib/components/`: editor and UI components
+- `src/lib/components/app/`: application toolbar, sidebars, page actions, and dialogs
+- `src/lib/components/editor/`: canvas editor and crop interactions
+- `src/lib/components/ui/`: reusable UI primitives
+- `src/lib/domain/`: document types, validation, geometry, and image import rules
+- `src/lib/layouts/`: layout catalog, presets, loading, and previews
+- `src/lib/utils/`: shared number/ID helpers and UI class/type helpers
+- `src/styles/`: global styles grouped by interface area
 - `src/lib/state/`: project data, history, and persistence state
 - `src/lib/persistence/`: project import/export formats, archives, and browser recovery storage
 - `src/lib/render/`: canvas and export rendering
-- `tests/`: unit and browser tests
-- `build/`: build-time service-worker support
+- `tests/unit/`: module-level behavior tests
+- `tests/e2e/`: browser behavior tests and shared fixtures/helpers
+- `tests/fixtures/`: source assets for tests
+- `build/`: build tooling for the service worker and release/license artifacts
+- `scripts/`: layout preset generation
+- `public/`: static assets copied into production builds
+- `dist/`: generated production output (ignored by Git)
 - `docs/adr/`: architecture decisions
 
 Keep browser-only APIs behind focused modules, add tests for behavior changes, and run `npm run verify` before opening a pull request. Update this map when moving responsibilities; it describes the current repository, not a planned architecture.

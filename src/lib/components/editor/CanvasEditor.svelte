@@ -3,6 +3,7 @@
   import { Stage } from 'svelte-konva'
   import Konva from 'konva'
   import { hasOpenDialog } from '../../app/appLifecycle'
+  import { readAssetDragData } from '../../app/assetDrag'
   import type { SceneContext } from 'konva/lib/Context'
   import { panPlacement, resolveCoverPlacement, zoomPlacement } from '../../domain/crop'
   import {
@@ -572,7 +573,9 @@
   }
   function dropAsset(event: DragEvent) {
     event.preventDefault()
-    const assetId = event.dataTransfer?.getData('application/x-collage-asset')
+    const draggedAssetId = readAssetDragData(event.dataTransfer)
+    const assetId =
+      draggedAssetId && Object.hasOwn(assets, draggedAssetId) ? draggedAssetId : undefined
     const files = event.dataTransfer?.files
     if (!assetId && !files?.length) return
     const bounds = host.getBoundingClientRect()

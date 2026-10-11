@@ -163,6 +163,7 @@
                     aria-hidden="true"><Check size={12} strokeWidth={3} /></span
                   >{/if}{#if assetRegistry.getThumbnailUrl(asset.id, imageRevision)}<img
                     class="asset-thumb"
+                    draggable="false"
                     src={assetRegistry.getThumbnailUrl(asset.id, imageRevision)}
                     alt=""
                   />{:else}<span class="asset-thumb"><ImageIcon size={20}></ImageIcon></span

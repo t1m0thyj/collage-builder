@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Select as SelectPrimitive } from 'bits-ui'
   import RiCheckLine from 'remixicon-svelte/icons/check-line'
-  import { cn, type WithoutChild } from '$lib/utils.js'
+  import { cn, type WithoutChild } from '$lib/utils/ui.js'
 
   let {
     ref = $bindable(null),
