@@ -439,6 +439,67 @@
   outline: none;
 }
 
+.left-sidebar-container {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+.left-sidebar-container > .left-panel {
+  flex: 1;
+}
+.sidebar-close {
+  display: none;
+}
+@media (width < 960px) {
+  .workspace {
+    position: relative;
+    grid-template-columns: minmax(360px, 1fr) 6px var(--right-sidebar-width, 255px);
+  }
+  .sidebar-resizer-left {
+    display: none;
+  }
+  .left-sidebar-container {
+    display: none;
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: clamp(255px, var(--left-sidebar-width, 255px), 320px);
+    z-index: 60;
+    box-shadow: 8px 0 24px rgba(20, 35, 58, 0.2);
+  }
+  .left-sidebar-container.sidebar-open {
+    display: flex;
+  }
+  .left-sidebar-container.sidebar-dragging {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .sidebar-close {
+    display: grid;
+    place-items: center;
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    z-index: 1;
+  }
+  .left-sidebar-container .panel-tabs {
+    padding-right: 37px;
+  }
+  .topbar .project-title {
+    min-width: 100px;
+  }
+  .topbar .recovery-slot {
+    flex: 0 0 24px;
+  }
+  .topbar .save-status-label,
+  .topbar .operation-status-label {
+    display: none;
+  }
+  .topbar .history-controls,
+  .topbar .editor-zoom {
+    padding-left: 4px;
+  }
+}
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);

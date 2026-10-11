@@ -79,6 +79,12 @@ field. Frame-owned Delete/Backspace preserves focus and undo; open dialogs block
 shortcuts. Both project-operation progress branches reference the visible phase for
 their accessible name.
 
+The editor has a 768 CSS-pixel minimum width. Below 960 pixels, `ResponsiveSidebar` presents
+Layouts/Images as a nonmodal overlay with a toolbar trigger, dismissal and focus restoration.
+Image requests open it automatically; the overlay becomes transparent to pointer events
+after the browser captures an image drag, allowing drops onto otherwise covered frames.
+At 960 pixels and above, the same sidebar content stays in the grid with its saved resize width.
+
 Preview caching, remembered-page preparation, and foreground save/load progress are implemented.
 The shared preparation queue allows three jobs, with active-page work prioritized. Derived
 previews have a 200 MiB cache budget, incremental writes, access metadata separate from image

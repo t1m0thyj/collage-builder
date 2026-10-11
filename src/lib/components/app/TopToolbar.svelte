@@ -8,6 +8,7 @@
     Files,
     HardDriveDownload,
     Minus,
+    Menu,
     Plus,
     Redo2,
     RefreshCw,
@@ -44,6 +45,9 @@
   export let onmanagerecovery: () => void
   export let onshowquickstart: () => void
   export let onapplyupdate: () => void
+  export let compactSidebar = false
+  export let sidebarOpen = false
+  export let ontogglesidebar: () => void = () => undefined
 
   let editingZoom = false
   let customZoomPercent: number | undefined = 100
@@ -78,6 +82,21 @@
 </script>
 
 <header class="topbar" aria-label="Project controls">
+  {#if compactSidebar}
+    <Button
+      id="left-sidebar-toggle"
+      class="icon-button sidebar-toggle"
+      variant="ghost"
+      size="icon"
+      aria-label="Layouts and images"
+      aria-controls="left-sidebar-panel"
+      aria-expanded={sidebarOpen}
+      title="Layouts and images"
+      onclick={ontogglesidebar}
+    >
+      <Menu size={19} aria-hidden="true" />
+    </Button>
+  {/if}
   <div class="toolbar-group">
     <Button class="button button-primary" onclick={onnew}>New</Button>
     <Button class="button" variant="outline" onclick={onopen}>Open</Button>

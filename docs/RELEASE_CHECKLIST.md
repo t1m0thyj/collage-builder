@@ -109,6 +109,9 @@ The core editor targets current Chrome, Edge, Firefox, and Safari. Save uses the
 
 Derived thumbnails are regenerated from verified original bytes and cached only for the active session. File handles are also session-only and capability-gated. Persisting either in IndexedDB is intentionally out of scope: it would duplicate recoverable thumbnail data and create unreliable expectations around browser handle permissions.
 
-The first release is desktop-only and supports viewports at least 960 CSS pixels wide. Mobile, narrow-screen, and touch-first interaction support is not currently claimed or included in release validation.
+The editor supports desktop viewports at least 768 CSS pixels wide. At 768–959 pixels, the
+left sidebar opens from the top-left hamburger button; at 960 pixels and above, both
+sidebars remain visible. Smaller viewports and touch-first interaction are outside the
+supported scope. Focus, panel dismissal, and native image dragging have Chromium regression coverage.
 
 On the current Windows test host, Firefox content processes require the one-run `MOZ_DISABLE_CONTENT_SANDBOX=1` diagnostic override because the host blocks Firefox's child-process sandbox. The project configuration does not disable browser sandboxing.

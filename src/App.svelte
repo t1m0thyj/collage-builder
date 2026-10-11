@@ -9,6 +9,7 @@
   import StartupDialogs from './lib/components/app/StartupDialogs.svelte'
   import ProjectDialogs from './lib/components/app/ProjectDialogs.svelte'
   import LeftSidebar from './lib/components/app/LeftSidebar.svelte'
+  import ResponsiveSidebar from './lib/components/app/ResponsiveSidebar.svelte'
   import ProjectFileInputs from './lib/components/app/ProjectFileInputs.svelte'
   import TopToolbar from './lib/components/app/TopToolbar.svelte'
   import PropertiesPanel from './lib/components/app/PropertiesPanel.svelte'
@@ -103,6 +104,9 @@
   let selectedSlotId: string | null = null
   let libraryTargetSlotId: string | null = null
   let projectFiles: ProjectFileInputs
+  let leftSidebarPanel: ResponsiveSidebar
+  let compactSidebar = false
+  let sidebarOpen = false
   let cropZoom = 1
   let pageAspectLinked = false
   let viewportZoom = 1
@@ -248,6 +252,7 @@
     chooseRelink: () => projectFiles.chooseRelink(),
     showImageLibrary: () => {
       activeTab = 'images'
+      void leftSidebarPanel?.show()
     },
     revealImportedAssets: (assetIds) => {
       const imported = assetIds.flatMap((assetId) =>
@@ -353,11 +358,13 @@
     selectLayout(preset: LayoutPresetDefinition) {
       project.changeLayout(activePage.id, preset)
       announce(`Layout selected: ${layoutShapeSummary(preset)}.`)
+      leftSidebarPanel?.close(true)
     },
     requestImage(slotId: string) {
       selectedSlotId = slotId
       libraryTargetSlotId = slotId
       activeTab = 'images'
+      void leftSidebarPanel?.show()
       announce('Choose a photo from the library, or add a photo from your device.')
     },
     setViewportZoom(zoom: number) {
@@ -759,6 +766,9 @@
     onopen={projectWorkflow.open}
   ></ProjectFileInputs>
   <TopToolbar
+    {compactSidebar}
+    {sidebarOpen}
+    ontogglesidebar={() => leftSidebarPanel.toggle()}
     bind:projectTitle
     canUndo={$canUndo}
     canRedo={$canRedo}
@@ -792,35 +802,48 @@
     style={`--left-sidebar-width:${leftSidebarWidth}px;--right-sidebar-width:${rightSidebarWidth}px`}
     inert={foregroundOperation !== null}
   >
-    <LeftSidebar
-      bind:activeTab
-      page={activePage}
-      {libraryTargetSlotId}
-      {assets}
-      {filteredAssets}
-      bind:selectedAssetIds
-      {missingAssetIds}
-      {assetRegistry}
-      {imageRevision}
-      bind:assetQuery
-      bind:assetSort
-      bind:assetFilter
-      onselectlayout={pageActions.selectLayout}
-      onerror={announce}
-      ondrop={dropImages}
-      onselectasset={assetWorkflow.select}
-      onstartdrag={assetWorkflow.startDrag}
-      onaddtopage={assetWorkflow.addToPage}
-      onreplace={assetWorkflow.chooseReplacementFor}
-      onrelink={assetWorkflow.chooseRelinkFor}
-      onremove={assetWorkflow.requestRemoval}
-      onchooseimages={() => projectFiles.chooseImages()}
-      onmanageimages={() => (isImageManagerOpen = true)}
-      assetUsage={photoUsage}
-      {formatBytes}
-      {importStatus}
-      ondismissimport={() => (importStatus = null)}
-    ></LeftSidebar>
+    <ResponsiveSidebar
+      bind:this={leftSidebarPanel}
+      bind:compact={compactSidebar}
+      bind:open={sidebarOpen}
+    >
+      <LeftSidebar
+        bind:activeTab
+        page={activePage}
+        {libraryTargetSlotId}
+        {assets}
+        {filteredAssets}
+        bind:selectedAssetIds
+        {missingAssetIds}
+        {assetRegistry}
+        {imageRevision}
+        bind:assetQuery
+        bind:assetSort
+        bind:assetFilter
+        onselectlayout={pageActions.selectLayout}
+        onerror={announce}
+        ondrop={dropImages}
+        onselectasset={(assetId, multi) => {
+          const assigning = !multi && libraryTargetSlotId !== null
+          assetWorkflow.select(assetId, multi)
+          if (assigning) leftSidebarPanel.close(true)
+        }}
+        onstartdrag={(event, assetId) => {
+          assetWorkflow.startDrag(event, assetId)
+          leftSidebarPanel.beginDrag()
+        }}
+        onaddtopage={assetWorkflow.addToPage}
+        onreplace={assetWorkflow.chooseReplacementFor}
+        onrelink={assetWorkflow.chooseRelinkFor}
+        onremove={assetWorkflow.requestRemoval}
+        onchooseimages={() => projectFiles.chooseImages()}
+        onmanageimages={() => (isImageManagerOpen = true)}
+        assetUsage={photoUsage}
+        {formatBytes}
+        {importStatus}
+        ondismissimport={() => (importStatus = null)}
+      ></LeftSidebar>
+    </ResponsiveSidebar>
     <SidebarResizer
       side="left"
       bind:width={leftSidebarWidth}
@@ -862,7 +885,10 @@
           announce('Photo removed from frame.')
         }}
         onplacementchange={(slotId, placement) => editorSession.commitPan(slotId, placement)}
-        onassetdrop={pageActions.assignAsset}
+        onassetdrop={(assetId, slotId) => {
+          pageActions.assignAsset(assetId, slotId)
+          leftSidebarPanel.close()
+        }}
         onfiledrop={(files, slotId) =>
           void assetWorkflow.import(files, slotId ? { pageId: activePage.id, slotId } : undefined)}
         onframeswap={(sourceSlotId, targetSlotId) =>

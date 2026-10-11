@@ -5,6 +5,8 @@
 The first visit opens a quick start with direct actions to import images or open an existing
 project. Use **Show quick start** in the top bar to open it again later.
 
+Use a viewport at least 768 pixels wide; below 960 pixels, open Layouts/Images with the top-left hamburger button.
+
 1. Add images with **Import images** or drag supported files into the editor.
 2. Add a page, choose a layout, and drag images into empty frames.
 3. Select a frame to adjust its crop. Use the page controls to change padding, gaps, corner radius, color, and shadow.
