@@ -116,9 +116,9 @@ test('preview cache bounds an oversized batch and preserves only referenced entr
     }
   })
   expect(result.count).toBe(7)
-  expect(result.bytes).toBeLessThanOrEqual(192 * 1024 * 1024)
-  expect(result.repairedBytes).toBeLessThanOrEqual(192 * 1024 * 1024)
-  expect(result.updatedBytes).toBeLessThanOrEqual(192 * 1024 * 1024)
+  expect(result.bytes).toBeLessThanOrEqual(200 * 1024 * 1024)
+  expect(result.repairedBytes).toBeLessThanOrEqual(200 * 1024 * 1024)
+  expect(result.updatedBytes).toBeLessThanOrEqual(200 * 1024 * 1024)
   expect(result.firstWrite).toBe('delete')
   expect(result.retained).toEqual(['1:hash-6', '1:hash-7'])
   expect(result.remaining).toBe(0)

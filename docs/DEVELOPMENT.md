@@ -81,13 +81,25 @@ their accessible name.
 
 Preview caching, remembered-page preparation, and foreground save/load progress are implemented.
 The shared preparation queue allows three jobs, with active-page work prioritized. Derived
-previews have a 192 MiB cache budget, incremental writes, access metadata separate from image
+previews have a 200 MiB cache budget, incremental writes, access metadata separate from image
 Blobs, and reference cleanup. Undecodable previews regenerate from originals. Under recovery
 quota pressure, autosave aborts the failed transaction, evicts disposable previews, and retries
 the authoritative document/original write once. It never deletes originals to make that retry.
 
+Recovery retention has both a five-project limit and a 2 GiB payload cap. It counts declared
+original byte lengths, UTF-8 document JSON, and recovery thumbnails. The project being saved
+is always retained, even when its timestamp is older than other drafts; the oldest remaining
+copies are evicted until both limits fit. Eviction and replacement occur in one IndexedDB
+transaction, with deletion before new writes and rollback if any write fails. The separate
+200 MiB derived-preview budget, offline application files, and browser storage overhead are
+outside this recovery cap. Browser-reported quota is an allowance, not the app's retention limit.
+
 Explicit operations lock editing immediately and show the themed modal after 200 ms. Linked
 folder matching reports photos checked, matches, and files verified, then preview preparation.
+Candidates are grouped by byte length, with the saved path and basename checked first and
+other same-size files checked by SHA-256 when photos were renamed or moved. Verified matches
+update the project's original filenames and linked paths in one undoable edit; the next save
+includes that metadata. Files with different hashes are never accepted based on name alone.
 Progress reflects completed work, not an ETA. Processing cancellation is deliberately deferred;
 file/folder pickers remain cancellable, and failed or superseded operations release the lock.
 

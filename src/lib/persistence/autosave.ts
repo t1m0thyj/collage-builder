@@ -5,8 +5,8 @@ import { migrateDocument } from '../domain/migrations'
 import type { AssetRegistry } from '../render/assetRegistry'
 import { createRecoveryPreview } from '../render/recoveryPreview'
 import { evictPreviewCache, prunePreviewCache, savePreviewCaches } from './previewCache'
+import { retainRecoveries } from './recoveryRetention'
 
-const recoveryLimit = 5
 const recoveryPreviewStore = 'recoveryPreviews'
 
 export interface RecoverySummary {
@@ -99,7 +99,11 @@ async function commitRecovery(
     const key = `${document.projectId}:${asset.id}:${asset.sha256}`
     if ((await db.getKey('assetBlobs', key)) !== undefined) continue
     const blob = registry.getBlob(asset.id)
-    if (blob) originals.set(key, await encodeStoredBlob(blob))
+    if (blob) {
+      if (blob.size !== asset.byteLength)
+        throw new Error(`Original bytes changed for ${asset.originalName}`)
+      originals.set(key, await encodeStoredBlob(blob))
+    }
   }
   const tx = db.transaction(['projects', 'assetBlobs', recoveryPreviewStore], 'readwrite')
   // Individual requests can fail before tx.done is awaited.
@@ -108,36 +112,53 @@ async function commitRecovery(
   const assetBlobs = tx.objectStore('assetBlobs')
   const previews = tx.objectStore(recoveryPreviewStore)
   try {
-    await projects.put(document, document.projectId)
-    if (preview) await previews.put(preview, document.projectId)
-    for (const [key, original] of originals) await assetBlobs.put(original, key)
-
     const savedProjects: CollageDocumentV1[] = []
     for (const key of await projects.getAllKeys()) {
       try {
-        savedProjects.push(migrateDocument(await projects.get(key)))
+        if (key !== document.projectId) savedProjects.push(migrateDocument(await projects.get(key)))
       } catch {
         await projects.delete(key)
+        await previews.delete(key)
       }
     }
-    const retainedProjects = savedProjects
-      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
-      .slice(0, recoveryLimit)
-    const retainedProjectIds = new Set(retainedProjects.map((project) => project.projectId))
-    const retainedBlobKeys = new Set(
-      retainedProjects.flatMap((project) =>
-        Object.values(project.assets).map(
-          (asset) => `${project.projectId}:${asset.id}:${asset.sha256}`,
-        ),
-      ),
+    savedProjects.push(document)
+    const previewSizes = new Map<string, number>()
+    for (const project of savedProjects) {
+      const stored =
+        project.projectId === document.projectId && preview
+          ? preview
+          : await previews.get(project.projectId)
+      previewSizes.set(project.projectId, decodeStoredBlob(stored)?.size ?? 0)
+    }
+    const { retained: retainedProjects } = retainRecoveries(
+      savedProjects,
+      document.projectId,
+      previewSizes,
     )
+    const retainedProjectIds = new Set(retainedProjects.map((project) => project.projectId))
+    const existingBlobKeys = await assetBlobs.getAllKeys()
+    const knownBlobKeys = new Set(existingBlobKeys)
+    const retainedBlobKeys = new Set<string>()
+    for (const project of retainedProjects)
+      for (const asset of Object.values(project.assets)) {
+        const modernKey = `${project.projectId}:${asset.id}:${asset.sha256}`
+        const legacyKey = `${project.projectId}:${asset.id}`
+        retainedBlobKeys.add(
+          knownBlobKeys.has(modernKey) || originals.has(modernKey) ? modernKey : legacyKey,
+        )
+      }
     for (const project of savedProjects)
       if (!retainedProjectIds.has(project.projectId)) {
         await projects.delete(project.projectId)
         await previews.delete(project.projectId)
       }
-    for (const key of await assetBlobs.getAllKeys())
+    for (const key of existingBlobKeys)
       if (typeof key === 'string' && !retainedBlobKeys.has(key)) await assetBlobs.delete(key)
+    // Reclaim old drafts before allocating new records, within the same transaction.
+    // A failed write rolls back both the eviction and the new recovery.
+    await projects.put(document, document.projectId)
+    if (preview) await previews.put(preview, document.projectId)
+    for (const [key, original] of originals) await assetBlobs.put(original, key)
     await tx.done
     return retainedProjects
   } catch (error) {

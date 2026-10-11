@@ -137,6 +137,9 @@
       <section class="storage-summary" aria-labelledby="storage-summary-title">
         <div>
           <h3 id="storage-summary-title">Storage usage</h3>
+          <p>
+            Recovery copies are limited to 2 GB. Older copies are removed automatically as needed.
+          </p>
           {#if snapshot?.storage.usage !== undefined && snapshot.storage.quota !== undefined}
             <p>
               {formatBytes(snapshot.storage.usage)} of {formatBytes(snapshot.storage.quota)} used by this

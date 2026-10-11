@@ -201,6 +201,7 @@ export class ProjectWorkflowController {
           })
         },
       })
+      const { linkedAssetRecord } = await import('../persistence/linkedAssets')
       if (!isCurrent()) return
       this.host.persistence.setLinkedMatches(matches)
       let prepared = 0
@@ -237,11 +238,30 @@ export class ProjectWorkflowController {
         reportPreparation(prepared === matches.size)
       }
       if (!isCurrent()) return
+      const currentAssets = this.host.document().assets
+      this.host.project.replaceAssets(
+        [...matches].flatMap(([assetId, match]) => {
+          const asset = currentAssets[assetId]
+          if (!asset || asset.sha256 !== match.sha256 || asset.byteLength !== match.file.size)
+            return []
+          const replacement = linkedAssetRecord(asset, match)
+          if (
+            asset.originalName === replacement.originalName &&
+            asset.storage.kind === 'linked' &&
+            asset.storage.relativePath === match.relativePath &&
+            asset.storage.displayHint === match.relativePath &&
+            asset.storage.lastModified === match.file.lastModified
+          )
+            return []
+          return [{ assetId, replacement }]
+        }),
+      )
       this.host.setMissingAssetIds(
         new Set([...this.host.missingAssetIds()].filter((assetId) => !matches.has(assetId))),
       )
       this.host.incrementImageRevision()
       await this.host.preparePageImages(this.host.activePage(), this.host.registry())
+      if (!isCurrent()) return
       this.host.setPendingLinkedDocument(null)
       this.host.announce(
         matches.size === Object.keys(target.assets).length

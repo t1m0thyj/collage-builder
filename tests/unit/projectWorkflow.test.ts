@@ -74,6 +74,47 @@ function workflowHost(project: ProjectStore, persistence: { save: ReturnType<typ
 }
 
 describe('project workflow lifecycle guards', () => {
+  it('updates matched filenames in one dirty, undoable edit while preserving page edits', async () => {
+    const file = new File(['original'], 'renamed.jpg', { lastModified: 1234 })
+    const hash = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
+    const document = createProject('Linked original')
+    const assetId = crypto.randomUUID()
+    document.assets[assetId] = {
+      id: assetId,
+      originalName: 'old.jpg',
+      mediaType: 'image/jpeg',
+      byteLength: file.size,
+      width: 1,
+      height: 1,
+      sha256: [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, '0')).join(''),
+      storage: { kind: 'linked', relativePath: 'old.jpg', displayHint: 'old.jpg' },
+    }
+    const project = new ProjectStore(document)
+    const { host, announcements } = workflowHost(project, { save: vi.fn() })
+    const registry = { register: vi.fn(async () => project.renameProject('Concurrent edit')) }
+    const missing = vi.fn()
+    const controller = new ProjectWorkflowController({
+      ...host,
+      registry: () => registry as unknown as AssetRegistry,
+      pendingLinkedDocument: () => document,
+      missingAssetIds: () => new Set([assetId]),
+      chooseLinkedFolder: async () => [file] as unknown as FileList,
+      setMissingAssetIds: missing,
+    })
+    await controller.requestLinkedFolder()
+    expect(project.snapshot().assets[assetId]).toMatchObject({
+      originalName: file.name,
+      storage: { relativePath: file.name, lastModified: 1234 },
+    })
+    expect(project.snapshot().title).toBe('Concurrent edit')
+    expect(get(project.isDirty)).toBe(true)
+    expect(missing).toHaveBeenCalledWith(new Set())
+    expect(announcements).toEqual(['Linked images loaded.'])
+    project.undo()
+    expect(project.snapshot().assets[assetId]).toEqual(document.assets[assetId])
+    expect(project.snapshot().title).toBe('Concurrent edit')
+  })
+
   it('does not clear an edit made while an older revision is being saved', async () => {
     let finishSave: ((format: 'embedded') => void) | undefined
     let startSave: (() => void) | undefined

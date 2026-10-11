@@ -8,7 +8,7 @@ const accessStoreName = 'previewAccess'
 const metadataStoreName = 'previewMetadata'
 const totalBytesKey = 'totalBytes'
 const pipelineVersion = 1
-const cacheLimitBytes = 192 * 1024 * 1024
+const cacheLimitBytes = 200 * 1024 * 1024
 let openProjectHashes = new Set<string>()
 let openAssets: CollageDocumentAssets | undefined
 let openReferenceKey: string | undefined

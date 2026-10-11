@@ -55,6 +55,12 @@ export async function matchLinkedAssets(
   options: LinkedAssetMatchOptions = {},
 ): Promise<Map<string, LinkedAssetMatch>> {
   const candidates = [...files].map((file) => ({ file, relativePath: relativePathFor(file) }))
+  const bySize = new Map<number, typeof candidates>()
+  for (const candidate of candidates) {
+    const group = bySize.get(candidate.file.size) ?? []
+    group.push(candidate)
+    bySize.set(candidate.file.size, group)
+  }
   const matches = new Map<string, LinkedAssetMatch>()
   const digests = new Map<File, Promise<string>>()
   const progress: LinkedAssetProgress = {
@@ -78,13 +84,19 @@ export async function matchLinkedAssets(
   for (const asset of Object.values(assets)) {
     assertCurrent()
     const wanted = asset.storage.kind === 'linked' ? asset.storage.relativePath : undefined
-    const possible = candidates.filter(
-      (candidate) =>
-        candidate.file.size === asset.byteLength &&
-        (!wanted ||
-          candidate.relativePath === wanted ||
-          candidate.file.name === wanted.split('/').at(-1)),
-    )
+    const sameSize = bySize.get(asset.byteLength) ?? []
+    const basename = wanted?.split('/').at(-1)
+    const possible = wanted
+      ? [
+          ...sameSize.filter((candidate) => candidate.relativePath === wanted),
+          ...sameSize.filter(
+            (candidate) => candidate.relativePath !== wanted && candidate.file.name === basename,
+          ),
+          ...sameSize.filter(
+            (candidate) => candidate.relativePath !== wanted && candidate.file.name !== basename,
+          ),
+        ]
+      : sameSize
     for (const candidate of possible) {
       assertCurrent()
       let sha256 = digests.get(candidate.file)
@@ -109,6 +121,22 @@ export async function matchLinkedAssets(
   return matches
 }
 
+export function linkedAssetRecord(asset: AssetRecordV1, match: LinkedAssetMatch): AssetRecordV1 {
+  if (match.file.size !== asset.byteLength || match.sha256 !== asset.sha256)
+    throw new Error(`The selected file for ${asset.originalName} no longer matches this project`)
+  assertSafeRelativePath(match.relativePath)
+  return {
+    ...asset,
+    originalName: match.file.name,
+    storage: {
+      kind: 'linked',
+      displayHint: match.relativePath,
+      relativePath: match.relativePath,
+      lastModified: match.file.lastModified,
+    },
+  }
+}
+
 export function linkedDocument(
   document: CollageDocumentV1,
   matches: Map<string, LinkedAssetMatch>,
@@ -117,15 +145,7 @@ export function linkedDocument(
   for (const asset of Object.values(copy.assets)) {
     const match = matches.get(asset.id)
     if (!match) throw new Error(`The selected folder does not contain ${asset.originalName}`)
-    if (match.file.size !== asset.byteLength || match.sha256 !== asset.sha256)
-      throw new Error(`The selected file for ${asset.originalName} no longer matches this project`)
-    assertSafeRelativePath(match.relativePath)
-    asset.storage = {
-      kind: 'linked',
-      displayHint: match.relativePath,
-      relativePath: match.relativePath,
-      lastModified: match.file.lastModified,
-    }
+    copy.assets[asset.id] = linkedAssetRecord(asset, match)
   }
   return copy
 }
