@@ -21,6 +21,37 @@
   max-height: calc(100vh - 48px);
   overflow: auto;
 }
+.export-dialog {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 48px);
+  overflow: hidden;
+}
+.export-dialog > .dialog-header,
+.export-dialog > .dialog-footer {
+  flex-shrink: 0;
+}
+.export-dialog > .export-form {
+  min-height: 0;
+  overflow-y: auto;
+}
+.export-naming {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--control-border, #e2dfd8);
+  border-radius: 8px;
+}
+.export-naming legend {
+  padding: 0 4px;
+  font-weight: 600;
+}
+.export-naming p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
 .recovery-dialog {
   width: min(660px, 100%);
   max-height: calc(100vh - 48px);

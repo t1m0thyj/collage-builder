@@ -54,8 +54,16 @@ async function renderPageImageOnMainThread(
   height: number,
   format: ExportFormat,
   quality: number,
+  useOffscreenCanvas = true,
 ): Promise<Blob> {
-  const canvas = globalThis.document.createElement('canvas')
+  // Keep worker and foreground fallback on the same canvas implementation when
+  // available: rounded clipping can rasterize differently on an HTML canvas.
+  const canvas =
+    useOffscreenCanvas &&
+    typeof OffscreenCanvas === 'function' &&
+    typeof OffscreenCanvas.prototype.convertToBlob === 'function'
+      ? new OffscreenCanvas(width, height)
+      : globalThis.document.createElement('canvas')
   canvas.width = width
   canvas.height = height
   try {
@@ -92,6 +100,8 @@ async function renderPageImageOnMainThread(
     }
     const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png'
     const outputQuality = format === 'jpeg' ? jpegQuality(quality) : undefined
+    if ('convertToBlob' in canvas)
+      return await canvas.convertToBlob({ type: mimeType, quality: outputQuality })
     return await new Promise((resolve, reject) =>
       canvas.toBlob(
         (blob) =>
@@ -101,6 +111,23 @@ async function renderPageImageOnMainThread(
         mimeType,
         outputQuality,
       ),
+    )
+  } catch (error) {
+    if (!('convertToBlob' in canvas)) throw error
+    // Some browsers expose OffscreenCanvas but fail an operation at runtime.
+    // Release its backing store before retrying with the compatibility canvas.
+    canvas.width = 1
+    canvas.height = 1
+    return await renderPageImageOnMainThread(
+      page,
+      assets,
+      getImage,
+      getRenderableBlob,
+      width,
+      height,
+      format,
+      quality,
+      false,
     )
   } finally {
     canvas.width = 1
@@ -214,6 +241,19 @@ export async function renderPageImage(
 
 export async function zipImages(
   pages: Iterable<{ name: string; blob: Blob }> | AsyncIterable<{ name: string; blob: Blob }>,
+  modifiedAt?: string,
 ): Promise<Blob> {
-  return zipBlobs(pages, 'application/zip')
+  const editedAt = modifiedAt ? new Date(modifiedAt) : new Date()
+  if (!Number.isFinite(editedAt.getTime())) throw new Error('Invalid export modification date')
+  // ZIP has no timezone field. Use the UTC calendar components consistently,
+  // retaining a meaningful edit time within ZIP's supported year range.
+  const mtime = new Date(
+    Math.min(2107, Math.max(1980, editedAt.getUTCFullYear())),
+    editedAt.getUTCMonth(),
+    editedAt.getUTCDate(),
+    editedAt.getUTCHours(),
+    editedAt.getUTCMinutes(),
+    editedAt.getUTCSeconds(),
+  )
+  return zipBlobs(pages, 'application/zip', { mtime })
 }

@@ -13,6 +13,8 @@ project. Use **Show quick start** in the top bar to open it again later.
 
 JPEG, PNG, WebP, HEIC, and HEIF imports are supported. HEIC/HEIF files are converted for editing while their originals remain untouched in saved projects.
 
+For bulk exports, customize filenames with `{title}` (page title) and `{number}` (page number).
+
 ## Save and reopen projects
 
 - `.collage` embeds image data and is the easiest format to move or archive.

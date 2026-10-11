@@ -2,6 +2,7 @@ import type { CollageDocumentV1, PageV1 } from '../domain/types'
 import type { AssetRegistry } from '../render/assetRegistry'
 import { countUpscaledPlacements, resolveExportRange } from '../render/exportQuality'
 import type { ExportFormat } from '../render/exportPng'
+import { exportImageFilenames, safeExportBasename } from './exportFilenames'
 
 export interface ExportSettings {
   scope: 'current' | 'all' | 'range'
@@ -9,6 +10,7 @@ export interface ExportSettings {
   longSide: number
   format: ExportFormat
   quality: number
+  filenameTemplate?: string
 }
 
 export interface ProjectExportRequest {
@@ -20,6 +22,7 @@ export interface ProjectExportRequest {
   longSide: ExportSettings['longSide']
   format: ExportSettings['format']
   quality: ExportSettings['quality']
+  filenameTemplate?: ExportSettings['filenameTemplate']
   baseName: string
   isCancelled: () => boolean
   onProgress: (message: string) => void
@@ -45,12 +48,20 @@ export async function renderProjectExport({
   format,
   quality,
   baseName,
+  filenameTemplate,
   isCancelled,
   onProgress,
 }: ProjectExportRequest): Promise<ProjectExportResult> {
   const { renderPageImage, zipImages } = await import('../render/exportPng')
   const activePageIndex = document.pages.findIndex((page) => page.id === activePageId)
   const indices = resolveExportRange(scope, activePageIndex, document.pages.length, range)
+  const filenames = exportImageFilenames(
+    baseName,
+    indices,
+    format,
+    filenameTemplate,
+    document.pages.map((page) => page.name),
+  )
   const activePageAssetIds = pageAssetIds(document.pages[activePageIndex])
   const renderPage = async (position: number, index: number) => {
     if (isCancelled()) throw new Error('Export cancelled')
@@ -68,7 +79,7 @@ export async function renderProjectExport({
     )
     if (isCancelled()) throw new Error('Export cancelled')
     return {
-      name: `${baseName}-${String(index + 1).padStart(2, '0')}.${format === 'jpeg' ? 'jpg' : 'png'}`,
+      name: filenames[position],
       blob,
     }
   }
@@ -97,10 +108,10 @@ export async function renderProjectExport({
     onProgress('Finalizing ZIP…')
   }
 
-  const blob = await zipImages(renderPages())
+  const blob = await zipImages(renderPages(), document.updatedAt)
   return {
     blob,
-    filename: `${baseName}-pages.zip`,
+    filename: `${safeExportBasename(baseName)}-pages.zip`,
     pageCount: indices.length,
   }
 }
@@ -151,7 +162,14 @@ export class ExportWorkflowController {
     }
   }
 
-  export = async ({ scope, range, longSide, format, quality }: ExportSettings) => {
+  export = async ({
+    scope,
+    range,
+    longSide,
+    format,
+    quality,
+    filenameTemplate,
+  }: ExportSettings) => {
     try {
       this.host.setExporting(true)
       this.host.resetCancellation()
@@ -164,6 +182,7 @@ export class ExportWorkflowController {
         longSide,
         format,
         quality,
+        filenameTemplate,
         baseName: this.host.projectTitle() || 'collage',
         isCancelled: this.host.isCancelled,
         onProgress: this.host.setProgress,

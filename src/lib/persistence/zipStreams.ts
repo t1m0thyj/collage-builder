@@ -46,6 +46,8 @@ export interface ZipSink {
 }
 
 export interface WriteZipOptions {
+  /** Override entry timestamps, for example for reproducible image export archives. */
+  mtime?: Date
   onProgress?: (progress: ZipProgress) => void
   /** Reports original-photo bytes that needed a fresh CRC-32 pass. */
   onChecksum?: (bytes: number) => void
@@ -54,6 +56,7 @@ export interface WriteZipOptions {
 
 class StoredZipBlob implements ZipInputFile {
   compression = 0
+  mtime?: Date
   ondata?: (error: Error | null, data: Uint8Array, final: boolean) => void
 
   constructor(
@@ -160,6 +163,7 @@ export async function writeZip(
         known && known.byteLength === entry.blob.size
           ? new StoredZipBlob(entry.name, known.byteLength, known.crc32)
           : new ZipPassThrough(entry.name)
+      if (options.mtime) file.mtime = options.mtime
       archive.add(file)
       await pushBlob(
         file,

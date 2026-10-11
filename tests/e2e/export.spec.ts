@@ -29,6 +29,42 @@ test('page-range export dialog overlays the editor', async ({ page }) => {
   await expectOnTop(page, 'Export pages')
 })
 
+test('bulk export previews filename templates and applies them to the ZIP', async ({
+  page,
+}, testInfo) => {
+  await page.goto('/')
+  await page.getByRole('textbox', { name: 'Project title' }).fill('Summer trip')
+  await page.getByRole('textbox', { name: 'Project title' }).press('Tab')
+  await page.getByRole('button', { name: 'Add page' }).click()
+  await page.getByRole('button', { name: 'Add page' }).click()
+  await page.getByRole('button', { name: 'Choose export scope' }).click()
+  await page.getByRole('menuitem', { name: 'Page range…' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Export pages' })
+  await dialog.getByPlaceholder('1-3').fill('2-3')
+  await dialog.getByRole('spinbutton', { name: 'Long side (px)' }).fill('400')
+  const template = dialog.getByRole('textbox', { name: 'Filename template' })
+  await expect(template).toHaveValue('Summer trip-{number}')
+  await template.fill('same-name')
+  await expect(dialog).toContainText('different filename')
+  await expect(dialog.getByRole('button', { name: 'Export', exact: true })).toBeDisabled()
+  await template.fill('Album-{number}-{title}')
+  await expect(dialog).toContainText('Preview: Album-02-Page 2.png')
+  await expect(dialog.locator('#export-filename-preview')).not.toContainText('Album-03')
+  await expect(dialog).toContainText('2 PNGs in a ZIP')
+  await dialog.getByRole('button', { name: 'Export format' }).click()
+  await page.getByRole('option', { name: 'JPEG', exact: true }).click()
+  await expect(dialog).toContainText('Preview: Album-02-Page 2.jpg')
+  await dialog.screenshot({ path: testInfo.outputPath('bulk-export-dialog.png') })
+  const downloadPromise = page.waitForEvent('download')
+  await dialog.getByRole('button', { name: 'Export', exact: true }).click()
+  const download = await downloadPromise
+  expect(download.suggestedFilename()).toBe('Summer trip-pages.zip')
+  expect(Object.keys(unzipSync(await downloadBytes(download)))).toEqual([
+    'Album-02-Page 2.jpg',
+    'Album-03-Page 3.jpg',
+  ])
+})
+
 test('page-range export validates input and downloads the requested pages', async ({
   page,
   browserName,

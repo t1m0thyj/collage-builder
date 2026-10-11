@@ -1,6 +1,8 @@
 <script lang="ts">
   import { X } from '@lucide/svelte'
   import type { ExportSettings } from '../../app/exportProject'
+  import { defaultExportFilenameTemplate, exportImageFilenames } from '../../app/exportFilenames'
+  import { resolveExportRange } from '../../render/exportQuality'
   import type { CollageDocumentV1, PageV1 } from '../../domain/types'
   import * as Dialog from '../ui/dialog'
   import * as Select from '../ui/select'
@@ -35,6 +37,55 @@
   export let onrequestlinkedfolder: () => void
   export let onexport: (settings: ExportSettings) => void | Promise<void>
   export let oncancelexport: () => void
+
+  let filenameDraft: { projectId: string; value: string } | undefined
+  $: exportFilenameTemplate =
+    filenameDraft?.projectId === document.projectId
+      ? filenameDraft.value
+      : defaultExportFilenameTemplate(document.title)
+  function filenamePreview(
+    document: CollageDocumentV1,
+    activePage: PageV1,
+    scope: ExportSettings['scope'],
+    range: string,
+    format: ExportSettings['format'],
+    template: string,
+  ) {
+    let indices: number[]
+    try {
+      indices = resolveExportRange(
+        scope,
+        document.pages.findIndex((page) => page.id === activePage.id),
+        document.pages.length,
+        range,
+      )
+    } catch {
+      return { names: [], count: 0, error: '' }
+    }
+    try {
+      return {
+        names: exportImageFilenames(
+          document.title,
+          indices,
+          format,
+          scope === 'current' ? undefined : template,
+          document.pages.map((page) => page.name),
+        ).slice(0, 1),
+        count: indices.length,
+        error: '',
+      }
+    } catch (error) {
+      return { names: [], count: indices.length, error: (error as Error).message }
+    }
+  }
+  $: exportNames = filenamePreview(
+    document,
+    activePage,
+    exportScope,
+    exportRange,
+    exportFormat,
+    exportFilenameTemplate,
+  )
 </script>
 
 <Dialog.Root
@@ -247,7 +298,7 @@
 </Dialog.Root>
 
 <Dialog.Root bind:open={isExportOpen}>
-  <Dialog.Content class="dialog" aria-labelledby="export-title">
+  <Dialog.Content class="dialog export-dialog" aria-labelledby="export-title">
     <div class="dialog-header">
       <div>
         <p class="eyebrow">{exportFormat === 'jpeg' ? 'JPEG' : 'PNG'} export</p>
@@ -319,6 +370,38 @@
           disabled={isExporting}
         /></label
       >
+      {#if exportScope !== 'current'}
+        <fieldset class="export-naming">
+          <legend>File naming</legend>
+          <label>
+            Filename template
+            <input
+              value={exportFilenameTemplate}
+              oninput={(event) =>
+                (filenameDraft = {
+                  projectId: document.projectId,
+                  value: event.currentTarget.value,
+                })}
+              disabled={isExporting}
+              aria-describedby="export-filename-help export-filename-preview"
+              aria-invalid={Boolean(exportNames.error)}
+            />
+          </label>
+          <p id="export-filename-help">
+            Use <code>{'{title}'}</code> for the page title and <code>{'{number}'}</code> for the page
+            number (01, 02, …). The file extension is added automatically.
+          </p>
+          <div id="export-filename-preview" aria-live="polite">
+            {#if exportNames.error}
+              <p class="export-warning">{exportNames.error}</p>
+            {:else if exportNames.names.length}
+              <p>
+                Preview: {exportNames.names[0]}
+              </p>
+            {/if}
+          </div>
+        </fieldset>
+      {/if}
       {#if exportFormat === 'jpeg'}
         {#if activePage.style.transparentBackground}<p class="export-warning" role="note">
             JPEG does not support transparency. Transparent areas will be exported as white.
@@ -339,12 +422,13 @@
     </div>
     <div class="dialog-footer">
       <span
-        >{exportScope === 'all'
-          ? `${document.pages.length} ${exportFormat === 'jpeg' ? 'JPEGs' : 'PNGs'} in a ZIP`
+        >{exportNames.count > 1
+          ? `${exportNames.count} ${exportFormat === 'jpeg' ? 'JPEGs' : 'PNGs'} in a ZIP`
           : `${exportFormat === 'jpeg' ? 'JPEG' : 'PNG'} download`}</span
       >{#if isExporting}<button class="button" onclick={oncancelexport}>Cancel export</button
         >{:else}<button
           class="button button-primary"
+          disabled={Boolean(exportNames.error)}
           onclick={() =>
             onexport({
               scope: exportScope,
@@ -352,6 +436,7 @@
               longSide: exportLongSide,
               format: exportFormat,
               quality: exportQuality,
+              filenameTemplate: exportScope === 'current' ? undefined : exportFilenameTemplate,
             })}>Export</button
         >{/if}
     </div>

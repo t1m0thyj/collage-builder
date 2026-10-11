@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { zipSync } from 'fflate'
 import { unzipBlobBounded, writeZip, zipBlobs } from '../../src/lib/persistence/zipStreams'
 
@@ -12,6 +12,36 @@ const safeOptions = {
 }
 
 describe('bounded ZIP streams', () => {
+  it('keeps ZIP bytes identical with fixed timestamps, including cached checksum writes', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const entries = [{ name: 'one.png', blob: new Blob(['unchanged image']) }]
+      const options = { mtime: new Date(2026, 9, 9, 13, 20, 14) }
+      vi.setSystemTime(new Date('2026-10-10T12:00:00Z'))
+      const first = await zipBlobs(entries, 'application/zip', options)
+      vi.setSystemTime(new Date('2026-10-11T12:00:00Z'))
+      const second = await zipBlobs(entries, 'application/zip', options)
+      expect(await second.arrayBuffer()).toEqual(await first.arrayBuffer())
+      // Verify the local header and central directory use the same fixed DOS date.
+      const bytes = new Uint8Array(await first.arrayBuffer())
+      const header = new DataView(bytes.buffer)
+      expect(header.getUint16(10, true)).toBe((13 << 11) | (20 << 5) | 7)
+      expect(header.getUint16(12, true)).toBe((46 << 9) | (10 << 5) | 9)
+      const central = bytes.findIndex(
+        (byte, index) =>
+          byte === 0x50 &&
+          bytes[index + 1] === 0x4b &&
+          bytes[index + 2] === 1 &&
+          bytes[index + 3] === 2,
+      )
+      expect(central).toBeGreaterThan(0)
+      expect(header.getUint16(central + 12, true)).toBe(header.getUint16(10, true))
+      expect(header.getUint16(central + 14, true)).toBe(header.getUint16(12, true))
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('round trips streamed blob entries', async () => {
     const archive = await zipBlobs(
       [

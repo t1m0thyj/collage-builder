@@ -103,6 +103,18 @@ includes that metadata. Files with different hashes are never accepted based on 
 Progress reflects completed work, not an ETA. Processing cancellation is deliberately deferred;
 file/folder pickers remain cancellable, and failed or superseded operations release the lock.
 
+Bulk exports accept `{title}` for page titles and `{number}` for page numbers, defaulting
+to the literal collage title followed by `-{number}`. Numbers use the original one-based page index with at least two digits,
+including range exports. Preview and output share one naming helper. Templates are validated
+before rendering; bulk output requires unique filenames. Unsafe filename
+characters are replaced, Windows device names are prefixed, and extensions follow the format.
+Double braces escape literal braces in templates. PNG repeatability is checked by byte hashes
+within the same browser and rendering environment. The foreground renderer uses OffscreenCanvas
+when available to match worker rasterization, including rounded clipping. HTML canvas remains
+a compatibility fallback and can rasterize edges differently. Export ZIP entries use the
+document's last-edit timestamp (`updatedAt`), with UTC calendar components and ZIP's two-second
+precision, so unchanged collages retain meaningful, stable timestamps.
+
 Native embedded saves stream store-only ZIP output from 256 KiB input slices directly to the
 destination. Repeat saves reuse session-local CRC-32 metadata by immutable original Blob
 identity; every save still reads and writes the complete current archive. A layout edit avoids
