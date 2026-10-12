@@ -242,68 +242,139 @@ export const layout15Presets: LayoutPresetDefinition[] = [
     }
   },
   {
-    "id": "generated-15-te4d6f04997a02a76",
+    "id": "generated-15-tc8af8cd8088db38c",
     "revision": 1,
-    "name": "Frame 3",
+    "name": "Mosaic 3",
     "frameCount": 15,
     "tags": [
-      "asymmetric",
-      "portrait-led"
+      "asymmetric"
     ],
     "root": {
       "kind": "split",
-      "axis": "y",
+      "axis": "x",
       "weights": [
-        0.2125,
-        0.5625,
-        0.22499999999999998
+        0.3333333333333333,
+        0.3333333333333333,
+        0.33333333333333337
       ],
       "children": [
         {
           "kind": "split",
-          "axis": "x",
+          "axis": "y",
           "weights": [
-            0.25,
-            0.25,
-            0.25,
-            0.25
+            0.3333333333333333,
+            0.3333333333333333,
+            0.33333333333333337
           ],
           "children": [
             {
-              "kind": "leaf",
-              "key": "cell-1"
+              "kind": "split",
+              "axis": "x",
+              "weights": [
+                0.16666666666666666,
+                0.16666666666666666
+              ],
+              "children": [
+                {
+                  "kind": "leaf",
+                  "key": "cell-1"
+                },
+                {
+                  "kind": "leaf",
+                  "key": "cell-2"
+                }
+              ]
             },
             {
               "kind": "leaf",
-              "key": "cell-2"
+              "key": "cell-7"
             },
             {
-              "kind": "leaf",
-              "key": "cell-3"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-4"
+              "kind": "split",
+              "axis": "x",
+              "weights": [
+                0.16666666666666666,
+                0.16666666666666666
+              ],
+              "children": [
+                {
+                  "kind": "leaf",
+                  "key": "cell-10"
+                },
+                {
+                  "kind": "leaf",
+                  "key": "cell-11"
+                }
+              ]
             }
           ]
         },
         {
           "kind": "split",
-          "axis": "x",
+          "axis": "y",
           "weights": [
-            0.2674418604651162,
-            0.5465116279069768,
-            0.18604651162790697
+            0.3333333333333333,
+            0.3333333333333333,
+            0.33333333333333337
           ],
           "children": [
             {
               "kind": "split",
-              "axis": "y",
+              "axis": "x",
               "weights": [
-                0.14062500000000003,
-                0.140625,
-                0.140625,
-                0.140625
+                0.16666666666666669,
+                0.16666666666666663
+              ],
+              "children": [
+                {
+                  "kind": "leaf",
+                  "key": "cell-3"
+                },
+                {
+                  "kind": "leaf",
+                  "key": "cell-4"
+                }
+              ]
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-8"
+            },
+            {
+              "kind": "split",
+              "axis": "x",
+              "weights": [
+                0.16666666666666669,
+                0.16666666666666663
+              ],
+              "children": [
+                {
+                  "kind": "leaf",
+                  "key": "cell-12"
+                },
+                {
+                  "kind": "leaf",
+                  "key": "cell-13"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "y",
+          "weights": [
+            0.3333333333333333,
+            0.3333333333333333,
+            0.33333333333333337
+          ],
+          "children": [
+            {
+              "kind": "split",
+              "axis": "x",
+              "weights": [
+                0.16666666666666663,
+                0.16666666666666674
               ],
               "children": [
                 {
@@ -312,67 +383,31 @@ export const layout15Presets: LayoutPresetDefinition[] = [
                 },
                 {
                   "kind": "leaf",
-                  "key": "cell-8"
-                },
-                {
-                  "kind": "leaf",
-                  "key": "cell-9"
-                },
-                {
-                  "kind": "leaf",
-                  "key": "cell-11"
+                  "key": "cell-6"
                 }
               ]
             },
             {
               "kind": "leaf",
-              "key": "cell-6"
+              "key": "cell-9"
             },
             {
               "kind": "split",
-              "axis": "y",
+              "axis": "x",
               "weights": [
-                0.28125,
-                0.28125
+                0.16666666666666663,
+                0.16666666666666674
               ],
               "children": [
                 {
                   "kind": "leaf",
-                  "key": "cell-7"
+                  "key": "cell-14"
                 },
                 {
                   "kind": "leaf",
-                  "key": "cell-10"
+                  "key": "cell-15"
                 }
               ]
-            }
-          ]
-        },
-        {
-          "kind": "split",
-          "axis": "x",
-          "weights": [
-            0.25,
-            0.25,
-            0.25,
-            0.25
-          ],
-          "children": [
-            {
-              "kind": "leaf",
-              "key": "cell-12"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-13"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-14"
-            },
-            {
-              "kind": "leaf",
-              "key": "cell-15"
             }
           ]
         }

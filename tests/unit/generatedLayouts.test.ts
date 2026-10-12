@@ -4,6 +4,7 @@ import { layoutCatalog } from '../../src/lib/layouts/catalog'
 import { curatedCollagePresets } from '../../src/lib/layouts/curatedCatalog'
 import { previewFrames } from '../../src/lib/layouts/preview'
 import { validatePreset } from '../../src/lib/layouts/validatePreset'
+import { generateLayoutDefinitions } from '../../scripts/generate-layout-presets'
 
 function geometrySignature(
   slots: readonly { x: number; y: number; width: number; height: number }[],
@@ -22,6 +23,10 @@ function containsGrid(node: LayoutPresetNode): boolean {
 }
 
 describe('generated runtime layouts', () => {
+  it('reproduces the checked-in definitions from procedural generation', () => {
+    expect(generateLayoutDefinitions()).toEqual(layoutCatalog)
+  })
+
   it('matches every procedurally curated source geometry', () => {
     expect(layoutCatalog).toHaveLength(curatedCollagePresets.length)
     layoutCatalog.forEach((preset, index) => {

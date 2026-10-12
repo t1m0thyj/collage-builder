@@ -16,6 +16,9 @@ export type LayoutFamily =
   | 'magazine'
   | 'feature-strip'
   | 'symmetric'
+  | 'merged-grid'
+  | 'nested'
+  | 'rhythmic'
 
 export interface CollagePreset {
   id: string
@@ -37,6 +40,13 @@ interface Candidate {
   edges: Set<number>
 }
 
+type Motif = 'bands' | 'merged-grid' | 'nested' | 'rhythm' | 'features'
+
+interface SelectionCandidate extends Candidate {
+  motif: Motif
+  preference: number
+}
+
 type FillMode = 'rows' | 'columns' | 'balanced' | 'staggered'
 
 export const SUPPORTED_PHOTO_COUNTS = Object.freeze(
@@ -54,6 +64,9 @@ export const LAYOUT_FAMILIES: readonly LayoutFamily[] = Object.freeze([
   'magazine',
   'feature-strip',
   'symmetric',
+  'merged-grid',
+  'nested',
+  'rhythmic',
 ])
 
 const EPSILON = 1e-8
@@ -250,7 +263,7 @@ function isValidGeometry(slots: readonly CollageSlot[]): boolean {
         slot.x + slot.width > 1 + EPSILON ||
         slot.y + slot.height > 1 + EPSILON ||
         Math.min(slot.width, slot.height) < 0.074 ||
-        Math.max(slot.width / slot.height, slot.height / slot.width) > 7.5,
+        Math.max(slot.width / slot.height, slot.height / slot.width) > 10 + EPSILON,
     )
   )
     return false
@@ -306,13 +319,47 @@ function aestheticScore(
   return score
 }
 
+/** Shared selection limits apply before topology ranking, including featured anchors. */
+function isUsableComposition(
+  family: LayoutFamily,
+  slots: readonly CollageSlot[],
+  featuredSlots: readonly number[],
+): boolean {
+  const areas = slots.map((slot) => slot.width * slot.height)
+  if (Math.min(...areas) + EPSILON < minimumLayoutSlotArea(slots.length)) return false
+  const strip =
+    slots.every((slot) => Math.abs(slot.width - 1) < EPSILON) ||
+    slots.every((slot) => Math.abs(slot.height - 1) < EPSILON)
+  if (
+    !strip &&
+    slots.some((slot) => Math.max(slot.width / slot.height, slot.height / slot.width) > 4 + EPSILON)
+  )
+    return false
+  // A small number of repeated sizes is easier to read than many unrelated subdivisions.
+  if (coordinateRanks(areas).length > 4) return false
+  if (family === 'hero' || family === 'feature-strip' || family === 'magazine') {
+    const secondary = areas.filter((_, index) => !featuredSlots.includes(index))
+    const maximumSpread = family === 'magazine' ? 2 : 1.5
+    if (
+      secondary.length > 1 &&
+      Math.max(...secondary) > Math.min(...secondary) * maximumSpread + EPSILON
+    )
+      return false
+  }
+  return true
+}
+
 function makeCandidate(
   family: LayoutFamily,
   slots: readonly CollageSlot[],
   featuredSlots: readonly number[] = [],
 ): Candidate | undefined {
   const normalized = normalizeSlots(slots, featuredSlots)
-  if (!isValidGeometry(normalized.slots)) return undefined
+  if (
+    !isValidGeometry(normalized.slots) ||
+    !isUsableComposition(family, normalized.slots, normalized.featuredSlots ?? [])
+  )
+    return undefined
   return {
     family,
     ...normalized,
@@ -343,6 +390,378 @@ function frameLayout(
   return { slots, hero: topCount + leftCount }
 }
 
+/** A rectangular merge must still admit full cuts so every divider remains editable. */
+function isSlicing(slots: readonly CollageSlot[]): boolean {
+  if (slots.length <= 1) return true
+  for (const axis of ['x', 'y'] as const) {
+    const length = axis === 'x' ? 'width' : 'height'
+    const coordinates = coordinateRanks(
+      slots.flatMap((slot) => [slot[axis], slot[axis] + slot[length]]),
+    )
+    for (const cut of coordinates.slice(1, -1)) {
+      const before = slots.filter((slot) => slot[axis] + slot[length] <= cut + EPSILON)
+      const after = slots.filter((slot) => slot[axis] >= cut - EPSILON)
+      if (
+        before.length > 0 &&
+        after.length > 0 &&
+        before.length + after.length === slots.length &&
+        isSlicing(before) &&
+        isSlicing(after)
+      )
+        return true
+    }
+  }
+  return false
+}
+
+function transpose(slots: readonly CollageSlot[]): CollageSlot[] {
+  return slots.map(({ x, y, width, height }) => ({ x: y, y: x, width: height, height: width }))
+}
+
+function grid(region: Region, columns: number, rows: number): CollageSlot[] {
+  return divide(region, 'y', Array(rows).fill(1)).flatMap((row) =>
+    divide(row, 'x', Array(columns).fill(1)),
+  )
+}
+
+function fitSlots(slots: readonly CollageSlot[], source: Region, target: Region): CollageSlot[] {
+  return slots.map((slot) => ({
+    x: target.x + ((slot.x - source.x) / source.width) * target.width,
+    y: target.y + ((slot.y - source.y) / source.height) * target.height,
+    width: (slot.width / source.width) * target.width,
+    height: (slot.height / source.height) * target.height,
+  }))
+}
+
+/** Enumerate rectangular coalescings of a small lattice, rather than named cell arrangements. */
+function mergedGrids(photoCount: number): CollageSlot[][] {
+  const side = Math.ceil(Math.sqrt(photoCount))
+  if (side * side - photoCount > 4) return []
+  let states = new Map([[signature(grid(rootRegion, side, side)), grid(rootRegion, side, side)]])
+  for (let count = side * side; count > photoCount; count -= 1) {
+    const next = new Map<string, CollageSlot[]>()
+    for (const slots of states.values())
+      for (let left = 0; left < slots.length; left += 1)
+        for (let right = left + 1; right < slots.length; right += 1) {
+          const a = slots[left]
+          const b = slots[right]
+          const horizontal =
+            Math.abs(a.y - b.y) < EPSILON &&
+            Math.abs(a.height - b.height) < EPSILON &&
+            (Math.abs(a.x + a.width - b.x) < EPSILON || Math.abs(b.x + b.width - a.x) < EPSILON)
+          const vertical =
+            Math.abs(a.x - b.x) < EPSILON &&
+            Math.abs(a.width - b.width) < EPSILON &&
+            (Math.abs(a.y + a.height - b.y) < EPSILON || Math.abs(b.y + b.height - a.y) < EPSILON)
+          if (!horizontal && !vertical) continue
+          const merged = {
+            x: Math.min(a.x, b.x),
+            y: Math.min(a.y, b.y),
+            width: horizontal ? a.width + b.width : a.width,
+            height: vertical ? a.height + b.height : a.height,
+          }
+          const candidate = [
+            ...slots.filter((_, index) => index !== left && index !== right),
+            merged,
+          ]
+          next.set(signature(candidate), candidate)
+        }
+    states = next
+  }
+  return [...states.values()].filter(isSlicing)
+}
+
+function panelFills(region: Region, count: number, nested = true): CollageSlot[][] {
+  if (count === 1) return [[region]]
+  const choices: CollageSlot[][] = []
+  if (count <= 6) {
+    choices.push(fill(region, count, 'rows'), fill(region, count, 'columns'))
+  }
+  for (let bands = 2; bands <= Math.min(count, Math.ceil(Math.sqrt(count))); bands += 1) {
+    for (let phase = 0; phase < bands; phase += 1) {
+      const counts = balancedCounts(count, bands, phase)
+      for (const axis of ['x', 'y'] as const)
+        choices.push(
+          divide(region, axis, Array(bands).fill(1)).flatMap((band, index) =>
+            fill(band, counts[index], axis === 'x' ? 'rows' : 'columns'),
+          ),
+        )
+    }
+  }
+  if (nested && count >= 3 && count <= 6)
+    for (const axis of ['x', 'y'] as const) {
+      const [feature, secondary] = divide(region, axis, [1, 1])
+      for (const remainder of panelFills(secondary, count - 1, false)) {
+        choices.push([feature, ...remainder])
+      }
+      const [first, last] = divide(region, axis, [1, 1])
+      for (const leading of panelFills(first, count - 1, false)) choices.push([...leading, last])
+    }
+  return [...new Map(choices.map((slots) => [signature(slots), slots])).values()]
+}
+
+/**
+ * Common collage grammar: equal bands, merged lattice cells, panels within panels, and
+ * repeated large/small cells. These rules depend only on the requested photo count;
+ * layout IDs and individual arrangements are derived from the resulting geometry.
+ */
+function buildMotifPool(photoCount: number): SelectionCandidate[] {
+  const candidates = new Map<string, SelectionCandidate>()
+  const add = (motif: Exclude<Motif, 'features'>, slots: CollageSlot[], preference: number) => {
+    const largest = slots.reduce(
+      (best, slot, index) =>
+        slot.width * slot.height > slots[best].width * slots[best].height ? index : best,
+      0,
+    )
+    const featured = slots[largest].width * slots[largest].height >= 1.15 / photoCount
+    const family = motif === 'bands' ? 'mosaic' : motif === 'rhythm' ? 'rhythmic' : motif
+    const candidate = makeCandidate(family, slots, motif === 'nested' && featured ? [largest] : [])
+    if (!candidate || !isSlicing(candidate.slots)) return
+    const current = candidates.get(candidate.topology)
+    if (
+      !current ||
+      preference > current.preference ||
+      (preference === current.preference && candidate.score > current.score)
+    )
+      candidates.set(candidate.topology, { ...candidate, motif, preference })
+  }
+
+  const maximumBands = Math.min(4, photoCount - 1)
+  for (let bands = 2; bands <= maximumBands; bands += 1)
+    for (const counts of compositions(photoCount, bands, 6)) {
+      const spread = Math.max(...counts) - Math.min(...counts)
+      const distinct = new Set(counts).size
+      const secondary = counts.filter((count) => count !== 1)
+      const hasFeature =
+        counts.includes(1) &&
+        secondary.length > 0 &&
+        Math.max(...secondary) - Math.min(...secondary) <= 1
+      const monotone =
+        counts.every((count, index) => index === 0 || count >= counts[index - 1]) ||
+        counts.every((count, index) => index === 0 || count <= counts[index - 1])
+      if (spread > 1 && distinct > 2 && !hasFeature && !monotone) continue
+      const framedBands =
+        bands >= 3 &&
+        counts[0] === counts.at(-1) &&
+        counts.slice(1, -1).every((count) => count < counts[0])
+      const preference =
+        photoCount > 10 && framedBands
+          ? 10
+          : bands === 2 && spread > 1 && !counts.includes(1)
+            ? 9.5
+            : spread <= 1
+              ? 9
+              : hasFeature
+                ? 8
+                : distinct <= 2
+                  ? 7
+                  : 6
+      const weights =
+        bands === 2 && spread > 1
+          ? counts.map((count) =>
+              counts.includes(1) ? (count === 1 && photoCount >= 6 ? 2 : 1) : 1 / count,
+            )
+          : Array(bands).fill(1)
+      const slots = divide(rootRegion, 'y', weights).flatMap((band, index) =>
+        fill(band, counts[index], 'columns'),
+      )
+      add('bands', slots, preference)
+      // Rows are the natural reading order for irregular bands. Balanced two-band grids
+      // and low-count layouts also benefit from their portrait-oriented counterpart.
+      if (photoCount <= 5 || (bands === 2 && (spread <= 1 || counts.includes(1))))
+        add('bands', transpose(slots), preference - 0.25)
+
+      if ((bands >= 3 || photoCount === 4) && counts.every((count) => count >= 2 && count <= 3))
+        for (const accent of ['all', 'short', 'long'] as const)
+          for (const narrow of photoCount > 10 ? [false, true] : [false])
+            for (const pattern of ['repeat', 'alternate', 'cycle'] as const)
+              for (let phase = 0; phase < Math.max(...counts); phase += 1) {
+                const rhythmic = divide(rootRegion, 'y', Array(bands).fill(1)).flatMap(
+                  (band, index) => {
+                    const weights = Array(counts[index]).fill(narrow ? 2 : 1) as number[]
+                    const position =
+                      pattern === 'repeat'
+                        ? phase
+                        : pattern === 'alternate'
+                          ? index % 2 === 0
+                            ? phase
+                            : weights.length - 1 - phase
+                          : phase + index
+                    if (
+                      accent === 'all' ||
+                      (accent === 'short'
+                        ? weights.length === Math.min(...counts)
+                        : weights.length === Math.max(...counts))
+                    )
+                      weights[((position % weights.length) + weights.length) % weights.length] =
+                        narrow ? 1 : Math.max(2, bands - weights.length + 1)
+                    return divide(band, 'x', weights)
+                  },
+                )
+                add(
+                  'rhythm',
+                  rhythmic,
+                  9 + (pattern === 'alternate' ? 0.15 : pattern === 'cycle' ? -0.25 : 0),
+                )
+                add(
+                  'rhythm',
+                  transpose(rhythmic),
+                  8.75 + (pattern === 'alternate' ? 0.15 : pattern === 'cycle' ? -0.25 : 0),
+                )
+              }
+    }
+
+  if (photoCount > 10) {
+    for (let featureCount = 1; featureCount <= 2; featureCount += 1) {
+      const remainder = photoCount - featureCount
+      for (let rows = 2; rows <= Math.sqrt(remainder); rows += 1) {
+        if (remainder % rows !== 0 || (featureCount === 2 && rows * rows !== remainder)) continue
+        const [feature, secondary] = divide(rootRegion, 'y', [featureCount === 1 ? 1 : rows, rows])
+        const slots = [
+          ...fill(feature, featureCount, 'columns'),
+          ...grid(secondary, remainder / rows, rows),
+        ]
+        add(featureCount === 1 ? 'bands' : 'nested', slots, 10)
+      }
+    }
+    return [...candidates.values()]
+  }
+  for (const slots of mergedGrids(photoCount)) {
+    const largestArea = Math.max(...slots.map((slot) => slot.width * slot.height))
+    const worstAspect = Math.max(
+      ...slots.map((slot) => Math.max(slot.width / slot.height, slot.height / slot.width)),
+    )
+    add('merged-grid', slots, 8 + largestArea - 0.25 * Math.max(0, worstAspect - 1.5))
+  }
+  const smallerSide = Math.floor(Math.sqrt(photoCount))
+  if (photoCount === smallerSide * smallerSide + 1) {
+    const cells = grid(rootRegion, smallerSide, smallerSide)
+    for (let index = 0; index < cells.length; index += 1)
+      for (const axis of ['x', 'y'] as const)
+        add(
+          'merged-grid',
+          cells.flatMap((cell, cellIndex) =>
+            cellIndex === index ? divide(cell, axis, [1, 1]) : [cell],
+          ),
+          8 + (index === Math.floor(cells.length / 2) ? 1 : 0),
+        )
+  }
+
+  for (const axis of ['x', 'y'] as const)
+    for (let firstCount = 1; firstCount < photoCount; firstCount += 1) {
+      const secondCount = photoCount - firstCount
+      const [first, second] = divide(rootRegion, axis, [1, 1])
+      for (const left of panelFills(first, firstCount))
+        for (const right of panelFills(second, secondCount)) {
+          const span = (slot: CollageSlot) => (axis === 'x' ? slot.width : slot.height)
+          const cross = (slot: CollageSlot) => (axis === 'x' ? slot.height : slot.width)
+          const capacity = (slots: CollageSlot[]) =>
+            sum(slots.map((slot) => cross(slot) / span(slot))) / slots.length
+          // Allocate more space to panels whose cells would otherwise be thin. A single
+          // feature gives the neighboring grid enough space to keep its small cells square.
+          let share = capacity(left) / (capacity(left) + capacity(right))
+          if (firstCount === 1) share = 1 - Math.max(1 / 3, Math.min(3 / 4, capacity(right) / 2))
+          if (secondCount === 1) share = Math.max(1 / 3, Math.min(3 / 4, capacity(left) / 2))
+          share = Math.max(1 / 4, Math.min(3 / 4, share))
+          const isStripe = (slots: CollageSlot[]) =>
+            slots.every(
+              (slot) =>
+                Math.abs(slot.width - slots[0].width) < EPSILON &&
+                Math.abs(slot.x - slots[0].x) < EPSILON,
+            ) ||
+            slots.every(
+              (slot) =>
+                Math.abs(slot.height - slots[0].height) < EPSILON &&
+                Math.abs(slot.y - slots[0].y) < EPSILON,
+            )
+          const repeatedPanels =
+            firstCount === secondCount &&
+            signature(
+              left.map((slot) => ({ ...slot, x: slot.x - first.x, y: slot.y - first.y })),
+            ) ===
+              signature(
+                right.map((slot) => ({ ...slot, x: slot.x - second.x, y: slot.y - second.y })),
+              )
+          const preference =
+            repeatedPanels && left.length > 2
+              ? 9
+              : isStripe(left) && isStripe(right) && firstCount > 1 && secondCount > 1
+                ? 8.5
+                : 7 + (firstCount === 1 || secondCount === 1 ? 0.5 : 0)
+          if (photoCount > 4) {
+            const [firstPanel, secondPanel] = divide(rootRegion, axis, [share, 1 - share])
+            add(
+              'nested',
+              [...fitSlots(left, first, firstPanel), ...fitSlots(right, second, secondPanel)],
+              preference + 0.25,
+            )
+          }
+          add('nested', [...left, ...right], preference)
+        }
+    }
+  return [...candidates.values()].sort(
+    (left, right) =>
+      right.preference - left.preference ||
+      right.score - left.score ||
+      left.signature.localeCompare(right.signature),
+  )
+}
+
+/** More shapes are useful around a two-by-three grid; denser collages need a smaller picker. */
+export function layoutCountBudget(photoCount: number): number {
+  return Math.round(12 + 28 / (1 + ((photoCount - 6) / 2.5) ** 2))
+}
+
+function selectCandidates(
+  candidates: readonly SelectionCandidate[],
+  budget: number,
+  photoCount: number,
+  anchors: readonly Candidate[] = [],
+  turns: readonly Motif[] = ['features', 'bands', 'bands', 'merged-grid', 'nested', 'rhythm'],
+): Candidate[] {
+  const selected: Candidate[] = [...anchors]
+  const groups = new Map<Motif, SelectionCandidate[]>([
+    ['bands', candidates.filter((candidate) => candidate.motif === 'bands')],
+    ['merged-grid', candidates.filter((candidate) => candidate.motif === 'merged-grid')],
+    ['nested', candidates.filter((candidate) => candidate.motif === 'nested')],
+    ['rhythm', candidates.filter((candidate) => candidate.motif === 'rhythm')],
+    ['features', candidates.filter((candidate) => candidate.motif === 'features')],
+  ])
+  const maximumSimilarity = layoutSimilarityThreshold(photoCount)
+  // Give simple band arrangements more space, then alternate the more detailed motifs.
+  // The budget is a ceiling; exhausted groups never get backfilled with similar layouts.
+  while (selected.length < budget && [...groups.values()].some((group) => group.length > 0))
+    for (const motif of turns) {
+      if (selected.length >= budget) break
+      const group = groups.get(motif)!
+      let index = -1
+      let bestScore = -Infinity
+      for (let candidateIndex = 0; candidateIndex < group.length; candidateIndex += 1) {
+        const candidate = group[candidateIndex]
+        const similarity = Math.max(
+          0,
+          ...selected.map((chosen) => edgeSimilarity(candidate.edges, chosen.edges)),
+        )
+        if (
+          similarity >= maximumSimilarity ||
+          selected.some((chosen) => chosen.topology === candidate.topology)
+        )
+          continue
+        const score = candidate.preference + candidate.score * 0.15 - similarity * 1.5
+        if (score > bestScore) {
+          bestScore = score
+          index = candidateIndex
+        }
+      }
+      if (index < 0) {
+        group.length = 0
+        continue
+      }
+      selected.push(group.splice(index, 1)[0])
+    }
+  return selected
+}
+
 function buildCandidatePool(photoCount: number): Map<LayoutFamily, Candidate[]> {
   const pool = new Map<LayoutFamily, Map<string, Candidate>>(
     LAYOUT_FAMILIES.map((family) => [family, new Map()]),
@@ -356,7 +775,7 @@ function buildCandidatePool(photoCount: number): Map<LayoutFamily, Candidate[]> 
     if (candidate) pool.get(family)?.set(candidate.signature, candidate)
   }
 
-  if (photoCount <= 6) {
+  if (photoCount <= 10) {
     const stripeVariantCount = photoCount >= 5 ? 1 : 5
     for (let variant = 0; variant < stripeVariantCount; variant += 1) {
       add('rows', divide(rootRegion, 'y', stripeWeights(photoCount, variant)))
@@ -539,7 +958,7 @@ function buildCandidatePool(photoCount: number): Map<LayoutFamily, Candidate[]> 
 
 function isFamilyEligible(family: LayoutFamily, photoCount: number): boolean {
   if (photoCount === 2) return family === 'rows' || family === 'columns'
-  if ((family === 'rows' || family === 'columns') && photoCount > 7) return false
+  if ((family === 'rows' || family === 'columns') && photoCount > 10) return false
   if ((family === 'center-hero' || family === 'frame') && photoCount < 5) return false
   return true
 }
@@ -552,60 +971,12 @@ function edgeSimilarity(left: Set<number>, right: Set<number>): number {
 }
 
 export function layoutSimilarityThreshold(photoCount: number): number {
-  return Math.min(1, 2.5 / photoCount)
+  // A denser collage needs more separation from existing choices to earn another thumbnail.
+  return 0.84 - photoCount / 100
 }
 
 export function minimumLayoutSlotArea(photoCount: number): number {
   return 0.38 / photoCount
-}
-
-function selectVisuallyDistinct(
-  candidates: readonly Candidate[],
-  maximumEdgeSimilarity = 0.3,
-): Candidate[] {
-  const selected: Candidate[] = []
-  for (const candidate of interleaveByFamily(candidates)) {
-    if (
-      selected.every(
-        (chosen) => edgeSimilarity(candidate.edges, chosen.edges) < maximumEdgeSimilarity,
-      )
-    )
-      selected.push(candidate)
-  }
-  return selected
-}
-
-function removeCrampedLayouts(candidates: readonly Candidate[], photoCount: number): Candidate[] {
-  if (photoCount < 8 || photoCount > 10) return [...candidates]
-  return candidates.filter((candidate) => {
-    const smallestArea = Math.min(...candidate.slots.map((slot) => slot.width * slot.height))
-    return smallestArea >= minimumLayoutSlotArea(photoCount)
-  })
-}
-
-function limitDominantFamily(candidates: readonly Candidate[]): Candidate[] {
-  const selected = [...candidates]
-  while (selected.length > 1) {
-    const counts = new Map<LayoutFamily, number>()
-    for (const candidate of selected)
-      counts.set(candidate.family, (counts.get(candidate.family) ?? 0) + 1)
-    const dominant = [...counts].sort(
-      ([leftFamily, leftCount], [rightFamily, rightCount]) =>
-        rightCount - leftCount || leftFamily.localeCompare(rightFamily),
-    )[0]
-    if (!dominant || dominant[1] * 2 < selected.length) break
-    const removable = selected
-      .map((candidate, index) => ({ candidate, index }))
-      .filter(({ candidate }) => candidate.family === dominant[0])
-      .sort(
-        (left, right) =>
-          left.candidate.score - right.candidate.score ||
-          right.candidate.signature.localeCompare(left.candidate.signature),
-      )[0]
-    if (!removable) break
-    selected.splice(removable.index, 1)
-  }
-  return selected
 }
 
 function selectHighCountHighlights(
@@ -729,6 +1100,9 @@ function orderForPicker(selected: readonly Candidate[]): Candidate[] {
     'feature-strip',
     'mosaic',
     'symmetric',
+    'merged-grid',
+    'nested',
+    'rhythmic',
   ]
   const heroPosition = (candidate: Candidate): number => {
     const side = heroSide(candidate)
@@ -797,9 +1171,15 @@ function orderForPicker(selected: readonly Candidate[]): Candidate[] {
   ]
 }
 
+const presetCache = new Map<number, CollagePreset[]>()
+
 export function generateCuratedPresets(photoCount: number): CollagePreset[] {
   if (!SUPPORTED_PHOTO_COUNTS.includes(photoCount))
     throw new Error(`Supported photo counts are 2 through 16; received ${photoCount}`)
+  // Candidate enumeration is intentionally broad. Repeated generation in a script or
+  // test process can reuse it, while callers still receive independent, editable slots.
+  const cached = presetCache.get(photoCount)
+  if (cached) return structuredClone(cached)
   const pool = buildCandidatePool(photoCount)
   const byTopology = new Map<string, Candidate>()
   for (const candidate of [...pool.values()].flat()) {
@@ -815,39 +1195,87 @@ export function generateCuratedPresets(photoCount: number): CollagePreset[] {
   const ranked = [...byTopology.values()].sort(
     (left, right) => right.score - left.score || left.topology.localeCompare(right.topology),
   )
-  const initialSelection =
-    photoCount <= 4
-      ? ranked
-      : photoCount <= 10
-        ? limitDominantFamily(
-            removeCrampedLayouts(
-              selectVisuallyDistinct(ranked, layoutSimilarityThreshold(photoCount)),
-              photoCount,
-            ),
-          )
-        : selectHighCountHighlights(ranked, photoCount)
-  const curated =
-    photoCount > 10 ? completeHighCountHeroAxis(ranked, initialSelection) : initialSelection
   const canonicalGrids = ranked.filter(
     (candidate) => candidate.family === 'grid' && regularGridDimensions(candidate.slots),
   )
   const gridDefaults = new Map<string, Candidate>()
   for (const candidate of pool.get('grid') ?? []) {
+    const balancedPair =
+      candidate.slots.every((slot) => Math.abs(slot.height - 0.5) < EPSILON) ||
+      candidate.slots.every((slot) => Math.abs(slot.width - 0.5) < EPSILON)
+    if (!regularGridDimensions(candidate.slots) && !balancedPair) continue
     const current = gridDefaults.get(candidate.topology)
     if (!current || candidate.score > current.score) gridDefaults.set(candidate.topology, candidate)
   }
-  const selected = mergeUniqueTopologies(canonicalGrids, curated).map((candidate) =>
+  let selection = photoCount <= 3 ? ranked : canonicalGrids
+  if (photoCount >= 4 && photoCount <= 10) {
+    const familiar = [...(pool.get('grid') ?? [])].filter(
+      (candidate) =>
+        regularGridDimensions(candidate.slots) ||
+        (photoCount % 2 === 1 &&
+          (candidate.slots.every((slot) => Math.abs(slot.height - 0.5) < EPSILON) ||
+            candidate.slots.every((slot) => Math.abs(slot.width - 0.5) < EPSILON))),
+    )
+    const features: Candidate[] = []
+    for (const side of ['left', 'top', 'right', 'bottom'] as const) {
+      const candidate = ranked.find((item) => heroSide(item) === side)
+      if (candidate) features.push(candidate)
+    }
+    for (const family of [
+      'center-hero',
+      'frame',
+      'magazine',
+      'feature-strip',
+      'symmetric',
+    ] as const) {
+      const candidate = ranked.find((item) => item.family === family)
+      if (candidate) features.push(candidate)
+    }
+    const budget = layoutCountBudget(photoCount)
+    const motifPool = buildMotifPool(photoCount)
+    const strips = ranked.filter(
+      (candidate) => candidate.family === 'rows' || candidate.family === 'columns',
+    )
+    const reserved = mergeUniqueTopologies(familiar, strips)
+    const candidates: SelectionCandidate[] = [
+      ...interleaveByFamily(features).map((candidate) => ({
+        ...candidate,
+        motif: 'features' as const,
+        preference: 8.5,
+      })),
+      ...motifPool,
+    ]
+    selection = selectCandidates(candidates, budget, photoCount, reserved)
+  } else if (photoCount > 10) {
+    selection = mergeUniqueTopologies(
+      canonicalGrids,
+      completeHighCountHeroAxis(ranked, selectHighCountHighlights(ranked, photoCount)),
+    )
+    const motifs = buildMotifPool(photoCount).filter(
+      (candidate) => !selection.some((chosen) => chosen.topology === candidate.topology),
+    )
+    selection = selectCandidates(
+      motifs,
+      selection.length + Math.max(0, Math.ceil((16 - photoCount) / 2)),
+      photoCount,
+      selection,
+      ['nested', 'bands', 'rhythm'],
+    )
+  }
+  const selected = selection.map((candidate) =>
     candidate.family === 'rows' || candidate.family === 'columns'
       ? candidate
       : (gridDefaults.get(candidate.topology) ?? candidate),
   )
-  return orderForPicker(selected).map((candidate) => ({
+  const presets = orderForPicker(selected).map((candidate) => ({
     id: stableLayoutId(photoCount, candidate.slots),
     photoCount,
     family: candidate.family,
     featuredSlots: candidate.featuredSlots,
     slots: candidate.slots,
   }))
+  presetCache.set(photoCount, structuredClone(presets))
+  return presets
 }
 
 export function generateCuratedCatalog(): CollagePreset[] {

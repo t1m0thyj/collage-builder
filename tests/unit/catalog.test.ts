@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { layoutCatalog, presetsForFrameCount } from '../../src/lib/layouts/catalog'
 import { previewFrames } from '../../src/lib/layouts/preview'
 import { validatePreset } from '../../src/lib/layouts/validatePreset'
+import { CURATED_LAYOUT_TOTAL } from '../../src/lib/layouts/curatedCatalog'
 
 describe('layout catalog', () => {
   it('groups definitions by their derived frame count', () => {
     expect(presetsForFrameCount(3)).toHaveLength(6)
-    expect(layoutCatalog).toHaveLength(240)
+    expect(layoutCatalog).toHaveLength(CURATED_LAYOUT_TOTAL)
   })
 
   it('offers a balanced two-over-three grid first for five photos', () => {

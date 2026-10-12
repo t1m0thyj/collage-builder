@@ -4,6 +4,7 @@ import {
   layoutGroupForFrameCount,
   loadLayouts,
 } from '../../src/lib/layouts/loader'
+import { curatedCollagePresets } from '../../src/lib/layouts/curatedCatalog'
 
 describe('layout loader groups', () => {
   it('exposes individual counts through 10 and one 11+ group', () => {
@@ -15,7 +16,9 @@ describe('layout loader groups', () => {
 
   it('loads every supported high-count preset in the 11+ group', async () => {
     const presets = await loadLayouts(11)
-    expect(presets).toHaveLength(23)
+    expect(presets).toHaveLength(
+      curatedCollagePresets.filter((preset) => preset.photoCount >= 11).length,
+    )
     expect(new Set(presets.map((preset) => preset.frameCount))).toEqual(
       new Set([11, 12, 13, 14, 15, 16]),
     )

@@ -345,5 +345,119 @@ export const layout14Presets: LayoutPresetDefinition[] = [
         }
       ]
     }
+  },
+  {
+    "id": "generated-14-t1a4326083e4e9da3",
+    "revision": 1,
+    "name": "Mosaic 4",
+    "frameCount": 14,
+    "tags": [
+      "asymmetric"
+    ],
+    "root": {
+      "kind": "split",
+      "axis": "y",
+      "weights": [
+        0.3333333333333333,
+        0.3333333333333333,
+        0.33333333333333337
+      ],
+      "children": [
+        {
+          "kind": "split",
+          "axis": "x",
+          "weights": [
+            0.2,
+            0.2,
+            0.20000000000000007,
+            0.19999999999999996,
+            0.19999999999999996
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-1"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-2"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-3"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-4"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-5"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "x",
+          "weights": [
+            0.25,
+            0.25,
+            0.25,
+            0.25
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-6"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-7"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-8"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-9"
+            }
+          ]
+        },
+        {
+          "kind": "split",
+          "axis": "x",
+          "weights": [
+            0.2,
+            0.2,
+            0.20000000000000007,
+            0.19999999999999996,
+            0.19999999999999996
+          ],
+          "children": [
+            {
+              "kind": "leaf",
+              "key": "cell-10"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-11"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-12"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-13"
+            },
+            {
+              "kind": "leaf",
+              "key": "cell-14"
+            }
+          ]
+        }
+      ]
+    }
   }
 ]

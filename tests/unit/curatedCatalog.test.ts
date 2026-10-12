@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   CURATED_LAYOUT_TOTAL,
-  LAYOUT_FAMILIES,
   SUPPORTED_PHOTO_COUNTS,
   curatedCollagePresets,
   generateCuratedCatalog,
   generateCuratedPresets,
+  layoutCountBudget,
   layoutSimilarityThreshold,
   minimumLayoutSlotArea,
   stableLayoutId,
@@ -161,6 +161,77 @@ describe('curated collage catalog', () => {
     }
   })
 
+  it('derives picker sizes from density instead of per-count target lists', () => {
+    expect(layoutCountBudget(6)).toBeGreaterThan(layoutCountBudget(4))
+    for (let photoCount = 6; photoCount < 10; photoCount += 1)
+      expect(layoutCountBudget(photoCount + 1)).toBeLessThan(layoutCountBudget(photoCount))
+    for (let photoCount = 4; photoCount <= 10; photoCount += 1)
+      expect(generateCuratedPresets(photoCount).length).toBeLessThanOrEqual(
+        layoutCountBudget(photoCount),
+      )
+  })
+
+  it('coalesces a square lattice into a feature at each corner', () => {
+    const presets = generateCuratedPresets(6)
+    for (const x of [0, 1])
+      for (const y of [0, 1]) {
+        const slots: CollageSlot[] = [{ x: x / 3, y: y / 3, width: 2 / 3, height: 2 / 3 }]
+        for (let row = 0; row < 3; row += 1)
+          for (let column = 0; column < 3; column += 1)
+            if (column < x || column >= x + 2 || row < y || row >= y + 2)
+              slots.push({ x: column / 3, y: row / 3, width: 1 / 3, height: 1 / 3 })
+        const preset = presets.find((candidate) => candidate.id === stableLayoutId(6, slots))
+        expect(preset).toBeDefined()
+        expect(
+          preset?.slots.some(
+            (slot) =>
+              Math.abs(slot.x - x / 3) < 1e-7 &&
+              Math.abs(slot.y - y / 3) < 1e-7 &&
+              Math.abs(slot.width - 2 / 3) < 1e-7 &&
+              Math.abs(slot.height - 2 / 3) < 1e-7,
+          ),
+        ).toBe(true)
+      }
+  })
+
+  it('includes long strips through ten photos and both directions of offset cuts', () => {
+    for (let photoCount = 8; photoCount <= 10; photoCount += 1)
+      expect(
+        new Set(
+          generateCuratedPresets(photoCount)
+            .filter((preset) => preset.family === 'rows' || preset.family === 'columns')
+            .map((preset) => preset.family),
+        ),
+      ).toEqual(new Set(['rows', 'columns']))
+    const rhythmic = generateCuratedPresets(4).filter((preset) => preset.family === 'rhythmic')
+    expect(
+      rhythmic.some((preset) => preset.slots.every((slot) => Math.abs(slot.height - 0.5) < 1e-7)),
+    ).toBe(true)
+    expect(
+      rhythmic.some((preset) => preset.slots.every((slot) => Math.abs(slot.width - 0.5) < 1e-7)),
+    ).toBe(true)
+  })
+
+  it('combines two feature photos with a regular secondary grid', () => {
+    const preset = generateCuratedPresets(11).find(
+      (candidate) =>
+        candidate.slots.filter(
+          (slot) =>
+            slot.y < 1e-7 &&
+            Math.abs(slot.width - 0.5) < 1e-7 &&
+            Math.abs(slot.height - 0.5) < 1e-7,
+        ).length === 2,
+    )
+    expect(preset).toBeDefined()
+    const secondary = preset?.slots.filter((slot) => slot.y >= 0.5 - 1e-7) ?? []
+    expect(secondary).toHaveLength(9)
+    expect(
+      secondary.every(
+        (slot) => Math.abs(slot.width - 1 / 3) < 1e-7 && Math.abs(slot.height - 1 / 6) < 1e-7,
+      ),
+    ).toBe(true)
+  })
+
   it('produces complete, bounded, non-overlapping rectangular tilings', () => {
     for (const preset of curatedCollagePresets) {
       expect(preset.slots).toHaveLength(preset.photoCount)
@@ -179,6 +250,47 @@ describe('curated collage catalog', () => {
         for (let right = left + 1; right < preset.slots.length; right += 1)
           expect(overlapArea(preset.slots[left], preset.slots[right])).toBeLessThan(1e-8)
     }
+  })
+
+  it('keeps cells usable across every count, including featured layouts', () => {
+    for (const preset of curatedCollagePresets) {
+      const areas = preset.slots.map((slot) => slot.width * slot.height)
+      expect(Math.min(...areas)).toBeGreaterThanOrEqual(
+        minimumLayoutSlotArea(preset.photoCount) - 1e-8,
+      )
+      const strip =
+        preset.slots.every((slot) => Math.abs(slot.width - 1) < 1e-8) ||
+        preset.slots.every((slot) => Math.abs(slot.height - 1) < 1e-8)
+      if (!strip)
+        for (const slot of preset.slots)
+          expect(Math.max(slot.width / slot.height, slot.height / slot.width)).toBeLessThanOrEqual(
+            4 + 1e-8,
+          )
+    }
+  })
+
+  it('uses consistent secondary cells beside featured photos', () => {
+    const featuredFamilies = new Set(['hero', 'feature-strip', 'magazine'])
+    for (const preset of curatedCollagePresets) {
+      if (!featuredFamilies.has(preset.family)) continue
+      const secondary = preset.slots
+        .filter((_, index) => !preset.featuredSlots?.includes(index))
+        .map((slot) => slot.width * slot.height)
+      if (secondary.length < 2) continue
+      const spread = Math.max(...secondary) / Math.min(...secondary)
+      expect(spread).toBeLessThanOrEqual((preset.family === 'magazine' ? 2 : 1.5) + 1e-8)
+    }
+    expect(
+      generateCuratedPresets(16).some((preset) => preset.id === 'generated-16-td9a42cb947c260ea'),
+    ).toBe(false)
+    const fivePhotoHero = generateCuratedPresets(5).find(
+      (preset) => preset.id === 'generated-5-t8942f79f3fea2789',
+    )
+    expect(fivePhotoHero).toBeDefined()
+    // Keep the stable topology ID when a less dominant hero gives the secondary cells room.
+    expect(
+      Math.max(...fivePhotoHero!.slots.map((slot) => slot.width * slot.height)),
+    ).toBeLessThanOrEqual(0.6 + 1e-8)
   })
 
   it('does not emit layouts that differ only by divider positions', () => {
@@ -218,16 +330,12 @@ describe('curated collage catalog', () => {
     expect(regularGridDimensions(generateCuratedPresets(16)[0].slots)).toBe('4x4')
   })
 
-  it('uses every family where the photo count can express it without letting one dominate', () => {
-    const highCountPresets = curatedCollagePresets.filter((preset) => preset.photoCount >= 5)
-    for (const family of LAYOUT_FAMILIES) {
-      if (family === 'rows' || family === 'columns') continue
-      expect(highCountPresets.some((preset) => preset.family === family)).toBe(true)
-    }
+  it('keeps family variety without forcing weak representatives into the picker', () => {
     for (const photoCount of [5, 6, 7, 8, 9, 10]) {
       const presets = generateCuratedPresets(photoCount)
       const counts = new Map<string, number>()
       presets.forEach((preset) => counts.set(preset.family, (counts.get(preset.family) ?? 0) + 1))
+      expect(counts.size).toBeGreaterThanOrEqual(4)
       expect(Math.max(...counts.values()) / presets.length).toBeLessThan(0.5)
     }
   })
@@ -262,7 +370,7 @@ describe('curated collage catalog', () => {
 
   it('keeps the combined 11+ group useful but compact', () => {
     const highCountPresets = curatedCollagePresets.filter((preset) => preset.photoCount >= 11)
-    expect(highCountPresets.length).toBeLessThanOrEqual(25)
+    expect(highCountPresets.length).toBeLessThanOrEqual(32)
     expect(new Set(highCountPresets.map((preset) => preset.photoCount))).toEqual(
       new Set([11, 12, 13, 14, 15, 16]),
     )

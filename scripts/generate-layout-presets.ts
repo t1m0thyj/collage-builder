@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 import type { LayoutPresetDefinition, LayoutPresetNode } from '../src/lib/domain/types.ts'
 import {
   SUPPORTED_PHOTO_COUNTS,
-  curatedCollagePresets,
+  generateCuratedCatalog,
   type CollagePreset,
   type CollageSlot,
 } from '../src/lib/layouts/curatedCatalog.ts'
@@ -134,8 +134,11 @@ export function convertCollagePreset(preset: CollagePreset, index: number): Layo
 }
 
 export function generateLayoutDefinitions(): LayoutPresetDefinition[] {
+  // Build and curate count-driven bands, lattice merges, nested panels, and rhythmic
+  // subdivisions before converting their rectangles into editable split trees.
+  const catalog = generateCuratedCatalog()
   const definitions = SUPPORTED_PHOTO_COUNTS.flatMap((photoCount) =>
-    curatedCollagePresets
+    catalog
       .filter((preset) => preset.photoCount === photoCount)
       .map((preset, index) => convertCollagePreset(preset, index)),
   )
