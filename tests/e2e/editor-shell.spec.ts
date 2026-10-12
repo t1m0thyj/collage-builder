@@ -1,5 +1,6 @@
 import { test, expect } from './test-fixtures'
 import { assignSidebarImage, expectOnTop, importImage, redPng } from './test-helpers'
+import { layoutCatalog, presetsForFrameCount } from '../../src/lib/layouts/catalog'
 
 test('renders the editor shell and opens the photo library', async ({ page }) => {
   await page.goto('/')
@@ -28,7 +29,7 @@ test('layout count tabs stay compact and follow the active page', async ({ page 
   const widthWithoutOverflow = (await firstCard.boundingBox())?.width
   expect(widthWithoutOverflow).toBeDefined()
   await photoCounts.getByRole('tab', { name: '8', exact: true }).click()
-  await expect(page.locator('.layout-card')).toHaveCount(32)
+  await expect(page.locator('.layout-card')).toHaveCount(presetsForFrameCount(8).length)
   await expect
     .poll(() =>
       page
@@ -40,7 +41,9 @@ test('layout count tabs stay compact and follow the active page', async ({ page 
   expect(widthWithOverflow).toBeCloseTo(widthWithoutOverflow!, 3)
 
   await photoCounts.getByRole('tab', { name: '11 or more photos' }).click()
-  await expect(page.locator('.layout-card')).toHaveCount(23)
+  await expect(page.locator('.layout-card')).toHaveCount(
+    layoutCatalog.filter((preset) => preset.frameCount >= 11).length,
+  )
   await expect(page.locator('.layout-count-heading')).toHaveText([
     '11 photos',
     '12 photos',
