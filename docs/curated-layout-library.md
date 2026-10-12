@@ -1,41 +1,34 @@
-# Curated layout library
+# Layout library
 
-`src/lib/layouts/curatedCatalog.ts` deterministically builds a naturally sized library of rectangular
-photo-collage presets for square canvases. It provides the dense primary catalog for 2 through 10 photos plus a
-compact collection spanning every count from 11 through 16. The implementation is original
-and has no third-party preset dependency.
+The layout generator in `src/lib/layouts/curatedCatalog.ts` creates rectangular photo arrangements for 2–16 photos. Counts 2–10 offer a broad selection; counts 11–16 share a smaller group in the picker. The layouts are original and don't depend on a third-party preset library.
 
-The generator uses distinct composition grammars rather than unconstrained recursive splitting:
+## How layouts are chosen
 
-- traditional grids, rows, and columns;
-- side, top, bottom, and offset heroes;
-- center heroes and framed centers;
-- feature strips and editorial magazine arrangements;
-- asymmetric mosaics and symmetric compositions.
+The generator builds candidates from familiar arrangements:
 
-Candidate layouts must pass geometry and basic aesthetic constraints before selection. Candidates
-that differ only in divider position are grouped as one editable topology, and the best-looking
-default proportions are retained. A divider-pattern similarity filter then removes visually
-redundant topologies without relying on fixed per-photo-count quotas. Every canonical orientation is
-kept for two through four photos, and every useful regular factor grid is guaranteed. When a selected
-topology also has a grid candidate, its balanced grid proportions are used as the default. Counts
-above ten add only a compact decorative highlight set beyond those grids. When that highlight set
-contains a side hero, its opposite orientation and a center-hero alternative are included as
-meaningful structural choices. The maximum allowed edge-pattern similarity is
-`min(1, 2.5 / photoCount)`, so the library demands progressively more visual difference as layouts
-become denser. For eight through ten
-photos, the minimum slot area is `0.38 / photoCount`, and no one family may occupy half the result.
-Output ordering and IDs are deterministic. The picker groups grids first, ordered by even slot areas
-and simple boundaries, then cycles through featured and editorial compositions before placing long
-strips at the end. This makes familiar row and column arrangements easy to find across photo counts.
+- Grids, rows, and columns.
+- Layouts with a larger featured photo at the side, top, bottom, or center.
+- Featured strips and magazine-style arrangements.
+- Asymmetric mosaics and symmetric patterns.
 
-Run `bun run generate:layouts` to rebuild the runtime files in
-`src/lib/layouts/definitions/`. The generator requires every tiling to convert to a native split
-tree so all preset dividers can be dragged and snapped consistently. Generated IDs use the
-`generated-{photoCount}-t{topologyHash}` namespace. The hash follows the editable split structure,
-so changing picker order or default divider proportions does not reassign an ID. The generator
-emits the established runtime structure: counts two and three are eager, and `optional.ts`
-collects counts four through sixteen into one lazy production chunk.
+Candidates must pass geometry and size checks. Layouts that differ only in divider positions are treated as one structure, with balanced default proportions. A similarity filter removes arrangements whose divider patterns are too alike.
 
-The generated TypeScript files are committed so normal builds do not run code generation. CI tests
-verify that all generated definitions reproduce the normalized source geometry exactly.
+The library keeps every canonical orientation for two through four photos and every useful regular grid. For higher counts, it adds a smaller selection of featured layouts. A selected side feature also gets an opposite orientation and a centered alternative.
+
+The similarity threshold is `min(1, 2.5 / photoCount)`, so denser layouts need more distinct divider patterns. For eight through ten photos, each slot must cover at least `0.38 / photoCount` of the canvas, and no layout family may make up half the selection.
+
+Grids appear first, ordered by even photo areas and simple boundaries. Featured and magazine-style layouts follow, with long strips at the end. The number of layouts comes from these rules rather than a fixed target for each photo count.
+
+## Regenerate the definitions
+
+Run:
+
+```sh
+bun run generate:layouts
+```
+
+This updates the committed TypeScript files in `src/lib/layouts/definitions/`. Normal builds use those files without running the generator. Tests check that the generated definitions match the source geometry.
+
+Every layout must convert to a split tree so users can drag and snap its dividers. IDs use `generated-{photoCount}-t{topologyHash}`; the hash describes the editable split structure. Reordering the picker or changing default divider positions doesn't change an ID.
+
+Two- and three-photo definitions load at startup. `optional.ts` groups the remaining counts into a bundle loaded on demand. See the [code-loading decision](adr/0004-code-splitting.md) for the reasoning.

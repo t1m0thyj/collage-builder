@@ -1,11 +1,13 @@
-# ADR 0004: UX-aware code splitting
-
-The canvas editor and the default two- and three-frame layout definitions remain in the initial dependency graph. They are required to display and edit the first page, so deferring them would add a network round trip to the primary experience.
-
-Layout groups 4–16 share one optional chunk that begins loading when a layout-count control is hovered or focused. Keeping them together avoids separate requests when exploring several counts, especially in the combined 11+ group. Project archive, linked-project, recovery, and export implementations still load when their corresponding workflow begins.
-
-Konva remains eagerly requested because the editor is the product's main surface. It is emitted as a separate `canvas-vendor` chunk for long-term caching rather than turned into an on-demand editor boundary. Small UI and Svelte dependencies remain in the application chunk to avoid a waterfall of tiny startup requests.
-
-The generated definitions keep the existing eager defaults and shared optional catalog structure. Bundle sizes vary as the application changes; inspect a current production build when evaluating this decision again.
+# ADR 0004: Load code as the editor needs it
 
 Status: accepted and implemented.
+
+The canvas editor and default two- and three-photo layouts load at startup. They're needed to show and edit the first page, so loading them later would delay getting started.
+
+Layouts for 4–16 photos share one optional bundle. It starts loading when a photo-count control is hovered or focused. Keeping those layouts together avoids extra requests as users explore different counts, especially the combined 11+ group.
+
+Project archives, linked projects, recovery, and export code load when those workflows begin. The HEIC decoder loads when a HEIC/HEIF photo needs decoding.
+
+Konva loads at startup in a separate `canvas-vendor` bundle that the browser can cache independently. Small UI and Svelte dependencies stay together in the app bundle to avoid many tiny startup requests.
+
+Offline setup downloads all of these bundles so every feature remains available without a connection. Check a fresh build when reviewing bundle sizes; they change as the app evolves.

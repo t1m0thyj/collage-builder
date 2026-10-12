@@ -1,5 +1,7 @@
-# ADR 0001: Renderer boundary
+# ADR 0001: Keep rendering separate from saved projects
 
-The application will use a renderer adapter with a pure domain model. Konva and live canvas nodes are runtime-only details; saved documents remain JSON-safe.
+Status: accepted and implemented.
 
-Status: accepted for Phase 0. Konva is introduced in Phase 2.
+Saved projects use a JSON-safe domain model for pages, layouts, photos, and styles. Konva nodes and other live canvas objects stay in the browser and are never written into a project file.
+
+Keeping rendering separate lets the editor and export code work from the same project data without tying the file format to Konva.

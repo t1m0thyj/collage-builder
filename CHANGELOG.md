@@ -4,13 +4,13 @@ This project follows [Semantic Versioning](https://semver.org/). Notable user-fa
 
 ## [0.1.0] - 2026-09-05
 
-Initial release of the local-first collage editor, including:
+The first release lets you create and save photo collages in your browser, with:
 
 - rectangular multi-frame and multi-page layouts;
 - JPEG, PNG, WebP, HEIC, and HEIF import;
 - crop, spacing, corner, color, and shadow controls;
-- portable and linked project saves with bounded local recovery;
+- project files with photos included or kept separately, plus automatic recovery drafts;
 - PNG and JPEG page and batch export;
 - keyboard-accessible frames, dividers, and crop controls;
-- offline reload support for production deployments; and
+- offline access after your browser has downloaded the app; and
 - cross-browser unit, interaction, export-parity, and offline tests.

@@ -10,7 +10,7 @@ Create photo collages right in your browser. Choose a layout, arrange your photo
 
 ## Make your first collage
 
-1. [Open the app](https://t1m0thyj.github.io/collage-builder/) and choose **Import images**, or drag your photos into the editor.
+1. [Open the app](https://t1m0thyj.github.io/collage-builder/) and choose **Add photos**, or drag your photos into the editor.
 2. Pick a layout and drag photos into its frames.
 3. Adjust the crop, spacing, rounded corners, background color, and shadows to suit your photos.
 4. Choose **Export** to download your collage as PNG or JPEG.
@@ -26,9 +26,9 @@ For the best experience, use a desktop or tablet with a browser window at least 
 - **Common photo formats:** import JPEG, PNG, WebP, HEIC, and HEIF images.
 - **Editable projects:** save everything in a portable `.collage` file, or use a smaller `.collage.json` project that links to your image files.
 - **Private editing:** photos, projects, and recovery saves stay in your browser unless you save or export them. Read the [privacy details](PRIVACY.md).
-- **Offline access:** after one complete visit, the app can reload without an internet connection. See [offline use](docs/OFFLINE.md).
+- **Offline access:** open the app while online and wait for the offline icon in the top bar (hover to see **App available offline**). You can then return in the same browser without a connection. See [offline use](docs/OFFLINE.md).
 
-The app keeps recent recovery saves in your browser, but save a project file to keep your work long-term. Clearing browser site data removes recovery saves.
+The app automatically keeps recent drafts in your browser. Use **Save** for work you want to keep; clearing this website's browser data removes those drafts.
 
 ## Help and feedback
 

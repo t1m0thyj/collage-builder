@@ -1,9 +1,9 @@
 # ADR 0002: Project file formats
 
-Portable projects use self-contained `.collage` ZIP archives. Original supported image bytes are embedded and archive paths are generated from asset IDs.
-
-Linked projects use plain `.collage.json` documents. They contain validated relative paths and asset hashes but no image bytes. A user-selected root directory resolves those paths when saving or opening the project.
-
-The two containers are intentionally strict: `.collage` archives contain embedded asset metadata only, and `.collage.json` documents contain linked asset metadata only.
-
 Status: accepted and implemented.
+
+A `.collage` project is a ZIP archive containing the document and original photo bytes. Photo paths inside the archive are generated from asset IDs, so the file can be moved without losing its photos.
+
+A `.collage.json` project contains the document, relative photo paths, and hashes, but no photo bytes. The user chooses the original photo folder when saving or opening it.
+
+Each format accepts only its own storage metadata: embedded assets in `.collage`, linked assets in `.collage.json`. This keeps opening and validation predictable.

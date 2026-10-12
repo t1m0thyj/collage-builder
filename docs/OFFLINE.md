@@ -1,22 +1,43 @@
 # Offline use and self-hosting
 
-Collage Builder supports offline use without being an installable PWA. The first production visit downloads and caches the complete application bundle, including features that are loaded on demand. Project documents and imported images remain in the browser's local storage as before.
+## Use the app offline
 
-After the service worker finishes activating, later visits and reloads can start without a network connection. A first-ever visit still requires a connection, and clearing the site's browser data removes both cached application files and locally saved recovery data.
+You can use Collage Builder without an internet connection once your browser has downloaded the app.
 
-## Self-hosting
+1. [Open Collage Builder](https://t1m0thyj.github.io/collage-builder/) while you're online.
+2. Leave it open until the offline icon appears in the top bar. Hover over it to check that it says **App available offline**.
+3. Next time, open the same address in the same browser, even if you're offline.
 
-Run `bun install --frozen-lockfile` and `bun run build`, then serve the complete `dist` directory from a static web server. The directory is the self-contained distribution; the application has no runtime server dependency.
+You don't need to install the app. Your browser keeps a copy of the app's files, including the tools for importing photos, opening projects, and exporting collages.
 
-Service workers require HTTPS in production. Browsers also allow them on `localhost` for development. Configure the server to serve `service-worker.js` from the deployment root, and preferably make that file revalidate on every visit so application updates are discovered promptly.
+The first visit needs an internet connection. If the status says **Online only**, offline setup hasn't succeeded in that browser. Clearing the site's browser data removes the downloaded app files and your recovery drafts. Project files you've saved to your device are unaffected; visit again while online to restore offline access.
 
-For a subdirectory deployment, provide its public path when building. For example:
+Your photos and projects stay on your device. See the [user guide](USER_GUIDE.md) for saving and reopening your work.
+
+## Host your own copy
+
+If you'd like to run Collage Builder on your own website, build it and serve the resulting files:
+
+```sh
+bun install --frozen-lockfile
+bun run build
+```
+
+The `dist/` folder contains everything the website needs. Serve the whole folder from a static web server; you don't need an application server or database. See the [development guide](DEVELOPMENT.md) for setup requirements.
+
+Use HTTPS so browsers can enable offline access. For local testing, browsers also allow offline access on `localhost`. Offline support runs in the built app; `bun run dev` does not enable it. To try a build locally, run `bun run build` followed by `bun run preview`.
+
+Offline access uses a service worker, a browser feature that keeps the app's files available without a connection. Serve `service-worker.js` from the root of the app's public path, and configure it to check for a fresh copy on each visit so updates are found promptly.
+
+### Host under a subdirectory
+
+Set the public path when building. For example, to serve the app at `https://example.com/collage-builder/`, use:
 
 ```powershell
 $env:BASE_PATH = '/collage-builder/'
 bun run build
 ```
 
-The base path must begin and end with `/`. Deploy every file in `dist`; filenames and the generated service worker are content-revisioned together, so mixing files from separate builds can prevent offline setup.
+The path must begin and end with `/`. Deploy every file in `dist/` from the same build. The filenames and service worker are generated together; mixing files from different builds can prevent offline setup.
 
-No web app manifest is generated, and the application does not request installation.
+The build doesn't include a web app manifest or an installation prompt.

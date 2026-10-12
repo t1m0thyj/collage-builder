@@ -1,188 +1,128 @@
 # Development
 
-## Setup
+## Get started
 
-Use the Bun version pinned in `.bun-version` (1.4.3; minimum supported version 1.4.0). Install the exact locked dependencies, then start Vite:
+Use the Bun version in `.bun-version` (currently 1.4.3; minimum supported version 1.4.0), then install dependencies and start the development server:
 
 ```sh
 bun install --frozen-lockfile
 bun run dev
 ```
 
-`bun.lock` records the dependency graph. CI uses frozen installs. Package scripts
-explicitly run JavaScript tools with Bun, and `bunfig.toml` keeps nested processes
-on Bun, including tools with Node shebangs. Vite, Vitest, and Playwright remain the build and test tools. The `node:`
-imports in build scripts and test helpers use Bun's compatibility APIs.
+The frozen install uses the versions recorded in `bun.lock`. Package scripts and `bunfig.toml` run the JavaScript tools with Bun, including nested processes.
 
-## Checks
+To build or host the app, see [offline use and self-hosting](OFFLINE.md). For publishing a version, see [releasing](RELEASING.md).
 
-| Command                | Purpose                                                           |
-| ---------------------- | ----------------------------------------------------------------- |
-| `bun run format`       | Check Prettier formatting                                         |
-| `bun run format:write` | Apply Prettier formatting                                         |
-| `bun run check`        | Check Svelte and TypeScript                                       |
-| `bun run lint`         | Run ESLint                                                        |
-| `bun run test`         | Run unit tests once                                               |
-| `bun run test:e2e`     | Run Playwright in Chromium, Firefox, and WebKit                   |
-| `bun run test:offline` | Verify the production offline path in Chromium                    |
-| `bun run verify`       | Run formatting, static checks, unit tests, and a production build |
+## Check your changes
 
-CI runs the formatting gate explicitly before the remaining verification steps. Repository text uses UTF-8, LF line endings, two-space indentation, and a final newline as defined by `.editorconfig`, `.gitattributes`, and `.prettierrc.json`.
+| Command                  | What it checks                                             |
+| ------------------------ | ---------------------------------------------------------- |
+| `bun run format`         | Prettier formatting                                        |
+| `bun run format:write`   | Applies Prettier formatting                                |
+| `bun run check`          | Svelte and TypeScript                                      |
+| `bun run lint`           | ESLint                                                     |
+| `bun run test`           | Unit tests with Vitest                                     |
+| `bun run test:e2e`       | Browser tests in Chromium, Firefox, and WebKit             |
+| `bun run test:offline`   | Offline access from a built app in Chromium                |
+| `bun run test:benchmark` | Photo import and multi-page export performance in Chromium |
+| `bun run verify`         | Formatting, type checks, lint, unit tests, and a build     |
 
-Use `bun run test` for Vitest; `bun test` invokes Bun's separate built-in test runner.
-Install the browser binaries before the first Playwright run:
+Use `bun run test` for Vitest; `bun test` starts Bun's own test runner.
+
+Install Playwright's browsers before running browser tests:
 
 ```sh
 bun x --bun playwright install --with-deps
 ```
 
-Browser tests are grouped by feature in `tests/e2e/` (`page-tabs`, `assets`, `canvas`, `editor-shell`, `export`, `projects`, and `recovery`). During a fix, run the relevant spec file or filter by test name. For example:
+While fixing a feature, run its spec or filter by test name. For example:
 
 ```sh
-bun x --bun playwright test tests/e2e/page-tabs.spec.ts --project=chromium
+bun run test:e2e tests/e2e/page-tabs.spec.ts --project=chromium
 ```
 
-In restricted Windows environments where Playwright cannot stop its Vite process (`taskkill: Access denied`), start `bun run dev --host 127.0.0.1 --port 4174` in a separate terminal before running browser tests. Local Playwright runs reuse that server; stop it when finished. CI still starts its own server.
+On Windows, if Playwright cannot stop Vite and reports `taskkill: Access denied`, start the server in a separate terminal first:
 
-Run the broader suite when the change affects several features or a required verification gate calls for it.
+```sh
+bun run dev --host 127.0.0.1 --port 4174
+```
 
-## Project map
+Local test runs reuse that server. Stop it when you're finished. CI starts and stops its own server.
 
-- `src/lib/app/`: application workflows and lifecycle
-- `src/lib/components/app/`: application toolbar, sidebars, page actions, and dialogs
-- `src/lib/components/editor/`: canvas editor and crop interactions
-- `src/lib/components/ui/`: reusable UI primitives
-- `src/lib/domain/`: document types, validation, geometry, and image import rules
-- `src/lib/layouts/`: layout catalog, presets, loading, and previews
-- `src/lib/utils/`: shared number/ID helpers and UI class/type helpers
-- `src/styles/`: global styles grouped by interface area
-- `src/lib/state/`: project data, history, and persistence state
-- `src/lib/persistence/`: project import/export formats, archives, and browser recovery storage
-- `src/lib/render/`: canvas and export rendering
-- `tests/unit/`: module-level behavior tests
-- `tests/e2e/`: browser behavior tests and shared fixtures/helpers
-- `tests/fixtures/`: source assets for tests
-- `build/`: build tooling for the service worker and release/license artifacts
-- `scripts/`: layout preset generation
-- `public/`: static assets copied into production builds
-- `dist/`: generated production output (ignored by Git)
-- `docs/adr/`: architecture decisions
+Run `bun run verify` before opening a pull request. Add tests for behavior changes, and run the relevant browser tests when changing interactions. Keep test artifacts in the ignored `test-results/` or `playwright-report/` folders so Vite doesn't reload while tests are running.
 
-Keep browser-only APIs behind focused modules, add tests for behavior changes, and run `bun run verify` before opening a pull request. Update this map when moving responsibilities; it describes the current repository, not a planned architecture.
+Repository text uses UTF-8, LF line endings, two-space indentation, and a final newline. The editor and formatter settings are in `.editorconfig`, `.gitattributes`, and `.prettierrc.json`.
 
-## Project persistence and performance
+## Find your way around
 
-Page dimensions share one policy in `src/lib/domain/pageLimits.ts`: 64–16,384 pixels
-per side and at most 64 megapixels per page. Schema parsing applies it to embedded and
-linked imports and recovery; document invariants cover direct installation and local
-edits. Resize proposals are validated before changing history, and rejected input drafts
-are restored while the existing error announcement explains the limit.
+| Folder                       | Contents                                                     |
+| ---------------------------- | ------------------------------------------------------------ |
+| `src/lib/app/`               | Editor workflows, preferences, and app lifecycle             |
+| `src/lib/components/app/`    | Toolbar, sidebars, page tabs, dialogs, and properties        |
+| `src/lib/components/editor/` | Canvas, cropping, and divider interactions                   |
+| `src/lib/components/ui/`     | Shared UI controls                                           |
+| `src/lib/domain/`            | Project types, validation, geometry, and image import rules  |
+| `src/lib/layouts/`           | Layout catalog, generated definitions, loading, and previews |
+| `src/lib/state/`             | Project state and undo history                               |
+| `src/lib/persistence/`       | Project files, browser storage, previews, and recovery       |
+| `src/lib/render/`            | Canvas rendering and image export                            |
+| `src/lib/utils/`             | Shared helpers                                               |
+| `src/styles/`                | App styles                                                   |
+| `tests/unit/`                | Module tests                                                 |
+| `tests/e2e/`                 | Browser tests and their helpers                              |
+| `tests/fixtures/`            | Test photos and other inputs                                 |
+| `build/`                     | Offline support and release-file generation                  |
+| `scripts/`                   | Layout generation                                            |
+| `public/`                    | Files copied directly into the build                         |
+| `dist/`                      | Build output, ignored by Git                                 |
+| `docs/adr/`                  | Architecture decisions                                       |
 
-`src/lib/render/editorSurface.ts` caps each editor backing surface at 16 megapixels and
-8,192 pixels per side, including the actual Konva scene pixel ratio and the ratio-1 hit
-canvases. The budget includes viewport size, zoom, margins, and rounded stage dimensions.
-Oversized zoom requests use a bounded effective scale with a visible notice; page data
-and export resolution do not change. Stage resizing shrinks dimensions first to prevent
-temporary over-allocation when Konva applies width and height separately. This is the
-immediate allocation guard; viewport-only rendering remains a separate follow-up.
+`App.svelte` connects the editor's workflows. Keep browser APIs and feature logic in the relevant modules, and update this map if you move them.
 
-Document imports and recovery use `migrateDocument` for iterative preflight, schema
-validation, and semantic invariants before installation. Shared complexity limits in
-`documentLimits.ts` allow 256 pages, 256 frames per page, 1,024 layout nodes per page,
-32 layout levels, and 64 points per polygon. The generic preflight bounds depth to 128
-and visited values to 500,000 before recursive parsing. Linked and embedded documents
-share the existing 4,094-photo and 1 GiB aggregate asset budgets. Asset-map identities,
-grid containment, finite resolved geometry, and positive frame area are required.
-Split weights are normalized before summing to avoid overflow.
+See the [layout library guide](curated-layout-library.md) before changing preset generation. The generated definitions are committed; normal builds don't regenerate them.
 
-Margin and spacing controls derive whole-pixel limits from the current page and layout.
-Rejected discrete edits and previews leave the document, history, and current gesture
-unchanged. The controls restore rejected drafts and associate inline feedback with the
-field. Frame-owned Delete/Backspace preserves focus and undo; open dialogs block editor
-shortcuts. Both project-operation progress branches reference the visible phase for
-their accessible name.
+## Project files and resource limits
 
-The editor has a 768 CSS-pixel minimum width. Below 960 pixels, `ResponsiveSidebar` presents
-Layouts/Images as a nonmodal overlay with a toolbar trigger, dismissal and focus restoration.
-Image requests open it automatically; the overlay becomes transparent to pointer events
-after the browser captures an image drag, allowing drops onto otherwise covered frames.
-At 960 pixels and above, the same sidebar content stays in the grid with its saved resize width.
+These limits keep large or malformed projects from allocating unbounded resources:
 
-Preview caching, remembered-page preparation, and foreground save/load progress are implemented.
-The shared preparation queue allows three jobs, with active-page work prioritized. Derived
-previews have a 200 MiB cache budget, incremental writes, access metadata separate from image
-Blobs, and reference cleanup. Undecodable previews regenerate from originals. Under recovery
-quota pressure, autosave aborts the failed transaction, evicts disposable previews, and retries
-the authoritative document/original write once. It never deletes originals to make that retry.
+| Resource         | Limit                                                                                        | Source                                                              |
+| ---------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Page dimensions  | 64–16,384 pixels per side, up to 64 megapixels                                               | `src/lib/domain/pageLimits.ts`                                      |
+| Editor canvas    | 8,192 pixels per side, up to 16 megapixels per backing surface, including device pixel ratio | `src/lib/render/editorSurface.ts`                                   |
+| Project          | 256 pages, 4,094 photos, up to 1 GiB of original photo data                                  | `src/lib/domain/documentLimits.ts`, `src/lib/persistence/limits.ts` |
+| Page layout      | 256 frames, 1,024 layout nodes, 32 levels, 64 points per polygon                             | `src/lib/domain/documentLimits.ts`                                  |
+| Document parsing | 128 levels and 500,000 values                                                                | `src/lib/domain/documentLimits.ts`                                  |
+| Recovery drafts  | Five projects, up to 2 GiB of saved data                                                     | `src/lib/persistence/recoveryRetention.ts`                          |
+| Cached previews  | 200 MiB, separate from recovery drafts                                                       | `src/lib/persistence/previewCache.ts`                               |
 
-Recovery retention has both a five-project limit and a 2 GiB payload cap. It counts declared
-original byte lengths, UTF-8 document JSON, and recovery thumbnails. The project being saved
-is always retained, even when its timestamp is older than other drafts; the oldest remaining
-copies are evicted until both limits fit. Eviction and replacement occur in one IndexedDB
-transaction, with deletion before new writes and rollback if any write fails. The separate
-200 MiB derived-preview budget, offline application files, and browser storage overhead are
-outside this recovery cap. Browser-reported quota is an allowance, not the app's retention limit.
+The canvas limit applies to each surface, not all browser memory combined. Konva also creates hit and buffer canvases. When zoom would exceed the limit, the editor reduces the effective scale and shows a notice; page dimensions and export resolution stay the same. Canvas resizing shrinks dimensions before growing them to avoid temporary oversized allocations.
 
-Explicit operations lock editing immediately and show the themed modal after 200 ms. Linked
-folder matching reports photos checked, matches, and files verified, then preview preparation.
-Candidates are grouped by byte length, with the saved path and basename checked first and
-other same-size files checked by SHA-256 when photos were renamed or moved. Verified matches
-update the project's original filenames and linked paths in one undoable edit; the next save
-includes that metadata. Files with different hashes are never accepted based on name alone.
-Progress reflects completed work, not an ETA. Processing cancellation is deliberately deferred;
-file/folder pickers remain cancellable, and failed or superseded operations release the lock.
+Imports and recovery pass through `migrateDocument` for structural checks, schema validation, and geometry checks. Opening a project stages its document and photos before replacing the current project. Rejected size or spacing edits leave the project and undo history unchanged.
 
-Bulk exports accept `{title}` for page titles and `{number}` for page numbers, defaulting
-to the literal collage title followed by `-{number}`. Numbers use the original one-based page index with at least two digits,
-including range exports. Preview and output share one naming helper. Templates are validated
-before rendering; bulk output requires unique filenames. Unsafe filename
-characters are replaced, Windows device names are prefixed, and extensions follow the format.
-Double braces escape literal braces in templates. PNG repeatability is checked by byte hashes
-within the same browser and rendering environment. The foreground renderer uses OffscreenCanvas
-when available to match worker rasterization, including rounded clipping. HTML canvas remains
-a compatibility fallback and can rasterize edges differently. Export ZIP entries use the
-document's last-edit timestamp (`updatedAt`), with UTC calendar components and ZIP's two-second
-precision, so unchanged collages retain meaningful, stable timestamps.
+## Photos, previews, and recovery
 
-Native embedded saves stream store-only ZIP output from 256 KiB input slices directly to the
-destination. Repeat saves reuse session-local CRC-32 metadata by immutable original Blob
-identity; every save still reads and writes the complete current archive. A layout edit avoids
-photo checksums; a new/replaced Blob needs its own checksum. Download fallback still collects a
-complete archive Blob and reports browser handoff. A successful native close is required before
-marking the project clean; source, write, close, and stale-revision failures abort temporary writes.
+Original photos remain unchanged. The editor prepares smaller previews and loads images for the active page as needed. The shared preparation queue runs up to three jobs and prioritizes the active page.
 
-### Focused measurements
+Derived previews are cached in IndexedDB and can be regenerated from originals. If recovery runs out of storage, it removes disposable previews and retries once; it does not delete originals for that retry.
 
-On the existing twelve-photo 4000 × 3000 JPEG Chromium recovery fixture, Continue to project
-installation measured 651 ms cold and 131 ms warm. These are comparison fixtures, not device
-speed guarantees.
+Recovery saves count original photo bytes, document JSON, and recovery thumbnails toward the 2 GiB limit. The project being saved is retained; older copies are removed in the same transaction. Offline app files, cached previews, and browser storage overhead are outside that limit. The browser's storage quota can be smaller than the app's limits.
 
-A one-off save comparison on 2026-10-10 used headless Chromium 151 on this Windows workstation,
-browser-local OPFS writable files, and twelve 4000 × 3000 JPEGs encoded at quality 0.86 from
-`tests/fixtures/real-photo-still-life.png`. JPEG comments provided distinct originals. Total photo
-bytes were 17,353,970 initially and 18,800,135 after adding a thirteenth photo. The buffered
-comparison reconstructed full-Blob packaging followed by writing, with a fresh CRC pass each
-save; the streaming path used the current checksum cache. Preparation/fixture creation was
-outside the measured interval.
+File handles last only for the current session. Linked-photo matching checks file size and SHA-256, using saved paths and names to find likely matches first. Renamed or moved files must still match the saved photo bytes. Updated names and paths are saved as one undoable edit.
 
-| Save         | Buffered total | Streaming total | Streaming photo bytes checksummed |
-| ------------ | -------------- | --------------- | --------------------------------- |
-| First        | 116.8 ms       | 107.1 ms        | 17,353,970                        |
-| Layout only  | 111.5 ms       | 97.6 ms         | 0                                 |
-| One added    | 122.6 ms       | 83.9 ms         | 1,446,165                         |
-| One replaced | 119.1 ms       | 86.2 ms         | 1,446,165                         |
+## Saving and exporting
 
-Every path read all original bytes. Streaming packaging and writes overlapped; their combined
-times were 106.8, 97.4, 83.7, and 86.0 ms, with close taking 0.3, 0.2, 0.2, and 0.2 ms. Buffered
-packaging took 66.4, 63.9, 69.4, and 68.1 ms; awaited writes took 36.4, 34.9, 39.3, and 37.8 ms;
-close took 1.0, 0.1, 0.3, and 0.3 ms. Largest observed streaming write was 256 KiB, versus 2 MiB
-from the collected Blob stream. The native implementation does not assemble a complete output
-Blob; heap peaks were not measured. OPFS commit timings do not predict native picker disk latency,
-and these single-pass results do not establish a general speedup percentage.
+Embedded project saves stream ZIP data in 256 KiB slices to a native file destination. Repeated saves reuse photo checksums for unchanged original Blobs, but still write the complete archive. Browsers using downloads collect the archive in a Blob before handing it off. A native save is marked complete only after the file closes successfully; failed or outdated writes are aborted.
 
-All eight outputs passed Python `zipfile` CRC checks and document/path/size/original SHA-256
-verification. Streaming outputs also reopened with the app reader. Existing slow-sink coverage
-checks backpressure; focused failure coverage checks source/write/close aborts and stale linked
-saves. A manual Chromium check verified folder-modal locking and a quota-failure retry that
-evicted previews while preserving the saved document and original bytes. No additional benchmark
-suite or broad failure-injection matrix is required for this implementation.
+Explicit save and open operations lock editing while they run. A progress dialog appears after 200 ms, showing completed work rather than an estimated finish time. File and folder pickers can be cancelled; processing cancellation is not currently supported.
+
+Exports use a worker with OffscreenCanvas where available. The main-thread fallback also uses OffscreenCanvas when supported; HTML canvas is the compatibility fallback. PNG repeatability checks compare bytes within the same browser and rendering environment.
+
+Multiple-page filenames support `{title}` for the page name and `{number}` for its original page number. The default is the collage title followed by `-{number}`. Numbers have at least two digits, and double braces escape literal braces. Filenames are checked for duplicates and invalid characters before rendering. Export ZIP timestamps use the document's `updatedAt` value.
+
+For performance work, run `bun run test:benchmark` with representative photos. It imports 100 photos, fills 25 pages, and exports a 1920-pixel ZIP, reporting render times and available memory figures. Record the browser, device, photo sizes, and commit when comparing runs.
+
+## Browser layout and accessibility
+
+The editor needs a browser window at least 768 CSS pixels wide. Below 960 pixels, the left sidebar opens as an overlay from the top-left menu button. At wider sizes, it stays beside the canvas and remembers its width.
+
+Keep focus restoration, keyboard alternatives, and status announcements working when changing editor controls. Open dialogs should block editor shortcuts. Use the [release checklist](RELEASE_CHECKLIST.md) for manual keyboard, screen-reader, zoom, and contrast checks.

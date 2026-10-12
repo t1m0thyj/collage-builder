@@ -1,7 +1,9 @@
 # Security policy
 
-Security fixes are provided for the latest released version. Older versions may be asked to upgrade before a report is investigated.
+If you think you've found a security vulnerability, please report it privately through [GitHub Security Advisories](https://github.com/t1m0thyj/collage-builder/security/advisories/new).
 
-Report a suspected vulnerability privately through [GitHub Security Advisories](https://github.com/t1m0thyj/collage-builder/security/advisories/new). Include reproduction steps, affected version and browser, impact, and any suggested mitigation. Do not include sensitive personal images or projects.
+Include the steps to reproduce it, the app version and browser, and what someone could do with the vulnerability. If you have a suggested fix, include that too. Please leave out private photos and project files.
 
-Please allow time to confirm and fix a report before public disclosure. This is a community project, so response times are best effort.
+Security fixes are provided for the latest release. If you're using an older version, you may be asked to update before the report is investigated.
+
+Please give the maintainer time to confirm and fix the issue before sharing it publicly. This is a community project, so response times may vary.
