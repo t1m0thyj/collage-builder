@@ -425,9 +425,6 @@ export class AssetRegistry {
     if (!preview || !thumbnail) return undefined
     return { preview, thumbnail, displayBlob: this.displayBlobs.get(assetId) }
   }
-  getObjectUrl(assetId: AssetId): string | undefined {
-    return this.objectUrls.get(assetId)
-  }
   getThumbnailUrl(assetId: AssetId, _revision?: number): string | undefined {
     void _revision
     return this.thumbnailUrls.get(assetId)

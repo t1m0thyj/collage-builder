@@ -34,17 +34,26 @@ test('ordinary edits skip retained-history scans after replacing a photo', async
 
 test('preview cache bounds an oversized batch and preserves only referenced entries', async ({
   page,
-  browserName,
 }) => {
-  test.skip(browserName === 'webkit', 'Windows WebKit cannot clone Blob values into IndexedDB')
+  // Keep real IndexedDB eviction coverage without writing hundreds of megabytes.
+  await page.route('**/src/lib/persistence/previewCache.ts*', async (route) => {
+    const response = await route.fetch()
+    const source = await response.text()
+    const modified = source.replace(
+      /const cacheLimitBytes = 200 \* 1024 \* 1024/,
+      'const cacheLimitBytes = 200 * 1024',
+    )
+    expect(modified).not.toBe(source)
+    await route.fulfill({ response, body: modified })
+  })
   await page.goto('/')
   const result = await page.evaluate(async () => {
     const modulePath = '/src/lib/persistence/previewCache.ts'
     const cache = await import(modulePath)
-    const idbPath = '/node_modules/.vite/deps/idb.js'
-    const { openDB } = await import(idbPath)
-    const megabyte = new Uint8Array(1024 * 1024)
-    const preview = new Blob(Array(26).fill(megabyte), { type: 'image/webp' })
+    const databasePath = '/src/lib/persistence/browserDatabase.ts'
+    const { browserDatabase } = await import(databasePath)
+    const kilobyte = new Uint8Array(1024)
+    const preview = new Blob(Array(26).fill(kilobyte), { type: 'image/webp' })
     const thumbnail = new Blob(['thumbnail'])
     const assets = Array.from({ length: 8 }, (_, index) => ({
       id: `photo-${index}`,
@@ -59,7 +68,7 @@ test('preview cache bounds an oversized batch and preserves only referenced entr
     await cache.savePreviewCaches(
       assets.map((asset) => ({ asset, images: { preview, thumbnail } })),
     )
-    const db = await openDB('collage-builder-preview-cache')
+    const db = await browserDatabase('collage-builder-preview-cache', 2, () => {})()
     const before = await db.getAll('previews')
     const bytes = before.reduce((sum: number, record: { bytes: number }) => sum + record.bytes, 0)
     // Reproduce a cache that an older writer allowed to exceed the budget.
@@ -83,7 +92,7 @@ test('preview cache bounds an oversized batch and preserves only referenced entr
       await cache.savePreviewCache(
         { ...assets[0], sha256: 'large' },
         {
-          preview: new Blob(Array(96).fill(megabyte)),
+          preview: new Blob(Array(96).fill(kilobyte)),
           thumbnail,
         },
       )
@@ -116,20 +125,16 @@ test('preview cache bounds an oversized batch and preserves only referenced entr
     }
   })
   expect(result.count).toBe(7)
-  expect(result.bytes).toBeLessThanOrEqual(200 * 1024 * 1024)
-  expect(result.repairedBytes).toBeLessThanOrEqual(200 * 1024 * 1024)
-  expect(result.updatedBytes).toBeLessThanOrEqual(200 * 1024 * 1024)
+  expect(result.bytes).toBeLessThanOrEqual(200 * 1024)
+  expect(result.repairedBytes).toBeLessThanOrEqual(200 * 1024)
+  expect(result.updatedBytes).toBeLessThanOrEqual(200 * 1024)
   expect(result.firstWrite).toBe('delete')
   expect(result.retained).toEqual(['1:hash-6', '1:hash-7'])
   expect(result.remaining).toBe(0)
   expect(result.total).toBe(0)
 })
 
-test('undecodable cached previews regenerate from the original photo', async ({
-  page,
-  browserName,
-}) => {
-  test.skip(browserName === 'webkit', 'Windows WebKit cannot clone Blob values into IndexedDB')
+test('undecodable cached previews regenerate from the original photo', async ({ page }) => {
   await page.goto('/')
   const result = await page.evaluate(async () => {
     const cachePath = '/src/lib/persistence/previewCache.ts'

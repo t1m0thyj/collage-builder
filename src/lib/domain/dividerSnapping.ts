@@ -1,4 +1,4 @@
-import { resolveDividers, resolveLayout, type ResolvedDivider } from './geometry'
+import { resolveLayout, type ResolvedDivider } from './geometry'
 import type { PageV1, ResolvedFrame, SlotId } from './types'
 
 export interface DividerChange {
@@ -303,14 +303,4 @@ export function applyDividerChange(page: PageV1, change: DividerChange): PageV1 
   node.weights[change.index] = first
   node.weights[change.index + 1] = pair - first
   return draft
-}
-
-export function resolvedDividerAfterChange(
-  page: PageV1,
-  divider: ResolvedDivider,
-  change: DividerChange,
-): ResolvedDivider | undefined {
-  return resolveDividers(applyDividerChange(page, change)).find(
-    (candidate) => dividerKey(candidate) === dividerKey(divider),
-  )
 }

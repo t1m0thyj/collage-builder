@@ -182,18 +182,6 @@ export async function loadRecovery(projectId: string): Promise<CollageDocumentV1
   }
 }
 
-export async function loadLatestRecovery(): Promise<CollageDocumentV1 | undefined> {
-  const projects: CollageDocumentV1[] = []
-  for (const stored of await (await database()).getAll('projects')) {
-    try {
-      projects.push(migrateDocument(stored))
-    } catch {
-      // Ignore a corrupt or obsolete recovery and continue to the next valid snapshot.
-    }
-  }
-  return projects.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0]
-}
-
 export async function loadLatestRecoverySummary(): Promise<
   { document: CollageDocumentV1; preview?: Blob } | undefined
 > {

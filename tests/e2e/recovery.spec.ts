@@ -9,11 +9,13 @@ import {
 import { createProject } from '../../src/lib/domain/factories'
 
 test('a maximum-length project title remains recoverable', async ({ page }) => {
+  await page.clock.install()
   await page.goto('/')
   const title = page.getByRole('textbox', { name: 'Project title' })
   await title.fill('a'.repeat(201))
   await title.blur()
   await expect(title).toHaveValue('a'.repeat(200))
+  await page.clock.fastForward(1000)
   await expect(page.getByRole('button', { name: /Saved locally/ })).toBeVisible()
 
   const savedTitles = await page.evaluate(
@@ -36,6 +38,7 @@ test('a maximum-length project title remains recoverable', async ({ page }) => {
 })
 
 test('upgrades version 2 recovery without losing the saved draft', async ({ page }) => {
+  await page.clock.install()
   const storedDraft = createProject('Existing local draft')
   await page.route('**/__db-setup', (route) =>
     route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Setup</title>' }),
@@ -72,6 +75,7 @@ test('upgrades version 2 recovery without losing the saved draft', async ({ page
   await expect(title).toHaveValue('Existing local draft')
   await title.fill('Updated migrated draft')
   await title.press('Tab')
+  await page.clock.fastForward(1000)
   await expect(
     page.getByRole('button', { name: /Saved locally.*Manage local copies/i }),
   ).toBeVisible()
@@ -108,6 +112,7 @@ test('upgrades version 2 recovery without losing the saved draft', async ({ page
 })
 
 test('startup recovery asks before restoring an unsaved project', async ({ page }) => {
+  await page.clock.install()
   await page.goto('/')
   await chooseTwoColumnLayout(page)
   await importImage(page, 'recovery-preview.png', redPng)
@@ -115,6 +120,7 @@ test('startup recovery asks before restoring an unsaved project', async ({ page 
   const title = page.getByRole('textbox', { name: 'Project title' })
   await title.fill('Recovered project')
   await title.press('Tab')
+  await page.clock.fastForward(1000)
   await expect(
     page.getByRole('button', { name: /Saved locally.*Manage local copies/i }),
   ).toBeVisible()
@@ -147,13 +153,12 @@ test('startup recovery asks before restoring an unsaved project', async ({ page 
   await expect(page.locator('.toast')).toContainText('Local recovery restored')
 })
 
-test('portrait draft preview fits inside its thumbnail', async ({ page, browserName }) => {
+test('portrait draft preview fits inside its thumbnail', async ({ page }) => {
+  await page.clock.install()
   await page.goto('/')
-  if (browserName !== 'webkit') {
-    await chooseTwoColumnLayout(page)
-    await importImage(page, 'portrait.png', solidPng(210, 35, 25, 64, 96))
-    await assignSidebarImage(page, 'portrait.png', 1)
-  }
+  await chooseTwoColumnLayout(page)
+  await importImage(page, 'portrait.png', solidPng(210, 35, 25, 64, 96))
+  await assignSidebarImage(page, 'portrait.png', 1)
   const width = page.getByRole('spinbutton', { name: 'Page width' })
   const height = page.getByRole('spinbutton', { name: 'Page height' })
   await width.fill('1800')
@@ -163,6 +168,7 @@ test('portrait draft preview fits inside its thumbnail', async ({ page, browserN
   const title = page.getByRole('textbox', { name: 'Project title' })
   await title.fill('Portrait draft')
   await title.press('Tab')
+  await page.clock.fastForward(1000)
   await expect(
     page.getByRole('button', { name: /Saved locally.*Manage local copies/i }),
   ).toBeVisible()
@@ -190,10 +196,12 @@ test('portrait draft preview fits inside its thumbnail', async ({ page, browserN
 test('viewing saved drafts does not create a recovery for an untouched blank collage', async ({
   page,
 }) => {
+  await page.clock.install()
   await page.goto('/')
   const title = page.getByRole('textbox', { name: 'Project title' })
   await title.fill('Keep this recovery')
   await title.press('Tab')
+  await page.clock.fastForward(1000)
   await expect(
     page.getByRole('button', { name: /Saved locally.*Manage local copies/i }),
   ).toBeVisible()
@@ -224,6 +232,7 @@ test('first visit offers an accessible quick start that can be reopened', async 
 })
 
 test('local recovery manager reports storage and removes recovery copies', async ({ page }) => {
+  await page.clock.install()
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'storage', {
       configurable: true,
@@ -241,6 +250,7 @@ test('local recovery manager reports storage and removes recovery copies', async
   const title = page.getByRole('textbox', { name: 'Project title' })
   await title.fill('Managed recovery')
   await title.press('Tab')
+  await page.clock.fastForward(1000)
   const recoveryStatus = page.getByRole('button', {
     name: /Saved locally.*Manage local copies/i,
   })
@@ -260,6 +270,7 @@ test('local recovery manager reports storage and removes recovery copies', async
 })
 
 test('autosave failures remain visible with quota guidance', async ({ page }) => {
+  await page.clock.install()
   await page.addInitScript(() => {
     const originalPut = IDBObjectStore.prototype.put
     IDBObjectStore.prototype.put = function (value: unknown, key?: IDBValidKey) {
@@ -279,6 +290,7 @@ test('autosave failures remain visible with quota guidance', async ({ page }) =>
   const title = page.getByRole('textbox', { name: 'Project title' })
   await title.fill('Storage full')
   await title.press('Tab')
+  await page.clock.fastForward(1000)
   const failedStatus = page.getByRole('button', {
     name: /Autosave failed.*Manage local copies/i,
   })
@@ -290,10 +302,12 @@ test('autosave failures remain visible with quota guidance', async ({ page }) =>
 })
 
 test('same-project tabs pause autosave until the user takes over', async ({ page, context }) => {
+  await page.clock.install()
   await page.goto('/')
   const title = page.getByRole('textbox', { name: 'Project title' })
   await title.fill('Shared tab recovery')
   await title.press('Tab')
+  await page.clock.fastForward(1000)
   await expect(
     page.getByRole('button', { name: /Saved locally.*Manage local copies/i }),
   ).toBeVisible()
@@ -319,10 +333,12 @@ test('same-project tabs pause autosave until the user takes over', async ({ page
 })
 
 test('different projects can autosave in separate browser tabs', async ({ page, context }) => {
+  await page.clock.install()
   await page.goto('/')
   const firstTitle = page.getByRole('textbox', { name: 'Project title' })
   await firstTitle.fill('First open project')
   await firstTitle.press('Tab')
+  await page.clock.fastForward(1000)
   const savedLocally = { name: /Saved locally.*Manage local copies/i }
   await expect(page.getByRole('button', savedLocally)).toBeVisible()
 
@@ -335,6 +351,7 @@ test('different projects can autosave in separate browser tabs', async ({ page, 
   const secondTitle = secondPage.getByRole('textbox', { name: 'Project title' })
   await secondTitle.fill('Second open project')
   await secondTitle.press('Tab')
+  await secondPage.clock.fastForward(1000)
   await expect(secondPage.getByRole('button', savedLocally)).toBeVisible()
   await expect(page.getByRole('button', savedLocally)).toBeVisible()
   await expect(firstTitle).toHaveValue('First open project')

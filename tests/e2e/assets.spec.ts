@@ -114,8 +114,10 @@ test('undoing original replacement restores the previous photo bytes', async ({ 
 test('successful photo imports show a brief toast instead of a sidebar summary', async ({
   page,
 }) => {
+  await page.clock.install()
   await page.goto('/')
   await importImage(page, 'photo.png')
+  await page.clock.fastForward(3200)
   await expect(page.locator('.toast')).toHaveText('')
   await expect(page.locator('.import-summary')).toHaveCount(0)
 })

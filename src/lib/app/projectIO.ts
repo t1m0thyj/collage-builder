@@ -145,22 +145,6 @@ export async function openProjectFile(
   }
 }
 
-export async function createEmbeddedProject(
-  document: CollageDocumentV1,
-  registry: AssetRegistry,
-  options: { onProgress?: (completed: number, total: number) => void; signal?: AbortSignal } = {},
-): Promise<Blob> {
-  const { createArchive } = await import('../persistence/archive')
-  return createArchive(
-    document,
-    {
-      get: (assetId) => registry.getBlob(assetId),
-      hasActive: (assetId, sha256) => registry.hasActive(assetId, sha256),
-    },
-    options,
-  )
-}
-
 export async function prepareEmbeddedProject(
   document: CollageDocumentV1,
   registry: AssetRegistry,

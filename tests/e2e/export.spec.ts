@@ -21,14 +21,6 @@ import {
   unzipSync,
 } from './test-helpers'
 
-test('page-range export dialog overlays the editor', async ({ page }) => {
-  await page.goto('/')
-  await page.getByRole('button', { name: 'Choose export scope' }).click()
-  await page.getByRole('menuitem', { name: 'Page range…' }).click()
-  await expect(page.getByRole('dialog', { name: 'Export pages' })).toBeVisible()
-  await expectOnTop(page, 'Export pages')
-})
-
 test('bulk export previews filename templates and applies them to the ZIP', async ({
   page,
 }, testInfo) => {
@@ -40,6 +32,8 @@ test('bulk export previews filename templates and applies them to the ZIP', asyn
   await page.getByRole('button', { name: 'Choose export scope' }).click()
   await page.getByRole('menuitem', { name: 'Page range…' }).click()
   const dialog = page.getByRole('dialog', { name: 'Export pages' })
+  await expect(dialog).toBeVisible()
+  await expectOnTop(page, 'Export pages')
   await dialog.getByPlaceholder('1-3').fill('2-3')
   await dialog.getByRole('spinbutton', { name: 'Long side (px)' }).fill('400')
   const template = dialog.getByRole('textbox', { name: 'Filename template' })
@@ -185,28 +179,30 @@ test('all-page export applies the long side to each page orientation', async ({ 
 
 test('exports JPEG with configurable quality', async ({ page }) => {
   await page.goto('/')
-  await importImage(page, 'export.png', redPng)
-  const host = page.getByRole('region', { name: 'Collage canvas' })
-  const hostBox = await host.boundingBox()
-  expect(hostBox).not.toBeNull()
+  await page.getByTestId('photo-upload-input').setInputFiles(realPhotoPath)
   await page.getByRole('tab', { name: 'Images' }).click()
-  await page.mouse.click(hostBox!.x + hostBox!.width * 0.5, hostBox!.y + hostBox!.height * 0.5)
-  await page.locator('.sidebar-asset-card').getByText('export.png', { exact: true }).click()
+  await expect(page.locator('.asset-row img').first()).toBeVisible()
+  await assignSidebarImage(page, 'real-photo-still-life.png', 1)
 
-  await page.getByRole('button', { name: 'Export…' }).click()
   const dialog = page.getByRole('dialog', { name: 'Export pages' })
-  await dialog.getByRole('button', { name: 'Export format' }).click()
-  await page.getByRole('option', { name: 'JPEG', exact: true }).click()
-  await dialog.getByRole('spinbutton', { name: 'Long side (px)' }).fill('800')
-  await dialog.getByRole('spinbutton', { name: 'JPEG quality (%)' }).fill('72')
-  const downloadPromise = page.waitForEvent('download')
-  await dialog.getByRole('button', { name: 'Export', exact: true }).click()
-  const download = await downloadPromise
-  expect(download.suggestedFilename()).toBe('Untitled collage-01.jpg')
-  const bytes = await downloadBytes(download)
-  expect(bytes.subarray(0, 3)).toEqual(Buffer.from([0xff, 0xd8, 0xff]))
-  expect(await rasterDimensions(page, bytes)).toEqual({ width: 800, height: 600 })
-  await expect(page.getByRole('button', { name: 'Export…' })).toBeVisible()
+  const exports: Buffer[] = []
+  for (const quality of ['20', '95']) {
+    await page.getByRole('button', { name: 'Export…' }).click()
+    await dialog.getByRole('button', { name: 'Export format' }).click()
+    await page.getByRole('option', { name: 'JPEG', exact: true }).click()
+    await dialog.getByRole('spinbutton', { name: 'Long side (px)' }).fill('800')
+    await dialog.getByRole('spinbutton', { name: 'JPEG quality (%)' }).fill(quality)
+    const downloadPromise = page.waitForEvent('download')
+    await dialog.getByRole('button', { name: 'Export', exact: true }).click()
+    const download = await downloadPromise
+    expect(download.suggestedFilename()).toBe('Untitled collage-01.jpg')
+    const bytes = await downloadBytes(download)
+    expect(bytes.subarray(0, 3)).toEqual(Buffer.from([0xff, 0xd8, 0xff]))
+    expect(await rasterDimensions(page, bytes)).toEqual({ width: 800, height: 600 })
+    exports.push(bytes)
+    await expect(dialog).toBeHidden()
+  }
+  expect(exports[1].length).toBeGreaterThan(exports[0].length)
 })
 
 test('export pixels preserve image colors and the configured page gap', async ({ page }) => {
@@ -290,6 +286,19 @@ test('exports rounded corners, transparent areas, and shadows accurately', async
   expect(scaledShadow.slice(0, 3)).toEqual([0, 0, 0])
   expect(scaledShadow[3]).toBeGreaterThanOrEqual(120)
   expect(scaledShadow[3]).toBeLessThanOrEqual(135)
+
+  const properties = page.getByRole('complementary', { name: 'Properties' })
+  await properties.getByRole('button', { name: 'Advanced shadow' }).click()
+  const opacity = properties.getByRole('spinbutton', { name: 'Frame shadow opacity value' })
+  await expect(opacity).toHaveValue('50')
+  await setNumber(page, 'Frame shadow opacity value', '80')
+  await expect(opacity).toHaveValue('80')
+  const [strongerShadow] = await sampleDownloadedPng(page, await exportCurrentPng(page, 100), [
+    { x: 84, y: 50 },
+  ])
+  expect(strongerShadow.slice(0, 3)).toEqual([0, 0, 0])
+  expect(strongerShadow[3]).toBeGreaterThanOrEqual(195)
+  expect(strongerShadow[3]).toBeLessThanOrEqual(210)
 })
 
 test('real photo import, crop, thumbnail, and export stay visually consistent', async ({

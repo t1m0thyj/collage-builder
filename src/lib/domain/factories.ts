@@ -63,8 +63,6 @@ export function instantiatePreset(preset: LayoutPresetDefinition): {
   }
 }
 
-const defaultPresets = [...layout2Presets, ...layout3Presets]
-
 const twoPhotoDefault = layout2Presets.find(
   (preset) => preset.root.kind === 'split' && preset.root.axis === 'y',
 )
@@ -79,21 +77,11 @@ if (!twoPhotoDefault || !threePhotoDefault) throw new Error('Default photo layou
 export const defaultTwoPhotoPreset: LayoutPresetDefinition = twoPhotoDefault
 export const defaultThreePhotoPreset: LayoutPresetDefinition = threePhotoDefault
 
-export function instantiateDefaultLayout(presetId: string): {
-  layout: LayoutSnapshotV1
-  slots: PageV1['slots']
-} {
-  const preset = defaultPresets.find((candidate) => candidate.id === presetId)
-  if (!preset) throw new Error(`Unknown default layout preset: ${presetId}`)
-  return instantiatePreset(preset)
-}
-
 export function createPage(
   name = 'Page 1',
-  preset: string | LayoutPresetDefinition = defaultThreePhotoPreset,
+  preset: LayoutPresetDefinition = defaultThreePhotoPreset,
 ): PageV1 {
-  const instance =
-    typeof preset === 'string' ? instantiateDefaultLayout(preset) : instantiatePreset(preset)
+  const instance = instantiatePreset(preset)
   return { id: createId(), name, width: 3840, height: 2880, ...instance, style: defaultPageStyle() }
 }
 

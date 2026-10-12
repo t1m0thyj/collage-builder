@@ -467,21 +467,7 @@ test('explains the photo folder choice before saving a linked project', async ({
   await expect(page.getByRole('button', { name: 'Save options' })).toBeDisabled()
 })
 
-test('opens a linked project from the .collage.json extension', async ({ page }) => {
-  await page.goto('/')
-  const linkedDocument = createProject('Linked JSON project')
-  await page.getByTestId('project-file-input').setInputFiles({
-    name: 'linked-project.collage.json',
-    mimeType: 'application/json',
-    buffer: Buffer.from(JSON.stringify(linkedDocument)),
-  })
-  await expect(page.getByRole('textbox', { name: 'Project title' })).toHaveValue(
-    'Linked JSON project',
-  )
-  await expect(page.locator('.toast')).toContainText('Project opened')
-})
-
-test('shows progress while saving and opening project files', async ({ page }) => {
+test('shows save progress and opens a .collage.json project with progress', async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(window, 'showSaveFilePicker', { value: undefined, configurable: true })
     const readText = Blob.prototype.text
@@ -530,6 +516,7 @@ test('shows progress while saving and opening project files', async ({ page }) =
   await expect(page.getByRole('textbox', { name: 'Project title' })).toHaveValue(
     'Opening with progress',
   )
+  await expect(page.locator('.toast')).toContainText('Project opened')
   await expect(progress).toBeHidden()
   await expect(page.getByRole('button', { name: 'Dev mode' })).toHaveCount(0)
 })

@@ -138,7 +138,6 @@
   .property-group-heading button,
   .property-list > div,
   .page-tab,
-  .page-picker,
   .asset-row,
   .manager-asset-card .asset-row {
     background: #181818;
@@ -339,8 +338,7 @@
   .page-tab-with-actions.active-tab-action {
     outline-color: #79a8e4;
   }
-  .page-tab-with-actions.active-tab-action .page-actions-button,
-  .page-picker-with-actions .page-actions-button {
+  .page-tab-with-actions.active-tab-action .page-actions-button {
     border-color: #699bd9;
     background: #213653;
     color: #b7d5fb;

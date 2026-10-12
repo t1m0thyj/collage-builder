@@ -11,7 +11,6 @@ import { assertPageDimensions } from '../domain/pageLimits'
 import type {
   AssetRecordV1,
   CollageDocumentV1,
-  NormalizedPoint,
   LayoutPresetDefinition,
   PageV1,
   SlotContentV1,
@@ -365,23 +364,6 @@ export class ProjectStore {
     )
   }
 
-  removeUnusedAssets(): void {
-    this.commit(
-      (draft) => {
-        const used = new Set(
-          draft.pages.flatMap((page) =>
-            Object.values(page.slots).flatMap((content) => (content ? [content.assetId] : [])),
-          ),
-        )
-        Object.keys(draft.assets).forEach((assetId) => {
-          if (!used.has(assetId)) delete draft.assets[assetId]
-        })
-      },
-      [],
-      true,
-    )
-  }
-
   addPage(sourcePageId?: string): void {
     this.commit((draft) => {
       const source = sourcePageId
@@ -503,24 +485,6 @@ export class ProjectStore {
           node.weights[index] = first
           node.weights[index + 1] = pair - first
         }
-      },
-      [pageId],
-    )
-  }
-
-  setFramePolygon(pageId: string, slotId: SlotId, polygon?: NormalizedPoint[]): void {
-    this.commit(
-      (draft) => {
-        const visit = (node: PageV1['layout']['root']): boolean => {
-          if (node.kind === 'leaf') {
-            if (node.slotId !== slotId) return false
-            node.polygon = polygon ? clone(polygon) : undefined
-            return true
-          }
-          if (node.kind === 'grid') return false
-          return node.children.some(visit)
-        }
-        if (!visit(this.findPage(draft, pageId).layout.root)) throw new Error('Unknown frame')
       },
       [pageId],
     )

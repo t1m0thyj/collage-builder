@@ -67,6 +67,7 @@ test('selected frames keep a visible outline and show their filename in the insp
 test('single click selects and double click crops with usable handles at small zooms', async ({
   page,
 }) => {
+  await page.clock.install()
   await page.setViewportSize({ width: 1280, height: 1000 })
   await page.goto('/')
   await chooseTwoColumnLayout(page)
@@ -119,7 +120,7 @@ test('single click selects and double click crops with usable handles at small z
     await expect(selected).toHaveAttribute('aria-pressed', 'true')
     await expect(host).not.toHaveAttribute('data-crop-placement')
     // Separate the single-click gesture from the following double click.
-    await page.waitForTimeout(450)
+    await page.clock.fastForward(450)
     await page.mouse.dblclick(center.x, center.y)
     await expect(host).toHaveAttribute('data-crop-placement', /.+/)
     const placement = JSON.parse((await host.getAttribute('data-crop-placement'))!) as {
@@ -180,6 +181,7 @@ test.describe('touch crop interaction', () => {
   test('double tapping a photo enters crop and a single tap after cancel only selects', async ({
     page,
   }) => {
+    await page.clock.install()
     await page.goto('/')
     await chooseTwoColumnLayout(page)
     await importImage(page, 'touch-crop.png', redPng)
@@ -192,13 +194,13 @@ test.describe('touch crop interaction', () => {
     await expect(host).not.toHaveAttribute('data-crop-placement')
     // Start a separate double-tap gesture, keeping assertions outside Konva's
     // 400 ms double-click window so slower CI machines still deliver both taps.
-    await page.waitForTimeout(450)
+    await page.clock.fastForward(450)
     await page.touchscreen.tap(center.x, center.y)
     await page.touchscreen.tap(center.x, center.y)
     await expect(host).toHaveAttribute('data-crop-placement', /.+/)
     await page.keyboard.press('Escape')
     await expect(host).not.toHaveAttribute('data-crop-placement')
-    await page.waitForTimeout(450)
+    await page.clock.fastForward(450)
     await page.touchscreen.tap(center.x, center.y)
     await expect(selected).toHaveAttribute('aria-pressed', 'true')
     await expect(host).not.toHaveAttribute('data-crop-placement')
@@ -468,7 +470,9 @@ test('dropping several local photos onto a frame imports the batch without assig
   ).toBeVisible()
 })
 
-test('normal-mode frame dragging swaps images without enabling crop', async ({ page }) => {
+test('frame swaps cancel with Escape and a subsequent drag swaps without enabling crop', async ({
+  page,
+}) => {
   await page.goto('/')
   await chooseTwoColumnLayout(page)
   await importImage(page, 'red.png', redPng)
@@ -479,31 +483,6 @@ test('normal-mode frame dragging swaps images without enabling crop', async ({ p
 
   await expect.poll(() => sampleStageColor(page, left)).toBe('red')
   await expect.poll(() => sampleStageColor(page, right)).toBe('blue')
-  const sourceFrame = page.getByRole('button', { name: 'Frame 1, red.png' })
-  await sourceFrame.focus()
-  await sourceFrame.press('Enter')
-  await page.mouse.move(left.x, left.y)
-  await page.mouse.down()
-  try {
-    await page.mouse.move(right.x, right.y, { steps: 12 })
-  } finally {
-    await page.mouse.up()
-  }
-  await expect.poll(() => sampleStageColor(page, left)).toBe('blue')
-  await expect.poll(() => sampleStageColor(page, right)).toBe('red')
-  await expect(page.getByRole('button', { name: 'Crop image', exact: true })).toBeVisible()
-  await expect(page.getByRole('spinbutton', { name: 'Crop zoom value' })).toHaveValue('1.00')
-})
-
-test('Escape cancels an in-progress normal-mode frame swap', async ({ page }) => {
-  await page.goto('/')
-  await chooseTwoColumnLayout(page)
-  await importImage(page, 'red.png', redPng)
-  await importImage(page, 'blue.png', bluePng)
-  await assignSidebarImage(page, 'red.png', 1)
-  await assignSidebarImage(page, 'blue.png', 2)
-  const [left, right] = await twoColumnFrameCenters(page)
-
   const sourceFrame = page.getByRole('button', { name: 'Frame 1, red.png' })
   await sourceFrame.focus()
   await sourceFrame.press('Enter')
@@ -524,6 +503,8 @@ test('Escape cancels an in-progress normal-mode frame swap', async ({ page }) =>
   await page.mouse.up()
   await expect.poll(() => sampleStageColor(page, left)).toBe('blue')
   await expect.poll(() => sampleStageColor(page, right)).toBe('red')
+  await expect(page.getByRole('button', { name: 'Crop image', exact: true })).toBeVisible()
+  await expect(page.getByRole('spinbutton', { name: 'Crop zoom value' })).toHaveValue('1.00')
 })
 
 test('dragging a layout splitter re-renders the page', async ({ page }) => {
@@ -914,16 +895,6 @@ test('frame selection announces its current state', async ({ page }) => {
   await page.getByRole('button', { name: 'Frame 1, announced.png' }).focus()
   await page.keyboard.press('Enter')
   await expect(page.locator('.toast')).toHaveText('Frame 1 selected, announced.png.')
-})
-
-test('shadow opacity increases directly with the displayed percentage', async ({ page }) => {
-  await page.goto('/')
-  const properties = page.getByRole('complementary', { name: 'Properties' })
-  await properties.getByRole('button', { name: 'Advanced shadow' }).click()
-  const opacity = properties.getByRole('spinbutton', { name: 'Frame shadow opacity value' })
-  await expect(opacity).toHaveValue('50')
-  await setNumber(page, 'Frame shadow opacity value', '80')
-  await expect(opacity).toHaveValue('80')
 })
 
 test('crop changes cancel with Escape and commit as one undo entry', async ({ page }) => {

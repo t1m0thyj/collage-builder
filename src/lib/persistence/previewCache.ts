@@ -1,4 +1,5 @@
 import { browserDatabase } from './browserDatabase'
+import { decodeStoredBlob, encodeStoredBlob, isStoredBlob, type StoredBlob } from './storedBlob'
 import type { AssetRecordV1 } from '../domain/types'
 import type { PreparedAssetImages } from '../render/assetRegistry'
 
@@ -53,9 +54,9 @@ interface PreviewCacheRecord {
   pipelineVersion: number
   width: number
   height: number
-  preview: Blob
-  thumbnail: Blob
-  display?: Blob
+  preview: Blob | StoredBlob
+  thumbnail: Blob | StoredBlob
+  display?: Blob | StoredBlob
   bytes: number
   accessedAt: number
 }
@@ -80,19 +81,26 @@ function isSafeBlob(blob: unknown): blob is Blob {
   return blob instanceof Blob && blob.size > 0 && blob.size <= cacheLimitBytes
 }
 
+function cachedBlobSize(value: unknown): number {
+  if (value instanceof Blob) return value.size
+  return isStoredBlob(value) ? value.bytes.byteLength : NaN
+}
+
 function valid(record: unknown, asset: AssetRecordV1): record is PreviewCacheRecord {
   if (!record || typeof record !== 'object') return false
   const candidate = record as Partial<PreviewCacheRecord>
+  const previewBytes = cachedBlobSize(candidate.preview)
+  const thumbnailBytes = cachedBlobSize(candidate.thumbnail)
+  const displayBytes = candidate.display === undefined ? 0 : cachedBlobSize(candidate.display)
   return (
     candidate.key === keyFor(asset.sha256) &&
     candidate.pipelineVersion === pipelineVersion &&
     candidate.width === asset.width &&
     candidate.height === asset.height &&
-    isSafeBlob(candidate.preview) &&
-    isSafeBlob(candidate.thumbnail) &&
-    (candidate.display === undefined || isSafeBlob(candidate.display)) &&
-    candidate.bytes ===
-      candidate.preview.size + candidate.thumbnail.size + (candidate.display?.size ?? 0) &&
+    previewBytes > 0 &&
+    thumbnailBytes > 0 &&
+    (candidate.display === undefined || displayBytes > 0) &&
+    candidate.bytes === previewBytes + thumbnailBytes + displayBytes &&
     candidate.bytes <= cacheLimitBytes
   )
 }
@@ -109,9 +117,9 @@ export async function loadPreviewCache(
     .put(accessStoreName, { key: record.key, accessedAt: Date.now() } satisfies PreviewAccessRecord)
     .catch(() => undefined)
   return {
-    preview: record.preview,
-    thumbnail: record.thumbnail,
-    displayBlob: record.display,
+    preview: decodeStoredBlob(record.preview)!,
+    thumbnail: decodeStoredBlob(record.thumbnail)!,
+    displayBlob: decodeStoredBlob(record.display),
   }
 }
 
@@ -245,6 +253,13 @@ export async function savePreviewCaches(
     batchBytes += bytes
   }
   if (!records.size) return
+  // Read Blob bytes before opening the write transaction, which would otherwise
+  // auto-commit during asynchronous file reads. Old Blob records remain readable.
+  for (const { record } of records.values()) {
+    record.preview = await encodeStoredBlob(record.preview as Blob)
+    record.thumbnail = await encodeStoredBlob(record.thumbnail as Blob)
+    if (record.display) record.display = await encodeStoredBlob(record.display as Blob)
+  }
   const db = await database()
   const tx = db.transaction([storeName, accessStoreName, metadataStoreName], 'readwrite')
   const previews = tx.objectStore(storeName)
@@ -288,7 +303,7 @@ export async function savePreviewCaches(
       if (validCacheRecord(record)) total -= record.bytes
     }
   }
-  // Eviction requests precede the new Blob writes, limiting quota pressure as
+  // Eviction requests precede the new image writes, limiting quota pressure as
   // well as the final committed size.
   for (const record of writes) await previews.put(record)
   total += addedBytes

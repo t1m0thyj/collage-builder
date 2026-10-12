@@ -4,7 +4,6 @@ import { createProject } from '../../src/lib/domain/factories'
 import type { AssetRegistry } from '../../src/lib/render/assetRegistry'
 
 const autosaveMocks = vi.hoisted(() => ({
-  loadLatestRecovery: vi.fn().mockResolvedValue(undefined),
   saveRecovery: vi.fn().mockResolvedValue(undefined),
 }))
 

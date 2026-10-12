@@ -29,18 +29,15 @@ export async function persistRecovery(
   await saveRecovery(document, registry)
 }
 
-async function loadRestorableRecovery(projectId?: string): Promise<
+async function loadRestorableRecovery(projectId: string): Promise<
   | {
       document: CollageDocumentV1
       assets: Map<string, Blob>
     }
   | undefined
 > {
-  const { loadLatestRecovery, loadRecovery, loadRecoveryAssets } =
-    await import('../persistence/autosave')
-  const document = await (projectId ? loadRecovery(projectId) : loadLatestRecovery()).catch(
-    () => undefined,
-  )
+  const { loadRecovery, loadRecoveryAssets } = await import('../persistence/autosave')
+  const document = await loadRecovery(projectId).catch(() => undefined)
   if (!document) return undefined
   const assets = await loadRecoveryAssets(document)
   const embedded = Object.values(document.assets).filter(
@@ -48,17 +45,6 @@ async function loadRestorableRecovery(projectId?: string): Promise<
   )
   if (embedded.some((asset) => !assets.has(asset.id))) return undefined
   return { document, assets }
-}
-
-export async function restoreLatestRecovery(currentProjectId: string): Promise<
-  | {
-      document: CollageDocumentV1
-      assets: Map<string, Blob>
-    }
-  | undefined
-> {
-  const recovery = await loadRestorableRecovery()
-  return recovery?.document.projectId === currentProjectId ? undefined : recovery
 }
 
 interface RecoveryControllerHost {

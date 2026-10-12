@@ -74,21 +74,6 @@ export function flipPlacement(
       }
 }
 
-export function sourceImagePosition(placement: SlotContentV1['placement']) {
-  const x = placement.flipHorizontal ? 1 - placement.positionX : placement.positionX
-  const y = placement.flipVertical ? 1 - placement.positionY : placement.positionY
-  switch (placement.rotation ?? 0) {
-    case 90:
-      return { x: y, y: 1 - x }
-    case 180:
-      return { x: 1 - x, y: 1 - y }
-    case 270:
-      return { x: 1 - y, y: x }
-    default:
-      return { x, y }
-  }
-}
-
 export function resolveCoverPlacement(
   frameWidth: number,
   frameHeight: number,

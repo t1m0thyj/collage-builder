@@ -140,8 +140,7 @@
 .page-tab.page-drag-after {
   box-shadow: inset -3px 0 #315c9c;
 }
-.page-tab-with-actions,
-.page-picker-with-actions {
+.page-tab-with-actions {
   display: flex;
   align-items: flex-end;
 }
@@ -315,8 +314,7 @@
 .page-tab-with-actions.active-tab-action .page-actions-button:focus-visible {
   outline: none;
 }
-.page-tab-with-actions.active-tab-action .page-actions-button,
-.page-picker-with-actions .page-actions-button {
+.page-tab-with-actions.active-tab-action .page-actions-button {
   width: 28px;
   height: 36px;
   min-width: 28px;
@@ -337,37 +335,6 @@
   border: 0;
   border-radius: 0 6px 0 0;
   background: transparent;
-}
-.page-picker-with-actions .page-picker {
-  height: 36px;
-  padding: 0 10px;
-  margin-bottom: -1px;
-  border-color: #9aaccc;
-  border-right: 0;
-  border-bottom: 0;
-  border-top-right-radius: 0;
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
-}
-.page-picker-with-actions:focus-within {
-  border-radius: 7px 7px 0 0;
-  outline: 2px solid rgba(49, 92, 156, 0.48);
-  outline-offset: 1px;
-}
-.page-picker-with-actions .page-picker:focus-visible,
-.page-picker-with-actions .page-actions-button:focus-visible {
-  outline: none;
-}
-.page-picker {
-  min-width: 150px;
-  padding: 8px 10px;
-  border: 1px solid #d6d3ca;
-  border-radius: 7px;
-  background: #fff;
-  color: #403d37;
-  font-size: 12px;
-  font-weight: 700;
-  text-align: left;
 }
 .add-page {
   display: grid;
