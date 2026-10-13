@@ -166,6 +166,14 @@ test('an available deployment update preserves edits before reloading @offline',
 
   const update = page.getByRole('button', { name: 'Update ready' })
   await expect(update).toBeEnabled()
+  // At 1051px the update button previously overlapped the quick-start button.
+  await page.setViewportSize({ width: 1051, height: 720 })
+  const updateBox = await update.boundingBox()
+  const helpBox = await page.getByRole('button', { name: 'Show quick start' }).boundingBox()
+  expect(updateBox).not.toBeNull()
+  expect(helpBox).not.toBeNull()
+  expect(updateBox!.x).toBeGreaterThanOrEqual(helpBox!.x + helpBox!.width)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1051)
   await page.setViewportSize({ width: 960, height: 720 })
   await expect(update).toBeVisible()
   await update.click()

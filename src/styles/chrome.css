@@ -242,7 +242,7 @@
 }
 .deployment-slot {
   display: flex;
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: flex-end;
   min-width: 0;
@@ -363,6 +363,8 @@
       minmax(210px, var(--left-sidebar-width, 255px)) 6px minmax(360px, 1fr) 6px
       minmax(210px, var(--right-sidebar-width, 255px));
   }
+}
+@media (max-width: 1200px) {
   .topbar {
     padding: 0 6px;
     gap: 4px;
