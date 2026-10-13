@@ -105,7 +105,7 @@
         <Button
           class="button save-main"
           variant="outline"
-          title="Save (Ctrl/Cmd+S)"
+          title="Save an editable project (Ctrl/Cmd+S)"
           onclick={onsave}>Save</Button
         ><DropdownMenu.Trigger
           class="button save-caret"
@@ -272,7 +272,10 @@
     </div>
     <DropdownMenu.Root>
       <div class="export-menu">
-        <Button class="button button-primary" onclick={() => onexport('current')}>Export…</Button
+        <Button
+          class="button button-primary"
+          title="Download collage images"
+          onclick={() => onexport('current')}>Export…</Button
         ><DropdownMenu.Trigger
           class="button button-primary export-caret"
           aria-label="Choose export scope"
