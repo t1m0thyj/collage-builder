@@ -16,7 +16,35 @@ import {
   exportCurrentPng,
   collageMimeType,
   holdImportDecode,
+  setNumber,
 } from './test-helpers'
+
+test('removed unused photos stay out of the library after page width and height edits', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await chooseTwoColumnLayout(page)
+  await importImage(page, 'old.png', redPng)
+  await assignSidebarImage(page, 'old.png', 1)
+  await page.getByRole('button', { name: 'Frame 1, old.png' }).focus()
+  await page.keyboard.press('Delete')
+  await importImage(page, 'current.png', bluePng)
+  await assignSidebarImage(page, 'current.png', 1)
+  await page.getByRole('button', { name: 'Manage photos' }).click()
+  const manager = page.getByRole('dialog', { name: 'Photo library' })
+  await manager.getByRole('button', { name: 'Remove unused photos' }).click()
+  await expect(manager.getByText('old.png', { exact: true })).toHaveCount(0)
+  await manager.getByRole('button', { name: 'Done', exact: true }).click()
+  await setNumber(page, 'Page width', '1600')
+  await setNumber(page, 'Page height', '900')
+  await expect(page.locator('.sidebar-asset-card')).toHaveCount(1)
+  await expect(
+    page.locator('.sidebar-asset-card').getByText('current.png', { exact: true }),
+  ).toBeVisible()
+  await page.getByRole('button', { name: 'Manage photos' }).click()
+  await expect(manager.getByText('old.png', { exact: true })).toHaveCount(0)
+  await expect(manager.getByText('current.png', { exact: true })).toBeVisible()
+})
 
 test('photo selection uses sidebar highlights and manager checkmarks in both views', async ({
   page,

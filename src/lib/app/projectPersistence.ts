@@ -1,15 +1,11 @@
 import type { CollageDocumentV1 } from '../domain/types'
 import type { AssetRegistry } from '../render/assetRegistry'
-import { formatLinkedAssetProgress } from './projectOperation'
-import type { LinkedAssetMatchOptions } from '../persistence/linkedAssets'
 import {
   chooseSaveTarget,
   createLinkedProjectFile,
-  matchProjectAssets,
   prepareEmbeddedProject,
   writeEmbeddedProject,
   writeProjectBlob,
-  type LinkedAssetMatch,
   type ProjectSaveFormat,
   type SaveTarget,
 } from './projectIO'
@@ -20,12 +16,10 @@ interface SaveRequest {
   projectTitle: string
   saveAs: boolean
   chooseFallback: () => Promise<ProjectSaveFormat | null>
-  chooseLinkedFolder: () => Promise<FileList | null>
   isCurrent?: () => boolean
   onStarted?: () => void
   onProgress?: (
-    phase:
-      'Packaging photos' | 'Saving project' | 'Writing file' | 'Finalizing' | 'Locating photos',
+    phase: 'Packaging photos' | 'Saving project' | 'Writing file' | 'Finalizing',
     completed?: number,
     total?: number,
     detail?: string,
@@ -41,47 +35,11 @@ export class ProjectPersistenceController {
   private currentTarget: SaveTarget | null = null
   private currentFormat: ProjectSaveFormat = 'embedded'
   private hasSavedProject = false
-  private linkedMatches = new Map<string, LinkedAssetMatch>()
 
   reset(format: ProjectSaveFormat = 'embedded') {
     this.currentTarget = null
     this.currentFormat = format
     this.hasSavedProject = false
-    this.linkedMatches = new Map()
-  }
-
-  setLinkedMatches(matches: Map<string, LinkedAssetMatch>) {
-    this.linkedMatches = matches
-  }
-
-  invalidateLinkedMatch(assetId: string) {
-    this.linkedMatches = new Map(
-      [...this.linkedMatches].filter(([candidate]) => candidate !== assetId),
-    )
-  }
-
-  private async linkedMatchesForSave(
-    document: CollageDocumentV1,
-    chooseLinkedFolder: () => Promise<FileList | null>,
-    forceChooseFolder: boolean,
-    onStarted: () => void,
-    options: LinkedAssetMatchOptions,
-  ) {
-    const assetIds = Object.keys(document.assets)
-    if (!assetIds.length) {
-      onStarted()
-      return new Map<string, LinkedAssetMatch>()
-    }
-    const cachedMatchesAreComplete = assetIds.every((assetId) => this.linkedMatches.has(assetId))
-    if (!forceChooseFolder && cachedMatchesAreComplete) {
-      onStarted()
-      return this.linkedMatches
-    }
-    const files = await chooseLinkedFolder()
-    if (!files) return null
-    onStarted()
-    this.linkedMatches = await matchProjectAssets(document.assets, files, options)
-    return this.linkedMatches
   }
 
   async save({
@@ -90,15 +48,13 @@ export class ProjectPersistenceController {
     projectTitle,
     saveAs,
     chooseFallback,
-    chooseLinkedFolder,
     isCurrent = () => true,
     onStarted = () => undefined,
     onProgress = () => undefined,
   }: SaveRequest): Promise<ProjectSaveResult | null> {
     let lastProgressAt = 0
     const reportProgress = (
-      phase:
-        'Packaging photos' | 'Saving project' | 'Writing file' | 'Finalizing' | 'Locating photos',
+      phase: 'Packaging photos' | 'Saving project' | 'Writing file' | 'Finalizing',
       completed?: number,
       total?: number,
       force = false,
@@ -139,25 +95,8 @@ export class ProjectPersistenceController {
         })
       }
     } else {
-      const matches = await this.linkedMatchesForSave(
-        document,
-        chooseLinkedFolder,
-        choosingDestination,
-        onStarted,
-        {
-          isCurrent,
-          onProgress: (progress) =>
-            reportProgress(
-              'Locating photos',
-              progress.completed,
-              progress.total,
-              progress.completed === 0 || progress.completed === progress.total,
-              formatLinkedAssetProgress(progress),
-            ),
-        },
-      )
-      if (!matches || !isCurrent()) return null
-      const linkedProject = await createLinkedProjectFile(document, matches)
+      onStarted()
+      const linkedProject = await createLinkedProjectFile(document)
       if (!isCurrent()) return null
       reportProgress('Writing file', 0, linkedProject.size)
       destination = await writeProjectBlob(target, linkedProject, `${baseName}.collage.json`, {

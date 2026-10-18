@@ -3,6 +3,7 @@ import { createProject } from '../../src/lib/domain/factories'
 import type { AssetRecordV1 } from '../../src/lib/domain/types'
 import {
   createLinkedProject,
+  linkedAssetRecord,
   matchLinkedAssets,
   openLinkedProject,
 } from '../../src/lib/persistence/linkedAssets'
@@ -72,7 +73,9 @@ describe('renamed linked originals', () => {
     const document = createProject()
     document.assets[asset.id] = asset
     const matches = await matchLinkedAssets(document.assets, [file])
-    const saved = await openLinkedProject(createLinkedProject(document, matches))
+    document.assets[asset.id] = linkedAssetRecord(asset, matches.get(asset.id)!)
+    const beforeSave = structuredClone(document)
+    const saved = await openLinkedProject(createLinkedProject(document))
     expect(saved.assets[asset.id]).toMatchObject({
       originalName: 'renamed.jpg',
       sha256: asset.sha256,
@@ -83,7 +86,15 @@ describe('renamed linked originals', () => {
         lastModified: 1234,
       },
     })
-    expect(document.assets[asset.id]).toEqual(asset)
+    expect(document).toEqual(beforeSave)
     expect(asset.originalName).toBe('old.jpg')
+  })
+
+  it('keeps saved relative paths for linked photos even when originals are unavailable', async () => {
+    const asset = await assetFor(new File(['original'], 'old.jpg'))
+    const document = createProject()
+    document.assets[asset.id] = asset
+    const saved = await openLinkedProject(createLinkedProject(document))
+    expect(saved.assets[asset.id]).toEqual(asset)
   })
 })

@@ -45,15 +45,7 @@ describe('asset usage counts', () => {
 
     expect(counts).toEqual(new Map([['first', 2]]))
     expect(
-      filterAssets(
-        document,
-        Object.values(document.assets),
-        '',
-        'all',
-        'usage',
-        new Set(),
-        counts,
-      ).map((asset) => asset.id),
+      filterAssets(document, '', 'all', 'usage', new Set(), counts).map((asset) => asset.id),
     ).toEqual(['first', 'second'])
   })
 })

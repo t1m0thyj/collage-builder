@@ -119,10 +119,8 @@
   let pendingNavigation: 'new' | 'open' | null = null
   let pendingLinkedDocument: typeof document | null = null
   let isSaveFormatOpen = false
-  let isLinkedSaveFolderOpen = false
   let hasSavedProject = false
   let saveFormatResolver: ((format: ProjectSaveFormat | null) => void) | null = null
-  let linkedSaveFolderResolver: ((files: FileList | null) => void) | null = null
   let assetFilter: AssetFilter = 'all'
   let assetQuery = ''
   let assetSort: AssetSort = 'import'
@@ -233,7 +231,6 @@
   })
   const assetWorkflow = new AssetWorkflowController({
     project,
-    persistence: projectPersistence,
     document: () => document,
     pageId: () => activePage.id,
     selectedSlotId: () => selectedSlotId,
@@ -287,7 +284,6 @@
     missingAssetIds: () => missingAssetIds,
     chooseProject: () => projectFiles.chooseProject(),
     chooseLinkedFolder: () => projectFiles.chooseLinkedFolder(),
-    chooseLinkedFolderForSave,
     chooseFallbackFormat: chooseFallbackSaveFormat,
     installDocument,
     preparePageImages,
@@ -577,10 +573,11 @@
   $: assets = Object.values(document.assets)
   $: photoUsageCounts = countAssetUsage(document)
   $: assetLibraryBytes = assets.reduce((total, asset) => total + asset.byteLength, 0)
-  $: unusedAssetIds = assets.filter((asset) => photoUsage(asset.id) === 0).map((asset) => asset.id)
+  $: unusedAssetIds = assets
+    .filter((asset) => (photoUsageCounts.get(asset.id) ?? 0) === 0)
+    .map((asset) => asset.id)
   $: filteredAssets = filterAssets(
     document,
-    assets,
     assetQuery,
     assetFilter,
     assetSort,
@@ -730,19 +727,6 @@
   function chooseFallbackSaveFormat(): Promise<ProjectSaveFormat | null> {
     isSaveFormatOpen = true
     return new Promise((resolve) => (saveFormatResolver = resolve))
-  }
-
-  function chooseLinkedFolderForSave(): Promise<FileList | null> {
-    isLinkedSaveFolderOpen = true
-    return new Promise((resolve) => (linkedSaveFolderResolver = resolve))
-  }
-
-  function resolveLinkedSaveFolder(choose: boolean) {
-    const resolve = linkedSaveFolderResolver
-    linkedSaveFolderResolver = null
-    isLinkedSaveFolderOpen = false
-    if (choose) void projectFiles.chooseLinkedFolder().then((files) => resolve?.(files))
-    else resolve?.(null)
   }
 </script>
 
@@ -987,7 +971,6 @@
     bind:pendingRemovalAssetIds
     {pendingRelinkConfirmation}
     {isSaveFormatOpen}
-    {isLinkedSaveFolderOpen}
     bind:pendingNavigation
     bind:pendingLinkedDocument
     bind:isExportOpen
@@ -1004,7 +987,6 @@
     onremoveassets={assetWorkflow.remove}
     onresolverelink={resolveRelinkConfirmation}
     onresolvesaveformat={resolveSaveFormat}
-    onresolvelinkedsavefolder={resolveLinkedSaveFolder}
     oncontinuenavigation={projectWorkflow.continueNavigation}
     onsavethencontinue={projectWorkflow.saveThenContinue}
     onrequestlinkedfolder={projectWorkflow.requestLinkedFolder}

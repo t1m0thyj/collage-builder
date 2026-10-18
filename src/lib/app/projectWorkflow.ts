@@ -27,7 +27,6 @@ interface ProjectWorkflowHost {
   missingAssetIds: () => Set<string>
   chooseProject: () => void
   chooseLinkedFolder: () => Promise<FileList | null>
-  chooseLinkedFolderForSave: () => Promise<FileList | null>
   chooseFallbackFormat: () => Promise<ProjectSaveFormat | null>
   installDocument: (
     document: CollageDocumentV1,
@@ -114,7 +113,6 @@ export class ProjectWorkflowController {
         projectTitle: this.host.projectTitle(),
         saveAs,
         chooseFallback: this.host.chooseFallbackFormat,
-        chooseLinkedFolder: this.host.chooseLinkedFolderForSave,
         isCurrent,
         onStarted: () => {
           if (!isCurrent()) return
@@ -154,7 +152,7 @@ export class ProjectWorkflowController {
             : 'Linked project download started.'
           : saved.format === 'embedded'
             ? 'Embedded project saved.'
-            : 'Linked project saved. Images remain in the chosen folder.',
+            : 'Linked project saved. Choose the photo folder when opening it.',
       )
       return true
     } catch (error) {
@@ -203,7 +201,6 @@ export class ProjectWorkflowController {
       })
       const { linkedAssetRecord } = await import('../persistence/linkedAssets')
       if (!isCurrent()) return
-      this.host.persistence.setLinkedMatches(matches)
       let prepared = 0
       let lastProgressAt = 0
       const reportPreparation = (force = false) => {

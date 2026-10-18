@@ -137,24 +137,26 @@ export function linkedAssetRecord(asset: AssetRecordV1, match: LinkedAssetMatch)
   }
 }
 
-export function linkedDocument(
-  document: CollageDocumentV1,
-  matches: Map<string, LinkedAssetMatch>,
-): CollageDocumentV1 {
+export function linkedDocument(document: CollageDocumentV1): CollageDocumentV1 {
   const copy = structuredClone(document)
   for (const asset of Object.values(copy.assets)) {
-    const match = matches.get(asset.id)
-    if (!match) throw new Error(`The selected folder does not contain ${asset.originalName}`)
-    copy.assets[asset.id] = linkedAssetRecord(asset, match)
+    const relativePath =
+      asset.storage.kind === 'linked'
+        ? (asset.storage.relativePath ?? asset.originalName)
+        : asset.originalName
+    assertSafeRelativePath(relativePath)
+    asset.storage = {
+      ...(asset.storage.kind === 'linked' ? asset.storage : {}),
+      kind: 'linked',
+      relativePath,
+      displayHint: relativePath,
+    }
   }
   return copy
 }
 
-export function createLinkedProject(
-  document: CollageDocumentV1,
-  matches: Map<string, LinkedAssetMatch>,
-): Blob {
-  const savedDocument = migrateDocument(linkedDocument(document, matches))
+export function createLinkedProject(document: CollageDocumentV1): Blob {
+  const savedDocument = migrateDocument(linkedDocument(document))
   return new Blob([JSON.stringify(savedDocument, null, 2)], { type: linkedProjectMimeType })
 }
 

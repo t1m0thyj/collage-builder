@@ -3,6 +3,7 @@ import { createProject } from '../../src/lib/domain/factories'
 import { createArchive, openArchive, prepareArchive } from '../../src/lib/persistence/archive'
 import {
   createLinkedProject,
+  linkedAssetRecord,
   matchLinkedAssets,
   openLinkedProject,
 } from '../../src/lib/persistence/linkedAssets'
@@ -271,19 +272,16 @@ describe('collage archive', () => {
       sha256: 'a'.repeat(64),
       storage: { kind: 'embedded', archivePath: `assets/${assetId}` },
     }
-    const file = new File([new Uint8Array(42)], 'dogs.jpg', { type: 'image/jpeg' })
-    const linked = createLinkedProject(
-      document,
-      new Map([[assetId, { file, relativePath: 'dogs/dogs.jpg', sha256: 'a'.repeat(64) }]]),
-    )
+    const linked = createLinkedProject(document)
     // Bun includes the UTF-8 charset for Blobs constructed from JSON strings.
     expect(linked.type.split(';', 1)[0]).toBe('application/json')
     expect((await linked.text()).trimStart().startsWith('{')).toBe(true)
     const opened = await openLinkedProject(linked)
     expect(opened.assets[assetId].storage).toMatchObject({
       kind: 'linked',
-      relativePath: 'dogs/dogs.jpg',
+      relativePath: 'dogs.jpg',
     })
+    expect(document.assets[assetId].storage.kind).toBe('embedded')
   })
 
   it('rejects stale linked-file matches after an original changes', () => {
@@ -301,12 +299,11 @@ describe('collage archive', () => {
     }
     const staleFile = new File([new Uint8Array(42)], 'dogs.jpg', { type: 'image/jpeg' })
     expect(() =>
-      createLinkedProject(
-        document,
-        new Map([
-          [assetId, { file: staleFile, relativePath: 'dogs/dogs.jpg', sha256: 'a'.repeat(64) }],
-        ]),
-      ),
+      linkedAssetRecord(document.assets[assetId], {
+        file: staleFile,
+        relativePath: 'dogs/dogs.jpg',
+        sha256: 'a'.repeat(64),
+      }),
     ).toThrow('no longer matches')
   })
 

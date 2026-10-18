@@ -3,7 +3,6 @@ import type { AssetRecordV1, CollageDocumentV1 } from '../domain/types'
 import { maxProjectAssetCount, maxProjectBytes } from '../persistence/limits'
 import type { AssetRegistry } from '../render/assetRegistry'
 import type { ProjectStore } from '../state/projectStore'
-import type { ProjectPersistenceController } from './projectPersistence'
 import { writeAssetDragData } from './assetDrag'
 
 export type AssetFilter = 'all' | 'used' | 'unused' | 'missing'
@@ -64,7 +63,6 @@ export function formatBytes(bytes: number): string {
 
 export function filterAssets(
   document: CollageDocumentV1,
-  assets: AssetRecordV1[],
   query: string,
   filter: AssetFilter,
   sort: AssetSort,
@@ -72,7 +70,7 @@ export function filterAssets(
   usageCounts: AssetUsageCounts = assetUsageCounts(document),
 ): AssetRecordV1[] {
   const normalizedQuery = query.trim().toLocaleLowerCase()
-  return assets
+  return Object.values(document.assets)
     .filter((asset) => {
       const usage = usageCounts.get(asset.id) ?? 0
       const matchesFilter =
@@ -390,7 +388,6 @@ export async function relinkMissingProjectAssets(
 
 interface AssetWorkflowHost {
   project: ProjectStore
-  persistence: ProjectPersistenceController
   document: () => CollageDocumentV1
   pageId: () => string
   selectedSlotId: () => string | null
@@ -525,7 +522,6 @@ export class AssetWorkflowController {
         isCurrent,
       )
       if (!replaced || !isCurrent()) return
-      this.host.persistence.invalidateLinkedMatch(target)
       this.host.announce('Original image replaced everywhere it is used.')
     } catch (error) {
       this.host.announce(error instanceof Error ? error.message : 'Unable to replace image')
@@ -556,7 +552,6 @@ export class AssetWorkflowController {
         isCurrent,
       )
       if (!replaced || !isCurrent()) return
-      this.host.persistence.invalidateLinkedMatch(target)
       this.host.setMissingAssetIds(
         new Set([...this.host.missingAssetIds()].filter((id) => id !== target)),
       )
@@ -592,9 +587,6 @@ export class AssetWorkflowController {
         isCurrent,
       )
       if (!isCurrent()) return
-      result.relinkedAssetIds.forEach((assetId) =>
-        this.host.persistence.invalidateLinkedMatch(assetId),
-      )
       this.host.setMissingAssetIds(new Set(result.unmatchedAssetIds))
       const invalid = result.issues.length
         ? ` ${result.issues.length} selected file${result.issues.length === 1 ? '' : 's'} could not be read.`

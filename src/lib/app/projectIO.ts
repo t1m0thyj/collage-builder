@@ -219,12 +219,9 @@ export async function writeEmbeddedProject(
   }
 }
 
-export async function createLinkedProjectFile(
-  document: CollageDocumentV1,
-  matches: Map<string, LinkedAssetMatch>,
-): Promise<Blob> {
+export async function createLinkedProjectFile(document: CollageDocumentV1): Promise<Blob> {
   const { createLinkedProject } = await import('../persistence/linkedAssets')
-  return createLinkedProject(document, matches)
+  return createLinkedProject(document)
 }
 
 export async function matchProjectAssets(

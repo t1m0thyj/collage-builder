@@ -44,9 +44,6 @@ test('loads renamed linked photos by hash and saves their current filenames and 
   const download = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Save', exact: true }).click()
   await page.getByRole('button', { name: 'Save linked project', exact: true }).click()
-  const saveFolderChooser = page.waitForEvent('filechooser')
-  await page.getByRole('button', { name: 'Choose photo folder…', exact: true }).click()
-  await (await saveFolderChooser).setFiles(folder)
   const saved = JSON.parse((await downloadBytes(await download)).toString('utf8'))
   expect(saved.assets[assetId]).toMatchObject({
     originalName: 'renamed.png',

@@ -14,7 +14,6 @@
   export let pendingRemovalAssetIds: string[] | null
   export let pendingRelinkConfirmation: string | null
   export let isSaveFormatOpen: boolean
-  export let isLinkedSaveFolderOpen: boolean
   export let pendingNavigation: 'new' | 'open' | null
   export let pendingLinkedDocument: CollageDocumentV1 | null
   export let isExportOpen: boolean
@@ -31,7 +30,6 @@
   export let onremoveassets: (assetIds: string[]) => void
   export let onresolverelink: (accepted: boolean) => void
   export let onresolvesaveformat: (format: SaveFormat | null) => void
-  export let onresolvelinkedsavefolder: (choose: boolean) => void
   export let oncontinuenavigation: () => void
   export let onsavethencontinue: () => void
   export let onrequestlinkedfolder: () => void
@@ -197,7 +195,7 @@
       <p>
         <strong>Save project linking to original files</strong> creates a small
         <code>.collage.json</code> file. It does not contain your photos, so you will need to choose their
-        folder. Nothing is uploaded.
+        folder when opening it. Nothing is uploaded.
       </p>
     </div>
     <div class="dialog-footer">
@@ -207,39 +205,6 @@
         ><button class="button button-primary" onclick={() => onresolvesaveformat('embedded')}
           >Save with photos</button
         ></span
-      >
-    </div>
-  </Dialog.Content>
-</Dialog.Root>
-
-<Dialog.Root
-  open={isLinkedSaveFolderOpen}
-  onOpenChange={(open) => !open && onresolvelinkedsavefolder(false)}
->
-  <Dialog.Content class="dialog" aria-modal="true" aria-labelledby="linked-save-folder-title">
-    <div class="dialog-header">
-      <div>
-        <p class="eyebrow">Linked project</p>
-        <h2 id="linked-save-folder-title">Choose the original photo folder</h2>
-      </div>
-      <button
-        class="icon-button"
-        aria-label="Close folder choice"
-        onclick={() => onresolvelinkedsavefolder(false)}><X size={17}></X></button
-      >
-    </div>
-    <div class="export-form">
-      <p>
-        The <code>.collage.json</code> file stores relative paths to your photos, not the photos themselves.
-        Choose the folder containing the originals. Anyone opening the project can choose their own copy
-        of that folder, even at a different location.
-      </p>
-      <p>Your browser may call this “Upload folder,” but no files are uploaded.</p>
-    </div>
-    <div class="dialog-footer">
-      <button class="button" onclick={() => onresolvelinkedsavefolder(false)}>Cancel save</button>
-      <button class="button button-primary" onclick={() => onresolvelinkedsavefolder(true)}
-        >Choose photo folder…</button
       >
     </div>
   </Dialog.Content>

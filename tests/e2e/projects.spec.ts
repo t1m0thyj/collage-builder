@@ -450,21 +450,49 @@ test('Save retains the current format while Save As offers both project extensio
   await expect(saveOptions).toBeDisabled()
 })
 
-test('explains the photo folder choice before saving a linked project', async ({ page }) => {
+test('saves linked photo metadata directly and asks for the folder when opening it', async ({
+  page,
+}) => {
   await page.addInitScript(() => {
     Object.defineProperty(window, 'showSaveFilePicker', { value: undefined, configurable: true })
   })
   await page.goto('/')
   await importImage(page, 'original.png', redPng)
 
+  const fileChoosers: string[] = []
+  page.on('filechooser', () => fileChoosers.push('folder'))
+  const download = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Save', exact: true }).click()
   const formatDialog = page.getByRole('dialog', { name: 'Choose how to save' })
   await formatDialog.getByRole('button', { name: 'Save linked project' }).click()
-  const folderDialog = page.getByRole('dialog', { name: 'Choose the original photo folder' })
-  await expect(folderDialog).toContainText('no files are uploaded')
-  await folderDialog.getByRole('button', { name: 'Cancel save' }).click()
-  await expect(folderDialog).toBeHidden()
-  await expect(page.getByRole('button', { name: 'Save options' })).toBeDisabled()
+  const bytes = await downloadBytes(await download)
+  const saved = JSON.parse(bytes.toString('utf8'))
+  expect(Object.values(saved.assets)).toEqual([
+    expect.objectContaining({
+      originalName: 'original.png',
+      sha256: createHash('sha256').update(redPng).digest('hex'),
+      storage: { kind: 'linked', relativePath: 'original.png', displayHint: 'original.png' },
+    }),
+  ])
+  expect(fileChoosers).toEqual([])
+  await expect(page.getByRole('button', { name: 'Save options' })).toBeEnabled()
+  await page.getByTestId('project-file-input').setInputFiles({
+    name: 'saved.collage.json',
+    mimeType: 'application/json',
+    buffer: bytes,
+  })
+  await expect(page.getByRole('dialog', { name: 'Locate linked images' })).toBeVisible()
+  const resave = page.waitForEvent('download')
+  await page
+    .getByRole('dialog', { name: 'Locate linked images' })
+    .getByRole('button', { name: 'Not now' })
+    .click()
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await formatDialog.getByRole('button', { name: 'Save linked project' }).click()
+  expect(JSON.parse((await downloadBytes(await resave)).toString('utf8')).assets).toEqual(
+    saved.assets,
+  )
+  expect(fileChoosers).toEqual([])
 })
 
 test('shows save progress and opens a .collage.json project with progress', async ({ page }) => {
