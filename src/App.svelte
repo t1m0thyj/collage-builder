@@ -918,6 +918,7 @@
       onpreviewstyle={pageActions.previewStyle}
       oncommitstyle={pageActions.commitStyle}
       onsetbackground={uiPreferences.setBackground}
+      onremembercolor={uiPreferences.rememberColor}
       onsuggestbackground={suggestBackground}
       {suggestingBackground}
       onsetshadow={uiPreferences.setShadow}

@@ -1,10 +1,12 @@
 export type SidebarTab = 'layouts' | 'images'
 export type StyleEditResult = { ok: true } | { ok: false; message: string }
 export type PageStyleControl =
+  | 'backgroundColor'
   | 'padding'
   | 'gap'
   | 'cornerRadius'
   | 'shadow.opacity'
+  | 'shadow.color'
   | 'shadow.blur'
   | 'shadow.distance'
   | 'shadow.angle'

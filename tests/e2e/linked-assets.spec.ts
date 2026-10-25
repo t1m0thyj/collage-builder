@@ -7,6 +7,7 @@ test('loads renamed linked photos by hash and saves their current filenames and 
 }, testInfo) => {
   await page.addInitScript(() => {
     Object.defineProperty(window, 'showSaveFilePicker', { value: undefined, configurable: true })
+    Object.defineProperty(window, 'showDirectoryPicker', { value: undefined, configurable: true })
   })
   const document = createProject('Renamed linked photos')
   const assetId = '11111111-1111-4111-8111-111111111111'
@@ -54,4 +55,64 @@ test('loads renamed linked photos by hash and saves their current filenames and 
       displayHint: 'nested/renamed.png',
     },
   })
+})
+
+test('uses read-only directory access to find linked photos', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'showSaveFilePicker', { value: undefined, configurable: true })
+  })
+  const document = createProject('Directory access')
+  const assetId = '11111111-1111-4111-8111-111111111111'
+  document.assets[assetId] = {
+    id: assetId,
+    originalName: 'old.png',
+    mediaType: 'image/png',
+    byteLength: redPng.length,
+    width: 96,
+    height: 64,
+    sha256: createHash('sha256').update(redPng).digest('hex'),
+    storage: { kind: 'linked', relativePath: 'old.png', displayHint: 'old.png' },
+  }
+  await page.goto('/')
+  await page.evaluate(
+    (bytes) => {
+      const file = new File([new Uint8Array(bytes)], 'renamed.png', { type: 'image/png' })
+      const nested = {
+        kind: 'directory' as const,
+        async *entries() {
+          yield ['renamed.png', { kind: 'file', getFile: async () => file }] as const
+        },
+      }
+      const root = {
+        kind: 'directory' as const,
+        async *entries() {
+          yield ['nested', nested] as const
+        },
+      }
+      Object.defineProperty(window, 'showDirectoryPicker', {
+        value: async (options: { mode: string }) => {
+          if (options.mode !== 'read') throw new Error('Expected read-only access')
+          return root
+        },
+        configurable: true,
+      })
+    },
+    [...redPng],
+  )
+  await page.getByTestId('project-file-input').setInputFiles({
+    name: 'photos.collage.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(document)),
+  })
+  await page
+    .getByRole('dialog', { name: 'Locate linked images' })
+    .getByRole('button', { name: 'Choose folder…' })
+    .click()
+  await expect(page.getByRole('dialog', { name: 'Locate linked images' })).toBeHidden()
+  await expect(page.locator('.toast')).toContainText('Linked images loaded.')
+  const download = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await page.getByRole('button', { name: 'Save linked project', exact: true }).click()
+  const saved = JSON.parse((await downloadBytes(await download)).toString('utf8'))
+  expect(saved.assets[assetId].storage.relativePath).toBe('nested/renamed.png')
 })

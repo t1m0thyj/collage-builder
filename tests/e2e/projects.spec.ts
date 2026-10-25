@@ -25,6 +25,32 @@ import {
   collageMimeType,
 } from './test-helpers'
 
+test('custom background color previews live and creates one undo step', async ({ page }) => {
+  await page.goto('/')
+  const trigger = page.getByRole('button', { name: 'Choose background color' })
+  await trigger.click()
+  const input = page.getByLabel('Background color', { exact: true })
+  await input.evaluate((element) => {
+    const picker = element as HTMLInputElement
+    picker.value = '#a1b2c3'
+    picker.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  await expect(trigger).toContainText('#A1B2C3')
+  await input.evaluate((element) => {
+    const picker = element as HTMLInputElement
+    picker.value = '#d4e5f6'
+    picker.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  await expect(trigger).toContainText('#D4E5F6')
+  await input.evaluate((element) => {
+    element.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+  await page.getByRole('button', { name: 'Undo' }).click()
+  await expect(trigger).toContainText('#808080')
+  await page.getByRole('button', { name: 'Redo' }).click()
+  await expect(trigger).toContainText('#D4E5F6')
+})
+
 test('magic background color uses the photos on the current page', async ({ page }) => {
   await page.goto('/')
   const suggest = page.getByRole('button', { name: 'Suggest background color from page photos' })

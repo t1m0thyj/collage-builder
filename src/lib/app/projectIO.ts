@@ -1,6 +1,10 @@
 import type { AssetRecordV1, CollageDocumentV1 } from '../domain/types'
 import { collageMimeType, linkedProjectMimeType } from '../persistence/formats'
-import type { LinkedAssetMatch, LinkedAssetMatchOptions } from '../persistence/linkedAssets'
+import type {
+  LinkedAssetMatch,
+  LinkedAssetMatchOptions,
+  LinkedFolderFile,
+} from '../persistence/linkedAssets'
 import type { AssetRegistry } from '../render/assetRegistry'
 import type { PreparedArchive } from '../persistence/archive'
 
@@ -226,7 +230,7 @@ export async function createLinkedProjectFile(document: CollageDocumentV1): Prom
 
 export async function matchProjectAssets(
   assets: Record<string, AssetRecordV1>,
-  files: FileList,
+  files: Iterable<File | LinkedFolderFile>,
   options: LinkedAssetMatchOptions = {},
 ): Promise<Map<string, LinkedAssetMatch>> {
   const { matchLinkedAssets } = await import('../persistence/linkedAssets')

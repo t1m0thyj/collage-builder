@@ -1,6 +1,7 @@
 import { createProject } from '../domain/factories'
 import type { CollageDocumentV1, PageV1 } from '../domain/types'
 import type { AssetRegistry } from '../render/assetRegistry'
+import type { LinkedFolderFile } from '../persistence/linkedAssets'
 import type { ProjectStore } from '../state/projectStore'
 import { matchProjectAssets, openProjectFile, type ProjectSaveFormat } from './projectIO'
 import type { ProjectPersistenceController } from './projectPersistence'
@@ -26,7 +27,7 @@ interface ProjectWorkflowHost {
   pendingLinkedDocument: () => CollageDocumentV1 | null
   missingAssetIds: () => Set<string>
   chooseProject: () => void
-  chooseLinkedFolder: () => Promise<FileList | null>
+  chooseLinkedFolder: () => Promise<Iterable<File | LinkedFolderFile> | null>
   chooseFallbackFormat: () => Promise<ProjectSaveFormat | null>
   installDocument: (
     document: CollageDocumentV1,

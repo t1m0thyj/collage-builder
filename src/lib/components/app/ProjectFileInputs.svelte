@@ -1,4 +1,10 @@
 <script lang="ts">
+  import type { LinkedFolderFile } from '../../persistence/linkedAssets'
+
+  type DirectoryPickerWindow = Window & {
+    showDirectoryPicker?: (options: { mode: 'read' }) => Promise<FileSystemDirectoryHandle>
+  }
+
   export let onimport: (files: FileList | null) => void | Promise<void>
   export let onreplace: (file: File | undefined) => void | Promise<void>
   export let onrelink: (file: File | undefined) => void | Promise<void>
@@ -33,10 +39,36 @@
     projectInput.click()
   }
 
-  export function chooseLinkedFolder(): Promise<FileList | null> {
+  export function chooseLinkedFolder(): Promise<Iterable<File | LinkedFolderFile> | null> {
+    const pickerWindow = window as DirectoryPickerWindow
+    if (pickerWindow.showDirectoryPicker)
+      return chooseReadableDirectory(pickerWindow.showDirectoryPicker.bind(pickerWindow))
     linkedFolderInput.value = ''
     linkedFolderInput.click()
     return new Promise((resolve) => (linkedFolderResolver = resolve))
+  }
+
+  async function chooseReadableDirectory(
+    pickDirectory: NonNullable<DirectoryPickerWindow['showDirectoryPicker']>,
+  ): Promise<LinkedFolderFile[] | null> {
+    let root: FileSystemDirectoryHandle
+    try {
+      root = await pickDirectory({ mode: 'read' })
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return null
+      throw error
+    }
+
+    const files: LinkedFolderFile[] = []
+    async function visit(directory: FileSystemDirectoryHandle, path = ''): Promise<void> {
+      for await (const [name, handle] of directory.entries()) {
+        const relativePath = path ? `${path}/${name}` : name
+        if (handle.kind === 'directory') await visit(handle, relativePath)
+        else files.push({ file: await handle.getFile(), relativePath })
+      }
+    }
+    await visit(root)
+    return files
   }
 
   function finishLinkedFolderSelection(files: FileList | null) {

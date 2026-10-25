@@ -36,6 +36,7 @@
   ) => StyleEditResult
   export let oncommitstyle: (control: PageStyleControl) => void
   export let onsetbackground: (color: string, rememberCustom?: boolean) => void
+  export let onremembercolor: (color: string) => void
   export let onsuggestbackground: () => void
   export let suggestingBackground: boolean
   export let onsetshadow: (color: string, rememberCustom?: boolean) => void
@@ -56,6 +57,29 @@
   export let onfinishcrop: () => void
   export let onresetcrop: () => void
   export let onremoveimage: () => void
+
+  function previewBackground(color: string) {
+    onpreviewstyle('backgroundColor', { backgroundColor: `${color.toUpperCase()}FF` })
+  }
+
+  function commitBackground(color: string) {
+    if (activePage.style.backgroundColor.slice(0, 7) !== color.toUpperCase())
+      previewBackground(color)
+    oncommitstyle('backgroundColor')
+    onremembercolor(color)
+  }
+
+  function previewShadowColor(color: string) {
+    onpreviewstyle('shadow.color', {
+      shadow: { ...activePage.style.shadow, color: color.toUpperCase() },
+    })
+  }
+
+  function commitShadowColor(color: string) {
+    if (activePage.style.shadow.color !== color.toUpperCase()) previewShadowColor(color)
+    oncommitstyle('shadow.color')
+    onremembercolor(color)
+  }
 
   let spacingError: { pageId: string; control: 'padding' | 'gap'; message: string } | null = null
   $: spacingLimits = pageSpacingLimits(activePage)
@@ -344,7 +368,8 @@
                         aria-label="Background color"
                         type="color"
                         value={activePage.style.backgroundColor.slice(0, 7)}
-                        onchange={(event) => onsetbackground(event.currentTarget.value, true)}
+                        oninput={(event) => previewBackground(event.currentTarget.value)}
+                        onchange={(event) => commitBackground(event.currentTarget.value)}
                       /></label
                     >
                   </div></Popover.Content
@@ -514,7 +539,8 @@
                         aria-label="Frame shadow color"
                         type="color"
                         value={activePage.style.shadow.color}
-                        onchange={(event) => onsetshadow(event.currentTarget.value, true)}
+                        oninput={(event) => previewShadowColor(event.currentTarget.value)}
+                        onchange={(event) => commitShadowColor(event.currentTarget.value)}
                       /></label
                     >
                   </div></Popover.Content

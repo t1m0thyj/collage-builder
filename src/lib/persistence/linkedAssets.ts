@@ -7,6 +7,11 @@ export const maxLinkedProjectBytes = 32 * 1024 * 1024
 
 type DirectoryFile = File & { webkitRelativePath?: string }
 
+export interface LinkedFolderFile {
+  file: File
+  relativePath: string
+}
+
 export interface LinkedAssetMatch {
   file: File
   relativePath: string
@@ -51,10 +56,12 @@ async function digest(file: Blob): Promise<string> {
 /** Matches project originals by relative path first, then byte size and SHA-256. */
 export async function matchLinkedAssets(
   assets: Record<string, AssetRecordV1>,
-  files: Iterable<DirectoryFile>,
+  files: Iterable<DirectoryFile | LinkedFolderFile>,
   options: LinkedAssetMatchOptions = {},
 ): Promise<Map<string, LinkedAssetMatch>> {
-  const candidates = [...files].map((file) => ({ file, relativePath: relativePathFor(file) }))
+  const candidates = [...files].map((item) =>
+    'file' in item ? item : { file: item, relativePath: relativePathFor(item) },
+  )
   const bySize = new Map<number, typeof candidates>()
   for (const candidate of candidates) {
     const group = bySize.get(candidate.file.size) ?? []

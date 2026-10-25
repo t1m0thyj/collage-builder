@@ -41,7 +41,7 @@ export class UiPreferencesController {
     })
   }
 
-  private rememberColor(color: string) {
+  rememberColor = (color: string) => {
     this.host.setRecentColors(
       storeRecentColor(this.colorStorageKey, this.host.recentColors(), color),
     )

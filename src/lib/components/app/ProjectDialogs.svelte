@@ -251,9 +251,11 @@
     </div>
     <div class="export-form">
       <p>
-        This .collage.json project keeps its originals outside the project file. Choose the root
-        image folder; saved relative paths and image hashes will be used to find them safely.
+        This <code>.collage.json</code> project keeps its photos outside the project file. Choose their
+        folder so the app can scan files on this device and match them by path and image hash. Nothing
+        is uploaded.
       </p>
+      <p>Your browser may ask for read access to the folder or call this step “upload.”</p>
     </div>
     <div class="dialog-footer">
       <button class="button" onclick={() => (pendingLinkedDocument = null)}>Not now</button>
